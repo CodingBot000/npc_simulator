@@ -1,0 +1,81 @@
+{
+  "memories": {
+    "innkeeper": [
+      {
+        "id": "innkeeper-long-1",
+        "scope": "long",
+        "summary": "믿을 만한 손님에게만 강변 창고 근처의 소문을 흘린다.",
+        "tags": [
+          "소문",
+          "창고",
+          "신뢰"
+        ],
+        "importance": 8,
+        "timestamp": "2026-04-07T15:30:00.000Z"
+      },
+      {
+        "id": "innkeeper-short-1",
+        "scope": "short",
+        "summary": "플레이어가 지난 방문에서 무리한 값을 흥정하지 않았다.",
+        "tags": [
+          "거래",
+          "예의"
+        ],
+        "importance": 5,
+        "timestamp": "2026-04-07T15:30:00.000Z"
+      }
+    ],
+    "guard": [
+      {
+        "id": "guard-long-1",
+        "scope": "long",
+        "summary": "근거를 가져오는 민간인에게는 한 단계 더 협조적이다.",
+        "tags": [
+          "증거",
+          "보고",
+          "협조"
+        ],
+        "importance": 8,
+        "timestamp": "2026-04-07T15:30:00.000Z"
+      },
+      {
+        "id": "guard-short-1",
+        "scope": "short",
+        "summary": "최근 야간 순찰에서 등록되지 않은 마차 흔적을 봤다.",
+        "tags": [
+          "야간",
+          "마차",
+          "창고"
+        ],
+        "importance": 7,
+        "timestamp": "2026-04-07T15:30:00.000Z"
+      }
+    ],
+    "guild_clerk": [
+      {
+        "id": "guild-long-1",
+        "scope": "long",
+        "summary": "실적보다 신뢰 신호를 먼저 본다.",
+        "tags": [
+          "길드",
+          "신뢰",
+          "계약"
+        ],
+        "importance": 9,
+        "timestamp": "2026-04-07T15:30:00.000Z"
+      },
+      {
+        "id": "guild-short-1",
+        "scope": "short",
+        "summary": "잃어버린 화물 의뢰를 맡길 사람을 찾고 있지만 섣불리 열지 않는다.",
+        "tags": [
+          "화물",
+          "의뢰",
+          "선별"
+        ],
+        "importance": 7,
+        "timestamp": "2026-04-07T15:30:00.000Z"
+      }
+    ]
+  }
+}

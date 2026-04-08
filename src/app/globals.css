@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6ead6;
+  --foreground: #24160d;
+  --ink-muted: #6d5947;
+  --panel: rgba(255, 248, 236, 0.88);
+  --panel-strong: #fbf1e2;
+  --panel-border: rgba(139, 94, 52, 0.28);
+  --accent: #b05b2d;
+  --accent-soft: #f3c38f;
+  --teal: #2b676b;
+  --teal-soft: #d7ecec;
+  --danger: #8e3a2f;
+  --success: #2f6a4c;
+  --shadow: 0 22px 50px rgba(69, 38, 17, 0.16);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  position: relative;
+  color: var(--foreground);
+  font-family: var(--font-body), "Apple SD Gothic Neo", sans-serif;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(43, 103, 107, 0.14), transparent 30%),
+    radial-gradient(circle at 100% 10%, rgba(176, 91, 45, 0.18), transparent 28%),
+    linear-gradient(180deg, #f8ecd9 0%, #edd8b8 48%, #e4c59b 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image:
+    linear-gradient(rgba(78, 51, 30, 0.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(78, 51, 30, 0.22) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+::selection {
+  background: rgba(176, 91, 45, 0.88);
+  color: #fff;
+}
+
+.panel-surface {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.display-heading {
+  font-family: var(--font-display), serif;
+  letter-spacing: 0.03em;
+}
+
+.text-muted {
+  color: var(--ink-muted);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(109, 89, 71, 0.35);
+  border-radius: 999px;
+}
