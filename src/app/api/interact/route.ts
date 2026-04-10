@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 
 const requestSchema = z.object({
   npcId: z.string().min(1),
+  targetNpcId: z.string().min(1).nullable(),
   inputMode: z.enum(["free_text", "action"]),
   text: z.string(),
   action: z.enum(playerActions).nullable(),

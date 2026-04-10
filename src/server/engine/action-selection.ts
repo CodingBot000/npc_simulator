@@ -32,9 +32,9 @@ function normalizeCandidateActions(
 
   if (deduped.length === 1) {
     deduped.push({
-      type: "ask_back",
-      label: NPC_ACTION_LABELS.ask_back,
-      reason: "정보를 더 캐내기 위해 되묻는 선택지를 유지한다.",
+      type: "probe",
+      label: NPC_ACTION_LABELS.probe,
+      reason: "아직 확신하지 못한 정보를 더 끌어내기 위해 반응을 탐색한다.",
     });
   }
 

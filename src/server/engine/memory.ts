@@ -7,8 +7,9 @@ import type {
   LlmInteractionResult,
   MemoryEntry,
   NormalizedInteractionInput,
-  QuestUpdate,
+  PressureChange,
   RelationshipDelta,
+  ResolutionState,
 } from "@/lib/types";
 import { clamp, extractTags, nowIso, tokenize } from "@/lib/utils";
 
@@ -39,11 +40,19 @@ export function buildMemoryEntries(params: {
   normalizedInput: NormalizedInteractionInput;
   llmResult: LlmInteractionResult;
   relationshipDelta: RelationshipDelta;
-  questUpdates: QuestUpdate[];
+  pressureChanges: PressureChange[];
+  resolution: ResolutionState;
   existing: MemoryEntry[];
 }) {
-  const { npcName, normalizedInput, llmResult, relationshipDelta, questUpdates, existing } =
-    params;
+  const {
+    npcName,
+    normalizedInput,
+    llmResult,
+    relationshipDelta,
+    pressureChanges,
+    resolution,
+    existing,
+  } = params;
   const timestamp = nowIso();
   const summary = `플레이어가 ${normalizedInput.promptSummary}를 시도했고 ${npcName}은 ${llmResult.selectedAction.reason}을 근거로 반응했다.`;
   const importance = clamp(
@@ -51,7 +60,8 @@ export function buildMemoryEntries(params: {
       Math.abs(relationshipDelta.trust) +
       Math.abs(relationshipDelta.affinity) +
       Math.abs(relationshipDelta.tension) +
-      questUpdates.length * 2,
+      pressureChanges.reduce((acc, entry) => acc + Math.abs(entry.totalPressureDelta), 0) / 6 +
+      (resolution.resolved ? 4 : 0),
     1,
     10,
   );
@@ -60,7 +70,8 @@ export function buildMemoryEntries(params: {
       normalizedInput.text,
       llmResult.reply.text,
       llmResult.intent.summary,
-      questUpdates.map((update) => update.questId).join(" "),
+      pressureChanges.map((entry) => entry.candidateId).join(" "),
+      resolution.summary ?? "",
     ],
     [llmResult.selectedAction.type],
   );
@@ -83,7 +94,9 @@ export function buildMemoryEntries(params: {
       ? {
           id: crypto.randomUUID(),
           scope: "long" as const,
-          summary: `${npcName}은 이번 상호작용을 '${normalizedInput.promptSummary}'의 후속 단서로 기억한다.`,
+          summary: resolution.resolved
+            ? `${npcName}은 이번 대화를 희생 대상이 굳어진 분기점으로 기억한다.`
+            : `${npcName}은 이번 대화를 방 안의 희생 압력이 이동한 순간으로 기억한다.`,
           tags: shortMemory.tags.slice(0, 4),
           importance: clamp(importance - 1, 1, 10),
           timestamp,

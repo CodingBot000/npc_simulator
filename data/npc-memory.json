@@ -1,80 +1,89 @@
 {
   "memories": {
-    "innkeeper": [
+    "director": [
       {
-        "id": "innkeeper-long-1",
+        "id": "259ad750-f94a-4bf5-99f4-0337ebd307a7",
         "scope": "long",
-        "summary": "믿을 만한 손님에게만 강변 창고 근처의 소문을 흘린다.",
+        "summary": "서진호은 이번 대화를 방 안의 희생 압력이 이동한 순간으로 기억한다.",
         "tags": [
-          "소문",
-          "창고",
-          "신뢰"
-        ],
-        "importance": 8,
-        "timestamp": "2026-04-07T15:30:00.000Z"
-      },
-      {
-        "id": "innkeeper-short-1",
-        "scope": "short",
-        "summary": "플레이어가 지난 방문에서 무리한 값을 흥정하지 않았다.",
-        "tags": [
-          "거래",
-          "예의"
-        ],
-        "importance": 5,
-        "timestamp": "2026-04-07T15:30:00.000Z"
-      }
-    ],
-    "guard": [
-      {
-        "id": "guard-long-1",
-        "scope": "long",
-        "summary": "근거를 가져오는 민간인에게는 한 단계 더 협조적이다.",
-        "tags": [
-          "증거",
-          "보고",
-          "협조"
-        ],
-        "importance": 8,
-        "timestamp": "2026-04-07T15:30:00.000Z"
-      },
-      {
-        "id": "guard-short-1",
-        "scope": "short",
-        "summary": "최근 야간 순찰에서 등록되지 않은 마차 흔적을 봤다.",
-        "tags": [
-          "야간",
-          "마차",
-          "창고"
-        ],
-        "importance": 7,
-        "timestamp": "2026-04-07T15:30:00.000Z"
-      }
-    ],
-    "guild_clerk": [
-      {
-        "id": "guild-long-1",
-        "scope": "long",
-        "summary": "실적보다 신뢰 신호를 먼저 본다.",
-        "tags": [
-          "길드",
-          "신뢰",
-          "계약"
+          "deflect",
+          "논리라면",
+          "숫자부터",
+          "보지"
         ],
         "importance": 9,
-        "timestamp": "2026-04-07T15:30:00.000Z"
+        "timestamp": "2026-04-10T08:15:17.152Z"
       },
       {
-        "id": "guild-short-1",
-        "scope": "short",
-        "summary": "잃어버린 화물 의뢰를 맡길 사람을 찾고 있지만 섣불리 열지 않는다.",
+        "id": "director-long-1",
+        "scope": "long",
+        "summary": "권위가 흔들리면 집단이 무너진다고 믿는다.",
         "tags": [
-          "화물",
-          "의뢰",
-          "선별"
+          "authority",
+          "control",
+          "hierarchy"
         ],
-        "importance": 7,
-        "timestamp": "2026-04-07T15:30:00.000Z"
+        "importance": 9,
+        "timestamp": "2026-04-09T12:00:00.000Z"
+      },
+      {
+        "id": "48363e21-9d58-498a-beb7-cf805c811fec",
+        "scope": "short",
+        "summary": "플레이어가 논리 제시을 시도했다를 시도했고 서진호은 빈 논리 제시를 받아들이지 않고 판단 기준을 자신에게 유리한 지휘와 수습 능력으로 옮기는 것이 가장 안전하다.을 근거로 반응했다.",
+        "tags": [
+          "deflect",
+          "논리라면",
+          "숫자부터",
+          "보지",
+          "밸브실은",
+          "명을",
+          "요구하고",
+          "구조선은"
+        ],
+        "importance": 10,
+        "timestamp": "2026-04-10T08:15:17.152Z"
+      }
+    ],
+    "supervisor": [
+      {
+        "id": "supervisor-long-1",
+        "scope": "long",
+        "summary": "법적 책임선이 어디서 끊기는지가 생존보다 먼저 보인다.",
+        "tags": [
+          "legal",
+          "risk",
+          "liability"
+        ],
+        "importance": 9,
+        "timestamp": "2026-04-09T12:00:00.000Z"
+      }
+    ],
+    "engineer": [
+      {
+        "id": "engineer-long-1",
+        "scope": "long",
+        "summary": "현장을 모르는 권위자에게 생존 판단을 맡기면 안 된다고 여긴다.",
+        "tags": [
+          "field",
+          "utility",
+          "anger"
+        ],
+        "importance": 9,
+        "timestamp": "2026-04-09T12:00:00.000Z"
+      }
+    ],
+    "doctor": [
+      {
+        "id": "doctor-long-1",
+        "scope": "long",
+        "summary": "진실을 감춘 상태의 생존은 오래 버티지 못한다고 믿는다.",
+        "tags": [
+          "truth",
+          "ethics",
+          "guilt"
+        ],
+        "importance": 9,
+        "timestamp": "2026-04-09T12:00:00.000Z"
       }
     ]
   }

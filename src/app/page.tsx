@@ -1,10 +1,5 @@
-import { HubClient } from "@/components/hub/hub-client";
-import { getWorldSnapshot } from "@/server/engine/world-state";
+import { HubRoute } from "@/components/hub/hub-route";
 
-export const dynamic = "force-dynamic";
-
-export default async function Home() {
-  const initialWorld = await getWorldSnapshot();
-
-  return <HubClient initialWorld={initialWorld} />;
+export default function Home() {
+  return <HubRoute />;
 }

@@ -7,6 +7,7 @@ import type {
   WorldStateFile,
 } from "@/lib/types";
 import { DATA_DIR } from "@/server/config";
+import { getCurrentScenario } from "@/server/scenario";
 import {
   createSeedInteractionLog,
   createSeedMemoryFile,
@@ -44,6 +45,23 @@ export class FileWorldRepository implements WorldRepository {
     ]);
 
     if (checks.some((check) => check.status === "rejected")) {
+      await this.resetToSeed();
+      return;
+    }
+
+    try {
+      const worldState = await readJsonFile<Partial<WorldStateFile>>(this.worldStatePath);
+      const scenarioId = getCurrentScenario().id;
+
+      if (
+        worldState.scenarioId !== scenarioId ||
+        !worldState.round ||
+        !worldState.resolution ||
+        !Array.isArray(worldState.judgements)
+      ) {
+        await this.resetToSeed();
+      }
+    } catch {
       await this.resetToSeed();
     }
   }

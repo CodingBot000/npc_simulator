@@ -6,20 +6,23 @@ const toneClasses: Record<EventLogEntry["tone"], string> = {
   info: "bg-sky-100 text-sky-700",
   success: "bg-emerald-100 text-emerald-700",
   warning: "bg-amber-100 text-amber-700",
+  danger: "bg-rose-100 text-rose-700",
 };
 
 export function EventLog({ events }: { events: EventLogEntry[] }) {
   return (
     <Panel
-      eyebrow="World Echo"
-      title="월드 이벤트 로그"
-      subtitle="대화 결과가 세계에 남기는 흔적"
+      eyebrow="Chamber Log"
+      title="통제실 로그"
+      subtitle="새로 드러난 기록, 구조 지연, 압력 이동의 흔적"
+      className="h-full flex flex-col overflow-hidden"
+      contentClassName="flex-1 min-h-0"
     >
-      <div className="space-y-3">
+      <div className="scrollbar-thin h-full space-y-2.5 overflow-y-auto pr-2">
         {events.map((event) => (
           <article
             key={event.id}
-            className="rounded-[22px] border border-[var(--panel-border)] bg-white/55 px-4 py-4"
+            className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 px-4 py-3.5"
           >
             <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-foreground">{event.title}</h3>

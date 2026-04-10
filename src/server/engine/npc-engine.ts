@@ -1,4 +1,8 @@
-import { NPC_ACTION_LABELS } from "@/lib/constants";
+import {
+  DEFAULT_PLAYER_ID,
+  DEFAULT_PLAYER_LABEL,
+  NPC_ACTION_LABELS,
+} from "@/lib/constants";
 import type {
   InspectorPayload,
   InteractionLogEntry,
@@ -6,9 +10,8 @@ import type {
   InteractionResponsePayload,
   NpcState,
   PersistedNpcState,
-  RelationshipDelta,
 } from "@/lib/types";
-import { actionLabel } from "@/lib/utils";
+import { actionLabel, nowIso } from "@/lib/utils";
 import { normalizeLlmInteractionResult } from "@/server/engine/action-selection";
 import { normalizeInteractionInput } from "@/server/engine/intent";
 import {
@@ -17,71 +20,27 @@ import {
   updateMemoryBank,
 } from "@/server/engine/memory";
 import {
-  applyRelationshipDelta,
-  applyRippleEffects,
-  calculateRelationshipDelta,
-  deriveRippleEffects,
-} from "@/server/engine/relationship";
-import { applyQuestUpdates } from "@/server/engine/quest-engine";
+  applyInteractionPressure,
+  boardTargetLabel,
+  buildConsensusBoard,
+  nextSpeakerState,
+  progressRound,
+  resolveIfNeeded,
+} from "@/server/engine/pressure-engine";
 import {
   buildWorldSnapshot,
-  composeEventLogEntry,
+  composeInteractionEventLogEntry,
+  composeRoundEventLogEntry,
 } from "@/server/engine/world-state";
 import { getLlmProvider } from "@/server/providers/llm-provider";
 import { createWorldRepository } from "@/server/store/repositories";
 
-function evolveNpcState(npc: NpcState, delta: import("@/lib/types").RelationshipDelta) {
-  return {
-    ...npc,
-    goals: {
-      ...npc.goals,
-      opennessToPlayer: Math.max(
-        0,
-        Math.min(100, npc.goals.opennessToPlayer + delta.trust + delta.affinity - delta.tension),
-      ),
-      currentNeed:
-        delta.trust + delta.affinity > 1
-          ? "플레이어가 약속을 실제 단서로 연결할 수 있는지 본다."
-          : delta.tension > 1
-            ? "리스크를 낮출 거리를 확보한다."
-            : npc.goals.currentNeed,
-    },
-  };
-}
-
-export async function interactWithNpc(
-  request: InteractionRequestPayload,
-): Promise<InteractionResponsePayload> {
-  const repository = createWorldRepository();
-  await repository.ensureSeedData();
-
-  const [worldState, memoryFile, interactionLog] = await Promise.all([
-    repository.readWorldState(),
-    repository.readMemoryFile(),
-    repository.readInteractionLog(),
-  ]);
-
-  const npcIndex = worldState.npcs.findIndex(
-    (candidate) => candidate.persona.id === request.npcId,
-  );
-
-  if (npcIndex < 0) {
-    throw new Error(`NPC '${request.npcId}' does not exist.`);
-  }
-
-  const persistedNpc = worldState.npcs[npcIndex];
-  const npc: NpcState = {
-    ...persistedNpc,
-    memories: memoryFile.memories[request.npcId] ?? [],
-  };
-
-  const normalizedInput = normalizeInteractionInput({
-    text: request.text,
-    action: request.action,
-    inputMode: request.inputMode,
-  });
-  const recentConversation = interactionLog.entries
-    .filter((entry) => entry.npcId === request.npcId)
+function recentConversationForNpc(
+  entries: InteractionLogEntry[],
+  npcId: string,
+) {
+  return entries
+    .filter((entry) => entry.npcId === npcId)
     .slice(-4)
     .flatMap((entry) => [
       {
@@ -101,11 +60,62 @@ export async function interactWithNpc(
         action: entry.selectedAction,
       },
     ]);
-  const retrievedMemories = retrieveRelevantMemories(npc.memories, normalizedInput);
-  const relatedQuests = worldState.quests.filter(
-    (quest) => quest.giverNpcId === request.npcId || quest.status !== "locked",
+}
+
+function persistNpc(nextNpc: PersistedNpcState, npcs: PersistedNpcState[]) {
+  const index = npcs.findIndex((candidate) => candidate.persona.id === nextNpc.persona.id);
+
+  if (index >= 0) {
+    npcs[index] = nextNpc;
+  }
+}
+
+export async function interactWithNpc(
+  request: InteractionRequestPayload,
+): Promise<InteractionResponsePayload> {
+  const repository = createWorldRepository();
+  await repository.ensureSeedData();
+
+  const [worldState, memoryFile, interactionLog] = await Promise.all([
+    repository.readWorldState(),
+    repository.readMemoryFile(),
+    repository.readInteractionLog(),
+  ]);
+
+  if (worldState.resolution.resolved) {
+    throw new Error("이미 희생 대상이 확정되었습니다. reset 후 다시 시작하세요.");
+  }
+
+  const npcIndex = worldState.npcs.findIndex(
+    (candidate) => candidate.persona.id === request.npcId,
   );
-  const recentEvents = worldState.events.slice(0, 3);
+
+  if (npcIndex < 0) {
+    throw new Error(`NPC '${request.npcId}' does not exist.`);
+  }
+
+  const persistedNpc = worldState.npcs[npcIndex];
+  const npc: NpcState = {
+    ...persistedNpc,
+    memories: memoryFile.memories[request.npcId] ?? [],
+  };
+  const targetNpc =
+    request.targetNpcId && request.targetNpcId !== DEFAULT_PLAYER_ID
+      ? worldState.npcs.find((candidate) => candidate.persona.id === request.targetNpcId) ?? null
+      : null;
+
+  const normalizedInput = normalizeInteractionInput({
+    text: request.text,
+    action: request.action,
+    inputMode: request.inputMode,
+  });
+  const recentConversation = recentConversationForNpc(interactionLog.entries, request.npcId);
+  const retrievedMemories = retrieveRelevantMemories(npc.memories, normalizedInput);
+  const consensusBoardBefore = buildConsensusBoard({
+    judgements: worldState.judgements,
+    npcs: worldState.npcs,
+  });
+  const recentEvents = worldState.events.slice(0, 4);
 
   const provider = getLlmProvider();
   const llmResult = normalizeLlmInteractionResult(
@@ -113,7 +123,9 @@ export async function interactWithNpc(
       request,
       world: worldState.world,
       npc,
-      relatedQuests,
+      targetNpc,
+      round: worldState.round,
+      consensusBoard: consensusBoardBefore,
       recentEvents,
       recentConversation,
       retrievedMemories,
@@ -121,45 +133,52 @@ export async function interactWithNpc(
     }),
   );
 
-  const relationshipDelta: RelationshipDelta = calculateRelationshipDelta({
-    normalizedInput,
-    selectedAction: llmResult.selectedAction,
+  const { npc: nextNpc, relationshipDelta } = nextSpeakerState({
+    npc,
+    action: request.action,
   });
+  persistNpc(nextNpc, worldState.npcs);
 
-  const nextNpc = evolveNpcState(
-    {
-      ...npc,
-      emotion: llmResult.emotion,
-      relationship: applyRelationshipDelta(npc.relationship, relationshipDelta),
-    },
-    relationshipDelta,
-  );
-  const persistedNextNpc: PersistedNpcState = {
-    persona: nextNpc.persona,
-    emotion: nextNpc.emotion,
-    relationship: nextNpc.relationship,
-    goals: nextNpc.goals,
-    currentLocation: nextNpc.currentLocation,
-    statusLine: nextNpc.statusLine,
-  };
-  worldState.npcs[npcIndex] = persistedNextNpc;
-
-  const questUpdates = applyQuestUpdates({
-    npcId: request.npcId,
-    quests: worldState.quests,
-    normalizedInput,
-    selectedAction: llmResult.selectedAction,
-    relationship: nextNpc.relationship,
-  });
-
-  const rippleEffects = deriveRippleEffects({
+  const pressureUpdate = applyInteractionPressure({
+    judgements: worldState.judgements,
     npcs: worldState.npcs,
-    sourceNpcId: request.npcId,
-    normalizedInput,
-    selectedAction: llmResult.selectedAction,
+    targetNpcId: request.targetNpcId,
+    action: request.action,
+    round: worldState.round,
   });
-  applyRippleEffects(worldState.npcs, rippleEffects);
-  relationshipDelta.rippleEffects = rippleEffects;
+  worldState.judgements = pressureUpdate.judgements;
+
+  const roundProgress = progressRound(worldState.round);
+  worldState.round = roundProgress.round;
+
+  const consensusBoard = pressureUpdate.consensusBoard;
+  const resolution = resolveIfNeeded({
+    round: worldState.round,
+    consensusBoard,
+  });
+  worldState.resolution = resolution;
+
+  const timestamp = nowIso();
+  const targetLabel = request.targetNpcId
+    ? boardTargetLabel(request.targetNpcId, worldState.npcs)
+    : null;
+
+  const eventLogEntry = composeInteractionEventLogEntry({
+    npcId: request.npcId,
+    npcName: npc.persona.name,
+    selectedActionLabel: NPC_ACTION_LABELS[llmResult.selectedAction.type],
+    promptSummary: normalizedInput.promptSummary,
+    targetLabel,
+    pressureChanges: pressureUpdate.pressureChanges,
+    resolution,
+  });
+  eventLogEntry.timestamp = timestamp;
+  worldState.events.unshift(eventLogEntry);
+
+  if (roundProgress.roundEvent) {
+    const roundEventEntry = composeRoundEventLogEntry(roundProgress.roundEvent);
+    worldState.events.unshift(roundEventEntry);
+  }
 
   const nextMemories = updateMemoryBank(
     memoryFile.memories[request.npcId] ?? [],
@@ -168,25 +187,19 @@ export async function interactWithNpc(
       normalizedInput,
       llmResult,
       relationshipDelta,
-      questUpdates,
+      pressureChanges: pressureUpdate.pressureChanges,
+      resolution,
       existing: memoryFile.memories[request.npcId] ?? [],
     }),
   );
   memoryFile.memories[request.npcId] = nextMemories;
 
-  const eventLogEntry = composeEventLogEntry({
-    npcId: request.npcId,
-    npcName: npc.persona.name,
-    selectedActionLabel: NPC_ACTION_LABELS[llmResult.selectedAction.type],
-    promptSummary: normalizedInput.promptSummary,
-    questUpdates,
-    rippleNotes: rippleEffects.map((effect) => effect.note),
-  });
-  worldState.events.unshift(eventLogEntry);
+  const leadingCandidate = consensusBoard[0] ?? null;
 
   const inspector: InspectorPayload = {
-    timestamp: eventLogEntry.timestamp,
+    timestamp,
     npcId: request.npcId,
+    targetNpcId: request.targetNpcId,
     retrievedMemories,
     emotion: llmResult.emotion,
     intent: llmResult.intent,
@@ -194,22 +207,32 @@ export async function interactWithNpc(
     selectedAction: llmResult.selectedAction,
     selectedActionReason: llmResult.selectedAction.reason,
     relationshipDelta,
-    questUpdates,
+    pressureChanges: pressureUpdate.pressureChanges,
+    leadingCandidateId: leadingCandidate?.candidateId ?? null,
+    leadingCandidateLabel: leadingCandidate?.candidateLabel ?? null,
+    round: worldState.round.currentRound,
+    resolution,
   };
   worldState.lastInspector = inspector;
 
   const logEntry: InteractionLogEntry = {
     id: crypto.randomUUID(),
     npcId: request.npcId,
+    targetNpcId: request.targetNpcId,
     playerId: request.playerId,
     inputMode: request.inputMode,
-    playerText: normalizedInput.text || actionLabel(request.action),
+    playerText:
+      normalizedInput.text ||
+      (request.targetNpcId
+        ? `${actionLabel(request.action)}: ${targetLabel ?? DEFAULT_PLAYER_LABEL}`
+        : actionLabel(request.action)),
     playerAction: request.action,
     replyText: llmResult.reply.text,
-    timestamp: eventLogEntry.timestamp,
+    timestamp,
     selectedAction: llmResult.selectedAction.type,
     relationshipDelta,
-    questUpdates,
+    pressureChanges: pressureUpdate.pressureChanges,
+    round: worldState.round.currentRound,
   };
   interactionLog.entries.push(logEntry);
 
@@ -230,9 +253,10 @@ export async function interactWithNpc(
   return {
     reply: llmResult.reply,
     relationshipDelta,
-    questUpdates,
+    pressureChanges: pressureUpdate.pressureChanges,
     eventLogEntry,
     inspector,
+    resolution,
     world,
   };
 }

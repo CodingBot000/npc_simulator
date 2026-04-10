@@ -6,6 +6,7 @@ interface PanelProps {
   subtitle?: string;
   trailing?: ReactNode;
   className?: string;
+  contentClassName?: string;
   children: ReactNode;
 }
 
@@ -15,11 +16,12 @@ export function Panel({
   subtitle,
   trailing,
   className = "",
+  contentClassName = "",
   children,
 }: PanelProps) {
   return (
     <section
-      className={`panel-surface rounded-[28px] px-5 py-4 md:px-6 md:py-5 ${className}`}
+      className={`panel-surface rounded-[28px] px-6 py-5 ${className}`}
     >
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
@@ -39,7 +41,7 @@ export function Panel({
         </div>
         {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
-      {children}
+      <div className={contentClassName}>{children}</div>
     </section>
   );
 }

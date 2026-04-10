@@ -1,43 +1,41 @@
 export const emotionPrimaries = [
-  "calm",
-  "curious",
-  "guarded",
-  "annoyed",
-  "friendly",
+  "focused",
+  "fearful",
+  "angry",
+  "guilty",
+  "cold",
+  "desperate",
 ] as const;
 
 export const allowedActionTypes = [
-  "answer",
-  "ask_back",
-  "refuse",
-  "hint",
-  "negotiate",
-  "accept_request",
-  "delay",
+  "accuse",
+  "defend",
+  "deflect",
+  "appeal",
+  "ally",
+  "stall",
+  "probe",
 ] as const;
 
 export const playerActions = [
-  "question",
-  "persuade",
-  "trade",
-  "request",
-  "empathize",
-  "pressure",
+  "make_case",
+  "expose",
+  "appeal",
+  "ally",
+  "deflect",
+  "stall",
+  "confess",
 ] as const;
 
 export type EmotionPrimary = (typeof emotionPrimaries)[number];
 export type AllowedActionType = (typeof allowedActionTypes)[number];
 export type PlayerAction = (typeof playerActions)[number];
 export type InputMode = "free_text" | "action";
-export type QuestStatus =
-  | "locked"
-  | "available"
-  | "active"
-  | "completed"
-  | "failed";
 export type LlmProviderMode = "codex" | "openai";
 
 export type NpcId = string;
+export type CandidateId = string;
+export type ResolutionType = "threshold" | "consensus" | "max_rounds" | null;
 
 export interface NpcPersona {
   id: NpcId;
@@ -78,11 +76,19 @@ export interface NpcGoalState {
   opennessToPlayer: number;
 }
 
+export interface NpcDecisionProfile {
+  biasSummary: string;
+  survivalRationale: string;
+  redLines: string[];
+  initialTargets: string[];
+}
+
 export interface PersistedNpcState {
   persona: NpcPersona;
   emotion: NpcEmotionState;
   relationship: RelationshipState;
   goals: NpcGoalState;
+  decision: NpcDecisionProfile;
   currentLocation: string;
   statusLine: string;
 }
@@ -91,24 +97,14 @@ export interface NpcState extends PersistedNpcState {
   memories: MemoryEntry[];
 }
 
-export interface Quest {
-  id: string;
-  title: string;
-  giverNpcId: string;
-  status: QuestStatus;
-  summary: string;
-  requirements: string[];
-  rewards: string[];
-}
-
 export interface EventLogEntry {
   id: string;
   timestamp: string;
   title: string;
   detail: string;
-  tags: string[];
+  tags: readonly string[];
   npcId: string;
-  tone: "info" | "success" | "warning";
+  tone: "info" | "success" | "warning" | "danger";
 }
 
 export interface CandidateAction {
@@ -140,32 +136,34 @@ export interface LlmInteractionResult {
   selectedAction: SelectedAction;
 }
 
-export interface RippleEffect {
-  npcId: string;
-  trust: number;
-  affinity: number;
-  tension: number;
-  note: string;
+export interface PressureImpact {
+  blame: number;
+  distrust: number;
+  hostility: number;
+  dispensability: number;
+  utility: number;
+  sympathy: number;
+}
+
+export interface PressureChange {
+  candidateId: CandidateId;
+  candidateLabel: string;
+  totalPressureDelta: number;
+  dimensionDelta: Partial<JudgementDimensions>;
+  factors: string[];
+  reasons: string[];
 }
 
 export interface RelationshipDelta {
   trust: number;
   affinity: number;
   tension: number;
-  rippleEffects?: RippleEffect[];
-}
-
-export interface QuestUpdate {
-  questId: string;
-  title: string;
-  from: QuestStatus;
-  to: QuestStatus;
-  note: string;
 }
 
 export interface InspectorPayload {
   timestamp: string;
   npcId: string;
+  targetNpcId: string | null;
   retrievedMemories: MemoryEntry[];
   emotion: NpcEmotionState;
   intent: IntentSummary;
@@ -173,12 +171,17 @@ export interface InspectorPayload {
   selectedAction: SelectedAction;
   selectedActionReason: string;
   relationshipDelta: RelationshipDelta;
-  questUpdates: QuestUpdate[];
+  pressureChanges: PressureChange[];
+  leadingCandidateId: CandidateId | null;
+  leadingCandidateLabel: string | null;
+  round: number;
+  resolution: ResolutionState;
 }
 
 export interface InteractionLogEntry {
   id: string;
   npcId: string;
+  targetNpcId: string | null;
   playerId: string;
   inputMode: InputMode;
   playerText: string;
@@ -187,7 +190,8 @@ export interface InteractionLogEntry {
   timestamp: string;
   selectedAction: AllowedActionType;
   relationshipDelta: RelationshipDelta;
-  questUpdates: QuestUpdate[];
+  pressureChanges: PressureChange[];
+  round: number;
 }
 
 export interface ChatMessage {
@@ -206,6 +210,24 @@ export interface RuntimeStatus {
   detail: string;
 }
 
+export interface ScenarioPresentationSnapshot {
+  appTitle: string;
+  npcListTitle: string;
+  npcListSubtitle: string;
+  interactionTitle: string;
+  interactionSubtitle: string;
+  interactionPlaceholder: string;
+  boardTitle: string;
+  boardSubtitle: string;
+}
+
+export interface AvailableActionDefinition {
+  id: PlayerAction;
+  label: string;
+  description: string;
+  requiresTarget: boolean;
+}
+
 export interface WorldMeta {
   location: string;
   time: string;
@@ -213,12 +235,57 @@ export interface WorldMeta {
   mood: string;
 }
 
+export interface RoundState {
+  currentRound: number;
+  minRoundsBeforeResolution: number;
+  maxRounds: number;
+  resolutionUnlocked: boolean;
+  rescueEtaLabel: string;
+  facilityStatus: string;
+}
+
+export interface JudgementDimensions {
+  blame: number;
+  distrust: number;
+  hostility: number;
+  dispensability: number;
+  utility: number;
+  sympathy: number;
+}
+
+export interface JudgementState {
+  evaluatorNpcId: string;
+  candidateId: CandidateId;
+  dimensions: JudgementDimensions;
+  sacrificePreference: number;
+}
+
+export interface ConsensusBoardEntry {
+  candidateId: CandidateId;
+  candidateLabel: string;
+  totalPressure: number;
+  topVotes: number;
+  trend: "up" | "down" | "flat";
+  summary: string;
+}
+
+export interface ResolutionState {
+  resolved: boolean;
+  sacrificedNpcId: CandidateId | null;
+  sacrificedLabel: string | null;
+  resolutionType: ResolutionType;
+  summary: string | null;
+}
+
 export interface WorldStateFile {
+  scenarioId: string;
   world: WorldMeta;
   npcs: PersistedNpcState[];
-  quests: Quest[];
   events: EventLogEntry[];
   lastInspector: InspectorPayload | null;
+  round: RoundState;
+  judgements: JudgementState[];
+  resolution: ResolutionState;
 }
 
 export interface NpcMemoryFile {
@@ -230,17 +297,23 @@ export interface InteractionLogFile {
 }
 
 export interface WorldSnapshot {
+  scenarioId: string;
+  presentation: ScenarioPresentationSnapshot;
+  availableActions: AvailableActionDefinition[];
   world: WorldMeta;
   npcs: NpcState[];
-  quests: Quest[];
   events: EventLogEntry[];
   conversations: Record<string, ChatMessage[]>;
+  round: RoundState;
+  consensusBoard: ConsensusBoardEntry[];
   lastInspector: InspectorPayload | null;
   runtime: RuntimeStatus;
+  resolution: ResolutionState;
 }
 
 export interface InteractionRequestPayload {
   npcId: string;
+  targetNpcId: string | null;
   inputMode: InputMode;
   text: string;
   action: PlayerAction | null;
@@ -258,7 +331,9 @@ export interface GenerateInteractionInput {
   request: InteractionRequestPayload;
   world: WorldMeta;
   npc: NpcState;
-  relatedQuests: Quest[];
+  targetNpc: PersistedNpcState | null;
+  round: RoundState;
+  consensusBoard: ConsensusBoardEntry[];
   recentEvents: EventLogEntry[];
   recentConversation: ChatMessage[];
   retrievedMemories: MemoryEntry[];
@@ -268,9 +343,10 @@ export interface GenerateInteractionInput {
 export interface InteractionResponsePayload {
   reply: ReplyPayload;
   relationshipDelta: RelationshipDelta;
-  questUpdates: QuestUpdate[];
+  pressureChanges: PressureChange[];
   eventLogEntry: EventLogEntry;
   inspector: InspectorPayload;
+  resolution: ResolutionState;
   world: WorldSnapshot;
 }
 
@@ -280,4 +356,29 @@ export interface LlmProvider {
   generateInteraction(
     input: GenerateInteractionInput,
   ): Promise<LlmInteractionResult>;
+}
+
+export type QuestStatus =
+  | "locked"
+  | "available"
+  | "active"
+  | "completed"
+  | "failed";
+
+export interface Quest {
+  id: string;
+  title: string;
+  giverNpcId: string;
+  status: QuestStatus;
+  summary: string;
+  requirements: string[];
+  rewards: string[];
+}
+
+export interface QuestUpdate {
+  questId: string;
+  title: string;
+  from: QuestStatus;
+  to: QuestStatus;
+  note: string;
 }
