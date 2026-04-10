@@ -8,8 +8,10 @@ import type {
   WorldSnapshot,
   WorldStateFile,
 } from "@/lib/types";
-import { groupBy } from "@/lib/utils";
+import { formatDimensionDelta, groupBy } from "@/lib/utils";
+import { buildConsensusBoard } from "@/server/engine/pressure-engine";
 import { getLlmProvider } from "@/server/providers/llm-provider";
+import { getCurrentScenario } from "@/server/scenario";
 import { createWorldRepository } from "@/server/store/repositories";
 
 function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
@@ -18,7 +20,7 @@ function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
       id: `${entry.id}-player`,
       npcId: entry.npcId,
       speaker: "player",
-      text: entry.playerText || "행동 버튼을 눌렀다.",
+      text: entry.playerText || "짧게 숨을 고르며 방 안의 시선을 읽었다.",
       timestamp: entry.timestamp,
       action: entry.playerAction,
     },
@@ -47,35 +49,62 @@ function buildConversations(entries: InteractionLogEntry[]) {
   );
 }
 
-export function composeEventLogEntry(params: {
+export function composeInteractionEventLogEntry(params: {
   npcId: string;
   npcName: string;
   selectedActionLabel: string;
   promptSummary: string;
-  questUpdates: import("@/lib/types").QuestUpdate[];
-  rippleNotes: string[];
+  targetLabel: string | null;
+  pressureChanges: import("@/lib/types").PressureChange[];
+  resolution: import("@/lib/types").ResolutionState;
 }) {
-  const tone: EventLogEntry["tone"] =
-    params.questUpdates.length > 0 ? "success" : params.rippleNotes.length > 0 ? "warning" : "info";
+  const tone: EventLogEntry["tone"] = params.resolution.resolved
+    ? "danger"
+    : params.pressureChanges.some((entry) => entry.totalPressureDelta > 0)
+      ? "warning"
+      : "info";
 
   return {
     id: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
-    title: `${params.npcName}와의 상호작용`,
+    title: `${params.npcName} 반응`,
     detail: [
-      `${params.selectedActionLabel}으로 반응했다.`,
+      `${params.selectedActionLabel} 성향으로 반응했다.`,
       `플레이어 시도: ${params.promptSummary}.`,
-      ...params.questUpdates.map((update) => `${update.title}: ${update.note}`),
-      ...params.rippleNotes,
-    ].join(" "),
+      params.targetLabel ? `논의 대상: ${params.targetLabel}.` : null,
+      ...params.pressureChanges.map(
+        (entry) =>
+          `${entry.candidateLabel} 압력 ${entry.totalPressureDelta >= 0 ? "+" : ""}${entry.totalPressureDelta}. ${formatDimensionDelta(entry.dimensionDelta, { omitZero: true })}. ${entry.reasons.join(" ")}`,
+      ),
+      params.resolution.resolved ? params.resolution.summary : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
     tags: [
       params.npcId,
       params.selectedActionLabel,
-      ...params.questUpdates.map((update) => update.questId),
+      ...(params.targetLabel ? [params.targetLabel] : []),
     ],
     npcId: params.npcId,
     tone,
   };
+}
+
+export function composeRoundEventLogEntry(params: {
+  title: string;
+  detail: string;
+  tags: readonly string[];
+  tone: EventLogEntry["tone"];
+}) {
+  return {
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    title: params.title,
+    detail: params.detail,
+    tags: params.tags,
+    npcId: "system",
+    tone: params.tone,
+  } satisfies EventLogEntry;
 }
 
 export function buildWorldSnapshot(params: {
@@ -84,21 +113,30 @@ export function buildWorldSnapshot(params: {
   interactionLog: InteractionLogEntry[];
   runtime: RuntimeStatus;
 }): WorldSnapshot {
+  const scenario = getCurrentScenario();
   const npcs = params.worldState.npcs.map((npc) => ({
     ...npc,
     memories: params.memories[npc.persona.id] ?? [],
   }));
 
   return {
+    scenarioId: scenario.id,
+    presentation: { ...scenario.presentation },
+    availableActions: [...scenario.actions],
     world: params.worldState.world,
     npcs,
-    quests: [...params.worldState.quests],
     events: [...params.worldState.events]
       .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
       .slice(0, MAX_EVENT_LOG_ENTRIES),
     conversations: buildConversations(params.interactionLog),
+    round: params.worldState.round,
+    consensusBoard: buildConsensusBoard({
+      judgements: params.worldState.judgements,
+      npcs: params.worldState.npcs,
+    }),
     lastInspector: params.worldState.lastInspector,
     runtime: params.runtime,
+    resolution: params.worldState.resolution,
   };
 }
 

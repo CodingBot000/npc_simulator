@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6ead6;
-  --foreground: #24160d;
-  --ink-muted: #6d5947;
-  --panel: rgba(255, 248, 236, 0.88);
-  --panel-strong: #fbf1e2;
-  --panel-border: rgba(139, 94, 52, 0.28);
-  --accent: #b05b2d;
-  --accent-soft: #f3c38f;
-  --teal: #2b676b;
-  --teal-soft: #d7ecec;
-  --danger: #8e3a2f;
-  --success: #2f6a4c;
-  --shadow: 0 22px 50px rgba(69, 38, 17, 0.16);
+  --background: #07131e;
+  --foreground: #e5f1f7;
+  --ink-muted: #8aa6b5;
+  --panel: rgba(8, 24, 36, 0.82);
+  --panel-strong: rgba(12, 33, 48, 0.94);
+  --panel-border: rgba(117, 151, 174, 0.22);
+  --accent: #d16f4c;
+  --accent-soft: rgba(209, 111, 76, 0.14);
+  --teal: #4cc2c8;
+  --teal-soft: rgba(76, 194, 200, 0.12);
+  --danger: #d65a5a;
+  --success: #4aa67c;
+  --shadow: 0 22px 50px rgba(2, 10, 17, 0.4);
 }
 
 @theme inline {
@@ -37,9 +37,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-body), "Apple SD Gothic Neo", sans-serif;
   background:
-    radial-gradient(circle at 0% 0%, rgba(43, 103, 107, 0.14), transparent 30%),
-    radial-gradient(circle at 100% 10%, rgba(176, 91, 45, 0.18), transparent 28%),
-    linear-gradient(180deg, #f8ecd9 0%, #edd8b8 48%, #e4c59b 100%);
+    radial-gradient(circle at 15% 0%, rgba(76, 194, 200, 0.14), transparent 25%),
+    radial-gradient(circle at 100% 0%, rgba(209, 111, 76, 0.18), transparent 30%),
+    linear-gradient(180deg, #0b1927 0%, #08131e 48%, #050a10 100%);
 }
 
 body::before {
@@ -49,13 +49,23 @@ body::before {
   pointer-events: none;
   opacity: 0.08;
   background-image:
-    linear-gradient(rgba(78, 51, 30, 0.25) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(78, 51, 30, 0.22) 1px, transparent 1px);
+    linear-gradient(rgba(116, 151, 174, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116, 151, 174, 0.22) 1px, transparent 1px);
   background-size: 26px 26px;
 }
 
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(76, 194, 200, 0.04), transparent 20%),
+    radial-gradient(circle at 50% 0%, rgba(76, 194, 200, 0.12), transparent 35%);
+}
+
 ::selection {
-  background: rgba(176, 91, 45, 0.88);
+  background: rgba(209, 111, 76, 0.88);
   color: #fff;
 }
 
@@ -80,6 +90,6 @@ body::before {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(109, 89, 71, 0.35);
+  background: rgba(138, 166, 181, 0.35);
   border-radius: 999px;
 }

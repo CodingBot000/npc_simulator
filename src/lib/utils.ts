@@ -1,11 +1,17 @@
 import {
+  DEFAULT_PLAYER_ID,
+  DEFAULT_PLAYER_LABEL,
   EMOTION_LABELS,
   NPC_ACTION_LABELS,
+  PRESSURE_DIMENSION_LABELS,
   PLAYER_ACTION_LABELS,
 } from "@/lib/constants";
 import type {
   AllowedActionType,
+  CandidateId,
+  ConsensusBoardEntry,
   EmotionPrimary,
+  JudgementDimensions,
   PlayerAction,
   RelationshipState,
 } from "@/lib/types";
@@ -33,7 +39,7 @@ export function uniqueStrings(values: string[]) {
 
 export function extractTags(lines: string[], fallback: string[] = []) {
   const tokens = lines.flatMap((line) => tokenize(line));
-  return uniqueStrings([...fallback, ...tokens]).slice(0, 6);
+  return uniqueStrings([...fallback, ...tokens]).slice(0, 8);
 }
 
 export function actionLabel(
@@ -55,19 +61,19 @@ export function emotionLabel(primary: EmotionPrimary) {
 }
 
 export function relationshipSummary(relationship: RelationshipState) {
-  if (relationship.playerTrust >= 68) {
-    return "신뢰 높음";
+  if (relationship.playerTrust >= 68 && relationship.playerTension <= 30) {
+    return "한쪽으로 기우는 중";
   }
 
-  if (relationship.playerTrust >= 50) {
-    return "탐색 중";
+  if (relationship.playerTension >= 60) {
+    return "당신을 경계함";
   }
 
-  if (relationship.playerTension >= 55) {
-    return "긴장 높음";
+  if (relationship.playerAffinity >= 55) {
+    return "감정적으로 흔들리는 중";
   }
 
-  return "거리 두는 중";
+  return "판단을 유보 중";
 }
 
 export function formatDelta(value: number) {
@@ -111,4 +117,47 @@ export function safeJsonParse<T>(value: string): T | null {
   } catch {
     return null;
   }
+}
+
+export function candidateLabel(
+  candidateId: CandidateId,
+  namesById: Record<string, string>,
+) {
+  if (candidateId === DEFAULT_PLAYER_ID) {
+    return DEFAULT_PLAYER_LABEL;
+  }
+
+  return namesById[candidateId] ?? candidateId;
+}
+
+export function pressureSummary(entry: ConsensusBoardEntry) {
+  if (entry.totalPressure >= 90) {
+    return "즉시 희생 가능성 매우 높음";
+  }
+
+  if (entry.totalPressure >= 70) {
+    return "방 안의 시선이 빠르게 몰리는 중";
+  }
+
+  if (entry.totalPressure >= 50) {
+    return "위험권 진입";
+  }
+
+  return "아직 결정적 고립은 아님";
+}
+
+export function formatDimensionDelta(
+  delta: Partial<JudgementDimensions>,
+  options: { omitZero?: boolean } = {},
+) {
+  return (Object.keys(PRESSURE_DIMENSION_LABELS) as Array<keyof JudgementDimensions>)
+    .filter((key) => {
+      if (!options.omitZero) {
+        return true;
+      }
+
+      return (delta[key] ?? 0) !== 0;
+    })
+    .map((key) => `${PRESSURE_DIMENSION_LABELS[key]} ${formatDelta(delta[key] ?? 0)}`)
+    .join(" / ");
 }

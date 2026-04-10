@@ -1,14 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import {
-  EventLog,
-} from "@/components/hub/event-log";
-import {
-  InteractionInputCase,
-  InteractionPanel,
-} from "@/components/hub/interaction-panel";
+import { useEffect, useState } from "react";
+import { EventLog } from "@/components/hub/event-log";
+import { InteractionPanel } from "@/components/hub/interaction-panel";
 import { NpcList } from "@/components/hub/npc-list";
+import { PressureBoard } from "@/components/hub/pressure-board";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
@@ -34,24 +30,40 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const [selectedNpcId, setSelectedNpcId] = useState(
     initialWorld.npcs[0]?.persona.id ?? "",
   );
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(
+    initialWorld.npcs.find((npc) => npc.persona.id !== initialWorld.npcs[0]?.persona.id)?.persona.id ??
+      null,
+  );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [lastOutcome, setLastOutcome] =
     useState<InteractionResponsePayload | null>(null);
-  const [interactionCase, setInteractionCase] =
-    useState<InteractionInputCase>("free_text_only");
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
 
   const selectedNpc =
     world.npcs.find((npc) => npc.persona.id === selectedNpcId) ?? world.npcs[0];
-  const relatedQuests = world.quests.filter(
-    (quest) =>
-      quest.giverNpcId === selectedNpc.persona.id ||
-      quest.summary.includes(selectedNpc.persona.name),
-  );
   const conversation = world.conversations[selectedNpc.persona.id] ?? [];
+  const riskByNpcId = Object.fromEntries(
+    world.consensusBoard.map((entry) => [entry.candidateId, entry.totalPressure]),
+  );
+  const targetOptions = world.consensusBoard
+    .filter(
+      (entry) =>
+        entry.candidateId !== selectedNpc.persona.id &&
+        entry.candidateId !== DEFAULT_PLAYER_ID,
+    )
+    .map((entry) => ({
+      id: entry.candidateId,
+      label: entry.candidateLabel,
+    }));
+
+  useEffect(() => {
+    if (selectedTargetId === selectedNpc.persona.id) {
+      setSelectedTargetId(targetOptions[0]?.id ?? null);
+    }
+  }, [selectedNpc.persona.id, selectedTargetId, targetOptions]);
 
   async function sendInteraction(payload: {
     inputMode: "free_text" | "action";
@@ -70,6 +82,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
         },
         body: JSON.stringify({
           npcId: selectedNpc.persona.id,
+          targetNpcId: selectedTargetId,
           inputMode: payload.inputMode,
           text: payload.text,
           action: payload.action,
@@ -117,6 +130,11 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
       setWorld(data as WorldSnapshot);
       setSelectedNpcId((data as WorldSnapshot).npcs[0]?.persona.id ?? "");
+      setSelectedTargetId(
+        (data as WorldSnapshot).npcs[1]?.persona.id ??
+          (data as WorldSnapshot).npcs[0]?.persona.id ??
+          null,
+      );
       setLastOutcome(null);
       setDraft("");
     } catch (resetError) {
@@ -130,21 +148,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
     }
   }
 
-  function handleDraftChange(value: string) {
-    setDraft(value);
-
-    if (value.trim()) {
-      setDraftWarning(null);
-    }
-  }
-
-  function handleInteractionCaseChange(nextCase: InteractionInputCase) {
-    setInteractionCase(nextCase);
-    setDraftWarning(null);
-  }
-
   function handleSubmit() {
-    if (interactionCase !== "free_text_only") {
+    if (!draft.trim()) {
+      setDraftWarning("발언 내용을 입력하세요");
       return;
     }
 
@@ -156,21 +162,10 @@ export function HubClient({ initialWorld }: HubClientProps) {
   }
 
   function handleAction(action: PlayerAction) {
-    if (interactionCase === "free_text_only") {
-      return;
-    }
+    const actionDefinition = world.availableActions.find((item) => item.id === action);
 
-    if (interactionCase === "intent_only") {
-      void sendInteraction({
-        inputMode: "action",
-        action,
-        text: "",
-      });
-      return;
-    }
-
-    if (!draft.trim()) {
-      setDraftWarning("대사를 입력하세요");
+    if (actionDefinition?.requiresTarget && !selectedTargetId) {
+      setDraftWarning("이 행동은 먼저 논의 대상을 골라야 합니다.");
       return;
     }
 
@@ -185,8 +180,8 @@ export function HubClient({ initialWorld }: HubClientProps) {
     <main className="min-h-screen px-4 py-5 md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1540px] flex-col gap-4">
         <Panel
-          eyebrow="Prototype"
-          title="NPC Simulator"
+          eyebrow="Crisis Chamber"
+          title={world.presentation.appTitle}
           subtitle={`${world.world.location} · ${world.world.time} · ${world.world.mood}`}
           trailing={
             <div className="flex flex-wrap gap-2">
@@ -223,23 +218,45 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_350px]">
           <NpcList
+            title={world.presentation.npcListTitle}
             npcs={world.npcs}
             selectedNpcId={selectedNpc.persona.id}
+            subtitle={world.presentation.npcListSubtitle}
+            riskByNpcId={riskByNpcId}
             onSelect={setSelectedNpcId}
           />
 
           <div className="flex flex-col gap-4">
-            <NpcCard npc={selectedNpc} quests={relatedQuests} />
+            <PressureBoard
+              entries={world.consensusBoard}
+              title={world.presentation.boardTitle}
+              subtitle={world.presentation.boardSubtitle}
+            />
+            <NpcCard npc={selectedNpc} />
             <InteractionPanel
               npc={selectedNpc}
               conversation={conversation}
               draft={draft}
               busy={busy}
-              interactionCase={interactionCase}
+              subtitle={world.presentation.interactionSubtitle}
+              placeholder={world.presentation.interactionPlaceholder}
+              availableActions={world.availableActions}
+              targetOptions={targetOptions}
+              selectedTargetId={selectedTargetId}
+              round={world.round}
+              resolution={world.resolution}
               lastOutcome={lastOutcome}
               draftWarning={draftWarning}
-              onDraftChange={handleDraftChange}
-              onInteractionCaseChange={handleInteractionCaseChange}
+              onDraftChange={(value) => {
+                setDraft(value);
+                if (value.trim()) {
+                  setDraftWarning(null);
+                }
+              }}
+              onTargetChange={(value) => {
+                setSelectedTargetId(value);
+                setDraftWarning(null);
+              }}
               onSubmit={handleSubmit}
               onAction={handleAction}
             />

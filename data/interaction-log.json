@@ -1,3 +1,70 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "id": "c7668e9e-b061-413b-842d-ceacc157c270",
+      "npcId": "director",
+      "targetNpcId": "supervisor",
+      "playerId": "local-player",
+      "inputMode": "action",
+      "playerText": "논리 제시: 마야 로웰",
+      "playerAction": "make_case",
+      "replyText": "논리라면 숫자부터 보지. 밸브실은 한 명을 요구하고, 구조선은 넷만 태운다. 지금 필요한 건 죄책감 쇼가 아니라 누가 살아서 이 시설과 데이터를 설명할 수 있느냐야. 마야는 본사 문서 뒤에 숨고 있고, 당신은 아직 자기 몫의 필요성을 말하지 못했어. 빈 논리로는 아무도 못 살린다. 특히 나를 밸브 쪽으로 밀어 넣으려는 흐름은 더더욱.",
+      "timestamp": "2026-04-10T08:15:17.152Z",
+      "selectedAction": "deflect",
+      "relationshipDelta": {
+        "trust": 1,
+        "affinity": 0,
+        "tension": 1
+      },
+      "pressureChanges": [
+        {
+          "candidateId": "supervisor",
+          "candidateLabel": "마야 로웰",
+          "totalPressureDelta": 84,
+          "dimensionDelta": {
+            "blame": 32,
+            "distrust": 0,
+            "hostility": 10,
+            "dispensability": 42,
+            "utility": 0,
+            "sympathy": 0
+          },
+          "factors": [
+            "이 행동은 특정 인물을 '남아도 되는 사람'으로 규정하려 든다.",
+            "연구 성과와 지휘 체계 우선 편향 때문에 타깃 반응이 달라진다.",
+            "연구 성과와 지휘 체계 우선 편향상 이 대상은 원래 더 잘 걸린다.",
+            "연구소장은 감독관 쪽으로 책임선을 미는 말에 쉽게 올라탄다.",
+            "현장 기술과 실사용 가치 우선 편향 때문에 타깃 반응이 달라진다.",
+            "현장 기술과 실사용 가치 우선 편향상 이 대상은 원래 더 잘 걸린다.",
+            "엔지니어는 관리 책임이 있는 사람을 겨냥할 때 훨씬 가차없다."
+          ],
+          "reasons": [
+            "이번 대화가 이 인물을 중심 책임선으로 밀었다."
+          ]
+        },
+        {
+          "candidateId": "local-player",
+          "candidateLabel": "당신",
+          "totalPressureDelta": 5,
+          "dimensionDelta": {
+            "blame": 0,
+            "distrust": 5,
+            "hostility": 0,
+            "dispensability": 0,
+            "utility": 0,
+            "sympathy": 0
+          },
+          "factors": [
+            "타인을 논리로 몰아갈수록 당신의 계산성도 함께 노출된다.",
+            "연구 성과와 지휘 체계 우선 편향상 이 대상은 원래 더 잘 걸린다.",
+            "법적 리스크와 대체 가능성 우선 편향상 이 대상은 원래 더 잘 걸린다."
+          ],
+          "reasons": [
+            "당신의 말이 오히려 불신과 조급함을 키웠다."
+          ]
+        }
+      ],
+      "round": 1
+    }
+  ]
 }
