@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EventLog } from "@/components/hub/event-log";
 import { InteractionPanel } from "@/components/hub/interaction-panel";
 import { NpcList } from "@/components/hub/npc-list";
 import { PressureBoard } from "@/components/hub/pressure-board";
+import { ResolutionModal } from "@/components/hub/resolution-modal";
+import { StickySummaryHeader } from "@/components/hub/sticky-summary-header";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
@@ -41,6 +43,12 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const [lastOutcome, setLastOutcome] =
     useState<InteractionResponsePayload | null>(null);
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
+  const [showStickySummary, setShowStickySummary] = useState(false);
+  const [stickyPinned, setStickyPinned] = useState(false);
+  const [gameOverOpen, setGameOverOpen] = useState(
+    initialWorld.resolution.resolved,
+  );
+  const summarySectionRef = useRef<HTMLDivElement | null>(null);
 
   const selectedNpc =
     world.npcs.find((npc) => npc.persona.id === selectedNpcId) ?? world.npcs[0];
@@ -58,12 +66,43 @@ export function HubClient({ initialWorld }: HubClientProps) {
       id: entry.candidateId,
       label: entry.candidateLabel,
     }));
+  const stickyConsensusEntries = world.consensusBoard
+    .filter((entry) => entry.candidateId !== DEFAULT_PLAYER_ID)
+    .slice(0, world.npcs.length);
 
   useEffect(() => {
     if (selectedTargetId === selectedNpc.persona.id) {
       setSelectedTargetId(targetOptions[0]?.id ?? null);
     }
   }, [selectedNpc.persona.id, selectedTargetId, targetOptions]);
+
+  useEffect(() => {
+    if (world.resolution.resolved) {
+      setGameOverOpen(true);
+    }
+  }, [world.resolution.resolved]);
+
+  useEffect(() => {
+    const target = summarySectionRef.current;
+
+    if (!target) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowStickySummary(!entry.isIntersecting);
+      },
+      {
+        threshold: 0,
+        rootMargin: "-150px 0px 0px 0px",
+      },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, []);
 
   async function sendInteraction(payload: {
     inputMode: "free_text" | "action";
@@ -137,6 +176,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
       );
       setLastOutcome(null);
       setDraft("");
+      setGameOverOpen(false);
     } catch (resetError) {
       setError(
         resetError instanceof Error
@@ -177,99 +217,148 @@ export function HubClient({ initialWorld }: HubClientProps) {
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1540px] flex-col gap-4">
-        <Panel
-          eyebrow="Crisis Chamber"
-          title={world.presentation.appTitle}
-          subtitle={`${world.world.location} · ${world.world.time} · ${world.world.mood}`}
-          trailing={
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setInspectorOpen((current) => !current)}
-                className="rounded-full border border-[var(--panel-border)] bg-white/60 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)]"
-              >
-                {inspectorOpen ? "감독자 닫기" : "감독자 열기"}
-              </button>
-              <button
-                type="button"
-                onClick={resetWorld}
-                disabled={busy}
-                className="rounded-full bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                reset
-              </button>
+    <>
+      <ResolutionModal
+        open={gameOverOpen}
+        busy={busy}
+        world={world}
+        onClose={() => setGameOverOpen(false)}
+        onRestart={() => {
+          void resetWorld();
+        }}
+      />
+
+      <main className="min-h-screen overflow-x-auto px-6 py-6">
+        <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
+          <Panel
+            eyebrow="Crisis Chamber"
+            title={world.presentation.appTitle}
+            subtitle={`${world.world.location} · ${world.world.time} · ${world.world.mood}`}
+            trailing={
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInspectorOpen((current) => !current)}
+                  className="rounded-full border border-[var(--panel-border)] bg-white/60 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)]"
+                >
+                  {inspectorOpen ? "감독자 닫기" : "감독자 열기"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetWorld}
+                  disabled={busy}
+                  className="rounded-full bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  reset
+                </button>
+              </div>
+            }
+          >
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="rounded-full bg-[var(--panel-strong)] px-3 py-1 font-semibold text-[var(--accent)]">
+                {world.runtime.label}
+              </span>
+              <span className="text-[var(--ink-muted)]">{world.runtime.detail}</span>
             </div>
-          }
-        >
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="rounded-full bg-[var(--panel-strong)] px-3 py-1 font-semibold text-[var(--accent)]">
-              {world.runtime.label}
-            </span>
-            <span className="text-[var(--ink-muted)]">{world.runtime.detail}</span>
-          </div>
-          {error ? (
-            <p className="mt-3 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-[var(--danger)]">
-              {error}
-            </p>
-          ) : null}
-        </Panel>
+            {error ? (
+              <p className="mt-3 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-[var(--danger)]">
+                {error}
+              </p>
+            ) : null}
+          </Panel>
 
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_350px]">
-          <NpcList
-            title={world.presentation.npcListTitle}
-            npcs={world.npcs}
-            selectedNpcId={selectedNpc.persona.id}
-            subtitle={world.presentation.npcListSubtitle}
-            riskByNpcId={riskByNpcId}
-            onSelect={setSelectedNpcId}
-          />
-
-          <div className="flex flex-col gap-4">
+          <div
+            ref={summarySectionRef}
+            className="grid gap-4 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-start"
+          >
             <PressureBoard
               entries={world.consensusBoard}
               title={world.presentation.boardTitle}
               subtitle={world.presentation.boardSubtitle}
             />
-            <NpcCard npc={selectedNpc} />
-            <InteractionPanel
-              npc={selectedNpc}
-              conversation={conversation}
-              draft={draft}
-              busy={busy}
-              subtitle={world.presentation.interactionSubtitle}
-              placeholder={world.presentation.interactionPlaceholder}
-              availableActions={world.availableActions}
-              targetOptions={targetOptions}
-              selectedTargetId={selectedTargetId}
-              round={world.round}
-              resolution={world.resolution}
-              lastOutcome={lastOutcome}
-              draftWarning={draftWarning}
-              onDraftChange={(value) => {
-                setDraft(value);
-                if (value.trim()) {
-                  setDraftWarning(null);
-                }
-              }}
-              onTargetChange={(value) => {
-                setSelectedTargetId(value);
-                setDraftWarning(null);
-              }}
-              onSubmit={handleSubmit}
-              onAction={handleAction}
+
+            <NpcList
+              title={world.presentation.npcListTitle}
+              npcs={world.npcs}
+              selectedNpcId={selectedNpc.persona.id}
+              subtitle={world.presentation.npcListSubtitle}
+              riskByNpcId={riskByNpcId}
+              onSelect={setSelectedNpcId}
             />
-            <EventLog events={world.events} />
           </div>
 
-          <InspectorPanel
-            inspector={world.lastInspector}
-            npc={selectedNpc}
-            open={inspectorOpen}
+          <StickySummaryHeader
+            visible={showStickySummary || stickyPinned}
+            pinned={stickyPinned}
+            consensusEntries={stickyConsensusEntries}
+            npcs={world.npcs}
+            selectedNpcId={selectedNpc.persona.id}
+            riskByNpcId={riskByNpcId}
+            onSelectNpc={setSelectedNpcId}
+            onTogglePinned={() => setStickyPinned((current) => !current)}
           />
+
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="grid gap-4 grid-cols-[minmax(0,6.5fr)_minmax(360px,3.5fr)] items-start">
+              <div className="min-w-0">
+                <InteractionPanel
+                  npc={selectedNpc}
+                  conversation={conversation}
+                  draft={draft}
+                  busy={busy}
+                  subtitle={world.presentation.interactionSubtitle}
+                  placeholder={world.presentation.interactionPlaceholder}
+                  availableActions={world.availableActions}
+                  targetOptions={targetOptions}
+                  selectedTargetId={selectedTargetId}
+                  round={world.round}
+                  resolution={world.resolution}
+                  lastOutcome={lastOutcome}
+                  draftWarning={draftWarning}
+                  onDraftChange={(value) => {
+                    setDraft(value);
+                    if (value.trim()) {
+                      setDraftWarning(null);
+                    }
+                  }}
+                  onTargetChange={(value) => {
+                    setSelectedTargetId(value);
+                    setDraftWarning(null);
+                  }}
+                  onSubmit={handleSubmit}
+                  onAction={handleAction}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <NpcCard key={selectedNpc.persona.id} npc={selectedNpc} />
+              </div>
+            </div>
+
+            <div
+              className={`grid gap-4 items-stretch ${
+                inspectorOpen
+                ? "grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]"
+                : "grid-cols-1"
+            }`}
+          >
+            <div className="min-h-[420px] min-w-0">
+              <EventLog events={world.events} />
+            </div>
+
+            {inspectorOpen ? (
+              <div className="min-h-[420px] min-w-0">
+                <InspectorPanel
+                  inspector={world.lastInspector}
+                  npc={selectedNpc}
+                  open={inspectorOpen}
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }

@@ -18,29 +18,40 @@ export function PressureBoard({
 }) {
   return (
     <Panel eyebrow="Consensus" title={title} subtitle={subtitle}>
-      <div className="space-y-3">
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+      >
         {entries.map((entry, index) => (
           <article
             key={entry.candidateId}
-            className={`rounded-[22px] border px-4 py-4 ${
-              index === 0
-                ? "border-[var(--danger)] bg-[rgba(120,32,33,0.08)]"
-                : "border-[var(--panel-border)] bg-white/20"
+            className={`min-w-0 rounded-[18px] border bg-white/20 px-3 py-2 ${
+              index === 0 ? "border-[var(--danger)]" : "border-[var(--panel-border)]"
             }`}
           >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
+            <div className="min-w-0">
+              <div className="mb-1 flex items-start justify-between gap-1.5">
+                <p
+                  className={`truncate text-[13px] font-semibold leading-4 ${
+                    index === 0 ? "text-[var(--danger)]" : "text-foreground"
+                  }`}
+                >
                   {index + 1}. {entry.candidateLabel}
                 </p>
-                <p className="text-xs text-[var(--ink-muted)]">{entry.summary}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-semibold text-foreground">{entry.totalPressure}</p>
-                <p className="text-xs text-[var(--ink-muted)]">
-                  표심 {entry.topVotes} · {trendLabel[entry.trend]}
+                <p
+                  className={`shrink-0 text-sm font-semibold leading-4 ${
+                    index === 0 ? "text-[var(--danger)]" : "text-foreground"
+                  }`}
+                >
+                  {entry.totalPressure}
                 </p>
               </div>
+              <p className="truncate text-[11px] leading-4 text-[var(--ink-muted)]">
+                {entry.summary}
+              </p>
+              <p className="mt-1 text-[11px] leading-4 text-[var(--ink-muted)]">
+                표심 {entry.topVotes} · {trendLabel[entry.trend]}
+              </p>
             </div>
           </article>
         ))}

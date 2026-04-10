@@ -24,10 +24,11 @@ export function InspectorPanel({
       eyebrow="Thin Inspector"
       title="감독자 모드"
       subtitle="기억, 편향, 압력 변화, 희생 후보 이동"
-      className="h-full"
+      className="h-full flex flex-col overflow-hidden"
+      contentClassName="flex-1 min-h-0"
     >
       {activeInspector ? (
-        <div className="space-y-4 text-sm text-[var(--ink-muted)]">
+        <div className="scrollbar-thin h-full space-y-4 overflow-y-auto pr-2 text-sm text-[var(--ink-muted)]">
           <section className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
               Retrieved Memories

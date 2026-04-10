@@ -93,3 +93,9 @@ body::after {
   background: rgba(138, 166, 181, 0.35);
   border-radius: 999px;
 }
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(138, 166, 181, 0.35) transparent;
+  scrollbar-gutter: stable;
+}

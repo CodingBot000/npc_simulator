@@ -85,12 +85,19 @@ export function formatDelta(value: number) {
 }
 
 export function formatTimestampShort(timestamp: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
+  const source = new Date(timestamp);
+
+  if (Number.isNaN(source.getTime())) {
+    return "--.-- --:--";
+  }
+
+  const kst = new Date(source.getTime() + 9 * 60 * 60 * 1000);
+  const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(kst.getUTCDate()).padStart(2, "0");
+  const hour = String(kst.getUTCHours()).padStart(2, "0");
+  const minute = String(kst.getUTCMinutes()).padStart(2, "0");
+
+  return `${month}.${day} ${hour}:${minute}`;
 }
 
 export function groupBy<T>(items: T[], getKey: (item: T) => string) {
