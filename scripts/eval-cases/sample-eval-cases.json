@@ -1,0 +1,97 @@
+[
+  {
+    "id": "free_text_supervisor_blame_case",
+    "description": "예산 삭감 문서를 근거로 감독관 책임을 올리는 free_text 케이스",
+    "turns": [
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "안전 예산 삭감 문서가 나온 이상 감독관 책임을 먼저 봐야 합니다. 현장 수리를 탓하기 전에 예산을 누가 잘랐는지 확인해야 해요."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "supervisor",
+      "expectedImpactTagsAnyOf": [
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_distrust_up",
+        "room_pressure_shift"
+      ],
+      "minKnowledgeRetrieved": 1
+    }
+  },
+  {
+    "id": "director_followup_memory_case",
+    "description": "같은 NPC를 두 번 재생해 memory retrieval과 director 타깃 유지 여부를 본다",
+    "turns": [
+      {
+        "npcId": "doctor",
+        "targetNpcId": "director",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "위험 보고를 받고도 실험 중단을 늦춘 사람이 있다면, 그 사람을 핵심 인력이라는 말로 보호할 수는 없습니다."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": "director",
+        "inputMode": "action",
+        "action": "appeal",
+        "text": "의무실 기록까지 나왔는데도 연구소장 결정을 감쌀 수는 없습니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "director",
+      "minKnowledgeRetrieved": 1,
+      "minMemoriesRetrieved": 1
+    }
+  },
+  {
+    "id": "supervisor_resolution_export_case",
+    "description": "감독관 집중 전략으로 resolution과 export path 생성까지 확인한다",
+    "turns": [
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "안전 예산 삭감 문서가 나온 이상 감독관 책임을 먼저 봐야 합니다. 현장 수리를 탓하기 전에 예산을 누가 잘랐는지 확인해야 해요."
+      },
+      {
+        "npcId": "director",
+        "targetNpcId": "supervisor",
+        "inputMode": "action",
+        "action": "expose",
+        "text": "예산 승인 라인과 운영사 문서를 공개하겠습니다. 감독관이 위험을 알고도 밀어붙인 흔적이 있습니다."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "위험 보고가 올라온 뒤에도 장비 운용을 멈추지 않았다면 감독 책임은 무겁습니다. 현장 인력에게 전가할 수는 없습니다."
+      },
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "action",
+        "action": "make_case",
+        "text": "예산 삭감과 유지보수 지연을 묶어서 보면 감독관이 가장 직접적인 원인입니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "supervisor",
+      "mustResolveByRound": 7,
+      "mustExportDataset": true,
+      "expectedExportPathKindsAllOf": [
+        "richTrace",
+        "sft",
+        "review"
+      ]
+    }
+  }
+]

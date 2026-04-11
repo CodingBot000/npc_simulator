@@ -13,6 +13,7 @@ import { buildConsensusBoard } from "@/server/engine/pressure-engine";
 import { getLlmProvider } from "@/server/providers/llm-provider";
 import { getCurrentScenario } from "@/server/scenario";
 import { createWorldRepository } from "@/server/store/repositories";
+import type { WorldRepositoryOptions } from "@/server/store/repositories";
 
 function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
   return [
@@ -121,6 +122,11 @@ export function buildWorldSnapshot(params: {
 
   return {
     scenarioId: scenario.id,
+    episodeId: params.worldState.episodeId,
+    startedAt: params.worldState.startedAt,
+    endedAt: params.worldState.endedAt,
+    datasetExportedAt: params.worldState.datasetExportedAt,
+    exportPaths: params.worldState.exportPaths,
     presentation: { ...scenario.presentation },
     availableActions: [...scenario.actions],
     world: params.worldState.world,
@@ -140,14 +146,12 @@ export function buildWorldSnapshot(params: {
   };
 }
 
-export async function getWorldSnapshot() {
-  const repository = createWorldRepository();
-  await repository.ensureSeedData();
-
-  const [worldState, memoryFile, interactionLog, runtime] = await Promise.all([
-    repository.readWorldState(),
-    repository.readMemoryFile(),
-    repository.readInteractionLog(),
+export async function getWorldSnapshot(
+  repositoryOptions: WorldRepositoryOptions = {},
+) {
+  const repository = createWorldRepository(repositoryOptions);
+  const [{ worldState, memoryFile, interactionLog }, runtime] = await Promise.all([
+    repository.readStateBundle(),
     getLlmProvider().getStatus(),
   ]);
 

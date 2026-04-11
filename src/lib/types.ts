@@ -27,9 +27,34 @@ export const playerActions = [
   "confess",
 ] as const;
 
+export const impactTags = [
+  "player_distrust_up",
+  "player_distrust_down",
+  "player_blame_up",
+  "player_blame_down",
+  "player_sympathy_up",
+  "player_sympathy_down",
+  "target_blame_up",
+  "target_blame_high_up",
+  "target_blame_down",
+  "target_distrust_up",
+  "target_distrust_down",
+  "target_hostility_up",
+  "target_hostility_down",
+  "target_sympathy_up",
+  "target_sympathy_down",
+  "target_utility_down",
+  "target_utility_up",
+  "target_dispensability_up",
+  "target_dispensability_down",
+  "room_pressure_shift",
+  "no_major_shift",
+] as const;
+
 export type EmotionPrimary = (typeof emotionPrimaries)[number];
 export type AllowedActionType = (typeof allowedActionTypes)[number];
 export type PlayerAction = (typeof playerActions)[number];
+export type ImpactTag = (typeof impactTags)[number];
 export type InputMode = "free_text" | "action";
 export type LlmProviderMode = "codex" | "openai";
 
@@ -68,6 +93,48 @@ export interface MemoryEntry {
   tags: string[];
   importance: number;
   timestamp: string;
+}
+
+export interface RetrievalScoreBreakdown {
+  tokenOverlap: number;
+  tagOverlap: number;
+  recency: number;
+  importance: number;
+  priority: number;
+  npcMatch: number;
+  targetMatch: number;
+  eventMatch: number;
+  total: number;
+}
+
+export interface RetrievedMemoryEntry extends MemoryEntry {
+  score: number;
+  scoreBreakdown: RetrievalScoreBreakdown;
+  matchReasons: string[];
+}
+
+export type KnowledgeEvidenceType =
+  | "world_fact"
+  | "incident_log"
+  | "private_secret"
+  | "role_record";
+
+export interface KnowledgeEvidence {
+  id: string;
+  sourceType: KnowledgeEvidenceType;
+  title: string;
+  summary: string;
+  tags: string[];
+  relatedNpcIds: string[];
+  priority: number;
+  visibility: "public" | "private" | "conditional";
+  roundIntroduced: number | null;
+}
+
+export interface RetrievedKnowledgeEvidence extends KnowledgeEvidence {
+  score: number;
+  scoreBreakdown: RetrievalScoreBreakdown;
+  matchReasons: string[];
 }
 
 export interface NpcGoalState {
@@ -124,6 +191,13 @@ export interface SelectedAction {
   reason: string;
 }
 
+export interface StructuredImpactInference {
+  impactTags: ImpactTag[];
+  targetNpcId: string | null;
+  confidence: number;
+  rationale: string;
+}
+
 export interface ReplyPayload {
   text: string;
 }
@@ -134,6 +208,7 @@ export interface LlmInteractionResult {
   intent: IntentSummary;
   candidateActions: CandidateAction[];
   selectedAction: SelectedAction;
+  structuredImpact: StructuredImpactInference;
 }
 
 export interface PressureImpact {
@@ -162,20 +237,28 @@ export interface RelationshipDelta {
 
 export interface InspectorPayload {
   timestamp: string;
+  episodeId: string;
   npcId: string;
   targetNpcId: string | null;
-  retrievedMemories: MemoryEntry[];
+  retrievedMemories: RetrievedMemoryEntry[];
+  retrievedKnowledge: RetrievedKnowledgeEvidence[];
   emotion: NpcEmotionState;
   intent: IntentSummary;
   candidateActions: CandidateAction[];
   selectedAction: SelectedAction;
   selectedActionReason: string;
+  structuredImpact: StructuredImpactInference;
   relationshipDelta: RelationshipDelta;
   pressureChanges: PressureChange[];
+  leaderBefore: ConsensusBoardEntry | null;
+  leaderAfter: ConsensusBoardEntry | null;
   leadingCandidateId: CandidateId | null;
   leadingCandidateLabel: string | null;
   round: number;
   resolution: ResolutionState;
+  llmPromptContextSummary: string;
+  datasetExportedAt: string | null;
+  exportPaths: EpisodeExportPaths;
 }
 
 export interface InteractionLogEntry {
@@ -184,13 +267,28 @@ export interface InteractionLogEntry {
   targetNpcId: string | null;
   playerId: string;
   inputMode: InputMode;
+  roundBefore?: number;
+  roundAfter?: number;
   playerText: string;
+  rawPlayerText?: string;
+  normalizedInputSummary?: string;
   playerAction: PlayerAction | null;
   replyText: string;
   timestamp: string;
+  retrievedMemories?: RetrievedMemoryEntry[];
+  retrievedKnowledge?: RetrievedKnowledgeEvidence[];
+  llmPromptContextSummary?: string;
+  emotion?: NpcEmotionState;
+  intent?: IntentSummary;
+  candidateActions?: CandidateAction[];
   selectedAction: AllowedActionType;
+  selectedActionReason?: string;
+  structuredImpact?: StructuredImpactInference;
   relationshipDelta: RelationshipDelta;
   pressureChanges: PressureChange[];
+  leaderBefore?: ConsensusBoardEntry | null;
+  leaderAfter?: ConsensusBoardEntry | null;
+  resolutionAfter?: ResolutionState;
   round: number;
 }
 
@@ -277,8 +375,19 @@ export interface ResolutionState {
   summary: string | null;
 }
 
+export interface EpisodeExportPaths {
+  richTrace: string | null;
+  sft: string | null;
+  review: string | null;
+}
+
 export interface WorldStateFile {
   scenarioId: string;
+  episodeId: string;
+  startedAt: string;
+  endedAt: string | null;
+  datasetExportedAt: string | null;
+  exportPaths: EpisodeExportPaths;
   world: WorldMeta;
   npcs: PersistedNpcState[];
   events: EventLogEntry[];
@@ -298,6 +407,11 @@ export interface InteractionLogFile {
 
 export interface WorldSnapshot {
   scenarioId: string;
+  episodeId: string;
+  startedAt: string;
+  endedAt: string | null;
+  datasetExportedAt: string | null;
+  exportPaths: EpisodeExportPaths;
   presentation: ScenarioPresentationSnapshot;
   availableActions: AvailableActionDefinition[];
   world: WorldMeta;
@@ -336,8 +450,10 @@ export interface GenerateInteractionInput {
   consensusBoard: ConsensusBoardEntry[];
   recentEvents: EventLogEntry[];
   recentConversation: ChatMessage[];
-  retrievedMemories: MemoryEntry[];
+  retrievedMemories: RetrievedMemoryEntry[];
+  retrievedKnowledge: RetrievedKnowledgeEvidence[];
   normalizedInput: NormalizedInteractionInput;
+  promptContextSummary: string;
 }
 
 export interface InteractionResponsePayload {

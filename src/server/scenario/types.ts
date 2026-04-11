@@ -1,6 +1,7 @@
 import type {
   EventLogEntry,
   JudgementState,
+  KnowledgeEvidence,
   MemoryEntry,
   PersistedNpcState,
   ResolutionState,
@@ -64,6 +65,7 @@ export interface ScenarioDefinition {
   presentation: ScenarioPresentation;
   actions: ScenarioActionDefinition[];
   roundEvents: ScenarioRoundEvent[];
+  knowledge: KnowledgeEvidence[];
   scoring: ScenarioScoringConfig;
   seeds: ScenarioSeeds;
 }

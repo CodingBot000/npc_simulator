@@ -40,6 +40,9 @@ export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
     `Allowed candidate action types: ${Object.keys(NPC_ACTION_LABELS).join(", ")}.`,
     "Candidate actions must contain 2 or 3 distinct items.",
     "The selected action must match one candidate action type exactly.",
+    "Also return structuredImpact.impactTags as machine-readable state-change signals. Use no_major_shift only when the player's words would not plausibly move pressure, blame, distrust, sympathy, utility, or room tension.",
+    "For free_text, infer the social effect from the wording and retrieved evidence. If the player blames, exposes, confesses, appeals, protects, or redirects responsibility, choose at least one concrete impact tag.",
+    "structuredImpact.targetNpcId should be the affected target NPC id when the effect is about a specific survivor, otherwise null.",
     "Emotion intensity must be between 0 and 100.",
     "Preserve the speaker's bias, survival instinct, and current emotional pressure.",
   ].join(" ");
@@ -79,6 +82,8 @@ export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
       recentEvents: input.recentEvents,
       recentConversation: input.recentConversation,
       retrievedMemories: input.retrievedMemories,
+      retrievedKnowledge: input.retrievedKnowledge,
+      promptContextSummary: input.promptContextSummary,
       world: input.world,
     },
     null,

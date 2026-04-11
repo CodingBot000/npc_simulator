@@ -34,9 +34,45 @@ export function InspectorPanel({
               Retrieved Memories
             </p>
             <ul className="space-y-2 leading-6">
-              {activeInspector.retrievedMemories.map((memory) => (
-                <li key={memory.id}>{memory.summary}</li>
-              ))}
+              {activeInspector.retrievedMemories.length > 0 ? (
+                activeInspector.retrievedMemories.map((memory) => (
+                  <li key={memory.id}>
+                    <span className="font-semibold text-foreground">
+                      score {memory.score}
+                    </span>
+                    {" · "}
+                    {memory.summary}
+                    <span className="block text-xs">
+                      {memory.matchReasons.join(" / ")}
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li>이번 입력과 강하게 맞물린 기억은 없다.</li>
+              )}
+            </ul>
+          </section>
+
+          <section className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 p-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+              Retrieved Knowledge
+            </p>
+            <ul className="space-y-3 leading-6">
+              {activeInspector.retrievedKnowledge.length > 0 ? (
+                activeInspector.retrievedKnowledge.map((evidence) => (
+                  <li key={evidence.id}>
+                    <p className="font-semibold text-foreground">
+                      {evidence.title} · score {evidence.score}
+                    </p>
+                    <p>{evidence.summary}</p>
+                    <p className="text-xs">
+                      {evidence.sourceType} · {evidence.matchReasons.join(" / ")}
+                    </p>
+                  </li>
+                ))
+              ) : (
+                <li>이번 입력에 회수된 구조화 근거는 없다.</li>
+              )}
             </ul>
           </section>
 
@@ -58,9 +94,22 @@ export function InspectorPanel({
             </div>
             <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+                Structured Impact
+              </p>
+              <p className="leading-6 text-foreground">
+                {activeInspector.structuredImpact.impactTags.join(", ")}
+              </p>
+              <p className="mt-1">
+                confidence {activeInspector.structuredImpact.confidence} ·{" "}
+                {activeInspector.structuredImpact.rationale}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
                 Leading Sacrifice Candidate
               </p>
               <p className="leading-6 text-foreground">
+                {activeInspector.leaderBefore?.candidateLabel ?? "없음"} →{" "}
                 {activeInspector.leadingCandidateLabel ?? "아직 결정적 선두 없음"}
               </p>
             </div>
@@ -120,6 +169,17 @@ export function InspectorPanel({
               {activeInspector.selectedAction.type}
             </p>
             <p className="mt-1 leading-6">{activeInspector.selectedActionReason}</p>
+            <p className="mt-3 text-xs leading-5">
+              Episode {activeInspector.episodeId}
+              {activeInspector.datasetExportedAt
+                ? ` · dataset exported ${activeInspector.datasetExportedAt}`
+                : " · dataset pending"}
+            </p>
+            {activeInspector.exportPaths.richTrace ? (
+              <p className="mt-1 text-xs leading-5">
+                {activeInspector.exportPaths.richTrace}
+              </p>
+            ) : null}
           </section>
         </div>
       ) : (

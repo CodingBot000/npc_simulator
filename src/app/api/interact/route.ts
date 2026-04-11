@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { playerActions } from "@/lib/types";
 import { interactWithNpc } from "@/server/engine/npc-engine";
+import { getApiErrorStatus } from "@/server/errors";
+import { getWorldInstanceIdFromRequest } from "@/server/store/instance-context";
 
 export const runtime = "nodejs";
 
@@ -16,8 +18,9 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const instanceId = getWorldInstanceIdFromRequest(request);
     const payload = requestSchema.parse(await request.json());
-    return NextResponse.json(await interactWithNpc(payload));
+    return NextResponse.json(await interactWithNpc(payload, { instanceId }));
   } catch (error) {
     return NextResponse.json(
       {
@@ -26,7 +29,7 @@ export async function POST(request: Request) {
             ? error.message
             : "상호작용 처리 중 오류가 발생했습니다.",
       },
-      { status: 500 },
+      { status: getApiErrorStatus(error) },
     );
   }
 }

@@ -2,6 +2,7 @@ import type { ScenarioDefinition, ScenarioSeeds } from "@/server/scenario/types"
 import { underwaterCharacters, underwaterMemories } from "@/server/scenario/underwater-sacrifice/characters";
 import { underwaterRoundEvents, underwaterSeedEvents } from "@/server/scenario/underwater-sacrifice/events";
 import { createUnderwaterInitialJudgements } from "@/server/scenario/underwater-sacrifice/judgements";
+import { underwaterKnowledge } from "@/server/scenario/underwater-sacrifice/knowledge";
 import {
   underwaterInitialResolutionState,
   underwaterInitialRoundState,
@@ -81,6 +82,7 @@ export const underwaterSacrificeScenario: ScenarioDefinition = {
     },
   ],
   roundEvents: underwaterRoundEvents,
+  knowledge: underwaterKnowledge,
   scoring: {
     minRoundsBeforeResolution: 4,
     maxRounds: 7,

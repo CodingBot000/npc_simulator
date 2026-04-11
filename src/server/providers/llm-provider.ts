@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { allowedActionTypes, emotionPrimaries, type LlmProvider } from "@/lib/types";
+import {
+  allowedActionTypes,
+  emotionPrimaries,
+  impactTags,
+  type LlmProvider,
+} from "@/lib/types";
 import { appConfig } from "@/server/config";
 import { CodexProvider } from "@/server/providers/codex-provider";
 import { OpenAiProvider } from "@/server/providers/openai-provider";
@@ -31,6 +36,12 @@ export const llmInteractionSchema = z.strictObject({
   selectedAction: z.strictObject({
     type: z.enum(allowedActionTypes),
     reason: z.string().min(1),
+  }),
+  structuredImpact: z.strictObject({
+    impactTags: z.array(z.enum(impactTags)).min(1).max(5),
+    targetNpcId: z.string().min(1).nullable(),
+    confidence: z.number(),
+    rationale: z.string().min(1),
   }),
 });
 
@@ -99,8 +110,36 @@ export const NPC_INTERACTION_JSON_SCHEMA = {
       },
       required: ["type", "reason"],
     },
+    structuredImpact: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        impactTags: {
+          type: "array",
+          minItems: 1,
+          maxItems: 5,
+          items: {
+            type: "string",
+            enum: [...impactTags],
+          },
+        },
+        targetNpcId: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+        },
+        confidence: { type: "number" },
+        rationale: { type: "string" },
+      },
+      required: ["impactTags", "targetNpcId", "confidence", "rationale"],
+    },
   },
-  required: ["reply", "emotion", "intent", "candidateActions", "selectedAction"],
+  required: [
+    "reply",
+    "emotion",
+    "intent",
+    "candidateActions",
+    "selectedAction",
+    "structuredImpact",
+  ],
 } as const;
 
 let codexProvider: CodexProvider | null = null;

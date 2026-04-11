@@ -1,9 +1,11 @@
 import { NPC_ACTION_LABELS } from "@/lib/constants";
 import type {
   CandidateAction,
+  ImpactTag,
   LlmInteractionResult,
   SelectedAction,
 } from "@/lib/types";
+import { impactTags } from "@/lib/types";
 import { clamp } from "@/lib/utils";
 
 function normalizeCandidateActions(
@@ -41,6 +43,20 @@ function normalizeCandidateActions(
   return deduped.slice(0, 3);
 }
 
+function normalizeImpactTags(values: ImpactTag[]) {
+  const allowed = new Set<ImpactTag>(impactTags);
+  const deduped = values.filter((value, index) => {
+    return allowed.has(value) && values.indexOf(value) === index;
+  });
+  const withoutNoMajorShift = deduped.filter((tag) => tag !== "no_major_shift");
+
+  if (withoutNoMajorShift.length > 0) {
+    return withoutNoMajorShift.slice(0, 5);
+  }
+
+  return ["no_major_shift"] satisfies ImpactTag[];
+}
+
 export function normalizeLlmInteractionResult(result: LlmInteractionResult) {
   return {
     ...result,
@@ -65,5 +81,11 @@ export function normalizeLlmInteractionResult(result: LlmInteractionResult) {
       result.candidateActions,
       result.selectedAction,
     ),
+    structuredImpact: {
+      impactTags: normalizeImpactTags(result.structuredImpact.impactTags),
+      targetNpcId: result.structuredImpact.targetNpcId?.trim() || null,
+      confidence: clamp(Math.round(result.structuredImpact.confidence), 0, 100),
+      rationale: result.structuredImpact.rationale.trim(),
+    },
   };
 }
