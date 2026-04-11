@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke:episode": "node scripts/smoke-episode.mjs",
+    "collect:episodes": "node scripts/collect-episodes.mjs",
+    "replay:eval": "node scripts/replay-eval-cases.mjs"
   },
   "dependencies": {
     "next": "16.2.2",

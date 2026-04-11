@@ -259,6 +259,12 @@ export function HubClient({ initialWorld }: HubClientProps) {
                 {world.runtime.label}
               </span>
               <span className="text-[var(--ink-muted)]">{world.runtime.detail}</span>
+              <span className="rounded-full bg-white/40 px-3 py-1 font-semibold text-[var(--teal)]">
+                Episode {world.episodeId.slice(0, 8)}
+              </span>
+              <span className="text-[var(--ink-muted)]">
+                {world.datasetExportedAt ? "dataset exported" : "dataset pending"}
+              </span>
             </div>
             {error ? (
               <p className="mt-3 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-[var(--danger)]">

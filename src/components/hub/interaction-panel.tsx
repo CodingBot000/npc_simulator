@@ -94,6 +94,49 @@ export function InteractionPanel({
                 {formatDelta(latestOutcome.relationshipDelta.tension)}
               </p>
               <p className="leading-6 text-foreground">{latestOutcome.reply.text}</p>
+              <div className="rounded-[18px] border border-[var(--panel-border)] bg-white/20 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+                  Structured Impact
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {latestOutcome.inspector.structuredImpact.impactTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-[var(--panel-border)] bg-[var(--panel-strong)] px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs leading-5">
+                  {latestOutcome.inspector.structuredImpact.rationale}
+                </p>
+              </div>
+              <div className="rounded-[18px] border border-[var(--panel-border)] bg-white/20 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+                  Retrieved Evidence
+                </p>
+                {latestOutcome.inspector.retrievedKnowledge.length > 0 ||
+                latestOutcome.inspector.retrievedMemories.length > 0 ? (
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5">
+                    {latestOutcome.inspector.retrievedKnowledge.slice(0, 3).map((entry) => (
+                      <li key={entry.id}>
+                        <span className="font-semibold text-foreground">근거 · {entry.title}</span>
+                        {" · "}
+                        {entry.summary}
+                      </li>
+                    ))}
+                    {latestOutcome.inspector.retrievedMemories.slice(0, 2).map((entry) => (
+                      <li key={entry.id}>
+                        <span className="font-semibold text-foreground">기억 · </span>
+                        {entry.summary}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs leading-5">이번 턴에 직접 연결된 retrieval 근거는 없다.</p>
+                )}
+              </div>
               <ul className="space-y-1">
                 {latestOutcome.pressureChanges.length > 0 ? (
                   latestOutcome.pressureChanges.map((entry) => (

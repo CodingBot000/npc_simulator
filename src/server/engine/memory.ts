@@ -8,6 +8,8 @@ import type {
   MemoryEntry,
   NormalizedInteractionInput,
   PressureChange,
+  RetrievalScoreBreakdown,
+  RetrievedMemoryEntry,
   RelationshipDelta,
   ResolutionState,
 } from "@/lib/types";
@@ -23,16 +25,52 @@ export function retrieveRelevantMemories(
   ]);
 
   return [...memories]
-    .sort((left, right) => scoreMemory(right, queryTokens) - scoreMemory(left, queryTokens))
+    .map((entry) => withMemoryRetrievalScore(entry, queryTokens))
+    .sort((left, right) => right.score - left.score)
     .slice(0, MAX_RETRIEVED_MEMORIES);
 }
 
-function scoreMemory(entry: MemoryEntry, queryTokens: Set<string>) {
+function scoreMemory(entry: MemoryEntry, queryTokens: Set<string>): RetrievalScoreBreakdown {
   const overlap = entry.tags.filter((tag) => queryTokens.has(tag)).length;
   const recencyBonus =
     Date.now() - new Date(entry.timestamp).getTime() < 1000 * 60 * 60 * 24 ? 1 : 0;
   const scopeBonus = entry.scope === "long" ? 2 : 0;
-  return overlap * 5 + entry.importance + recencyBonus + scopeBonus;
+  const total = overlap * 5 + entry.importance + recencyBonus + scopeBonus;
+
+  return {
+    tokenOverlap: overlap,
+    tagOverlap: overlap,
+    recency: recencyBonus,
+    importance: entry.importance + scopeBonus,
+    priority: 0,
+    npcMatch: 0,
+    targetMatch: 0,
+    eventMatch: 0,
+    total,
+  };
+}
+
+function memoryMatchReasons(entry: MemoryEntry, score: RetrievalScoreBreakdown) {
+  return [
+    score.tagOverlap > 0 ? `태그 ${score.tagOverlap}개가 입력과 겹침` : null,
+    entry.scope === "long" ? "장기 기억 가중치" : "최근 경험 기억",
+    `중요도 ${entry.importance}`,
+    score.recency > 0 ? "24시간 내 형성된 기억" : null,
+  ].filter(Boolean) as string[];
+}
+
+function withMemoryRetrievalScore(
+  entry: MemoryEntry,
+  queryTokens: Set<string>,
+): RetrievedMemoryEntry {
+  const scoreBreakdown = scoreMemory(entry, queryTokens);
+
+  return {
+    ...entry,
+    score: scoreBreakdown.total,
+    scoreBreakdown,
+    matchReasons: memoryMatchReasons(entry, scoreBreakdown),
+  };
 }
 
 export function buildMemoryEntries(params: {
@@ -70,6 +108,8 @@ export function buildMemoryEntries(params: {
       normalizedInput.text,
       llmResult.reply.text,
       llmResult.intent.summary,
+      llmResult.structuredImpact.rationale,
+      llmResult.structuredImpact.impactTags.join(" "),
       pressureChanges.map((entry) => entry.candidateId).join(" "),
       resolution.summary ?? "",
     ],

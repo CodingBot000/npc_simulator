@@ -14,6 +14,7 @@ import type {
   RelationshipDelta,
   ResolutionState,
   RoundState,
+  StructuredImpactInference,
 } from "@/lib/types";
 import {
   candidateLabel,
@@ -21,6 +22,10 @@ import {
   pressureSummary,
 } from "@/lib/utils";
 import { buildPressureAdjustment, buildRelationshipDeltaForNpc } from "@/server/engine/pressure-rules";
+import {
+  buildRelationshipDeltaFromImpact,
+  buildStructuredImpactPressureAdjustments,
+} from "@/server/engine/impact-rules";
 import { getCurrentScenario } from "@/server/scenario";
 
 type DimensionKey = keyof JudgementDimensions;
@@ -254,6 +259,7 @@ export function applyInteractionPressure(params: {
   npcs: PersistedNpcState[];
   targetNpcId: string | null;
   action: PlayerAction | null;
+  structuredImpact: StructuredImpactInference;
   round: RoundState;
 }) {
   // Compute changes per evaluator/candidate pair first, then summarize them back
@@ -261,6 +267,10 @@ export function applyInteractionPressure(params: {
   const previousBoard = buildConsensusBoard({
     judgements: params.judgements,
     npcs: params.npcs,
+  });
+  const impactAdjustments = buildStructuredImpactPressureAdjustments({
+    structuredImpact: params.structuredImpact,
+    targetNpcId: params.targetNpcId,
   });
   const dimensionDeltaByCandidate = new Map<CandidateId, Partial<JudgementDimensions>>();
   const factorByCandidate = new Map<CandidateId, string[]>();
@@ -274,21 +284,31 @@ export function applyInteractionPressure(params: {
       board: previousBoard,
       round: params.round,
     });
+    const impactAdjustment = impactAdjustments.get(entry.candidateId);
 
-    if (!adjustment) {
+    if (!adjustment && !impactAdjustment) {
       return entry;
     }
 
+    const dimensionDelta = sumDimensionDelta(
+      adjustment?.dimensionDelta ?? emptyDimensionDelta(),
+      impactAdjustment?.dimensionDelta ?? emptyDimensionDelta(),
+    );
+    const factors = [
+      ...(adjustment?.factors ?? []),
+      ...(impactAdjustment?.factors ?? []),
+    ];
+
     const updatedJudgement = updateJudgementDimensions(
       entry.dimensions,
-      adjustment.dimensionDelta,
+      dimensionDelta,
     );
 
     dimensionDeltaByCandidate.set(
       entry.candidateId,
       sumDimensionDelta(
         dimensionDeltaByCandidate.get(entry.candidateId) ?? emptyDimensionDelta(),
-        adjustment.dimensionDelta,
+        dimensionDelta,
       ),
     );
     factorByCandidate.set(
@@ -296,7 +316,7 @@ export function applyInteractionPressure(params: {
       Array.from(
         new Set([
           ...(factorByCandidate.get(entry.candidateId) ?? []),
-          ...adjustment.factors,
+          ...factors,
         ]),
       ),
     );
@@ -409,8 +429,15 @@ export function resolveIfNeeded(params: {
 export function nextSpeakerState(params: {
   npc: NpcState;
   action: PlayerAction | null;
+  structuredImpact: StructuredImpactInference;
 }) {
-  const delta = buildRelationshipDeltaForNpc(params.action, params.npc.persona.id);
+  const baseDelta = buildRelationshipDeltaForNpc(params.action, params.npc.persona.id);
+  const impactDelta = buildRelationshipDeltaFromImpact(params.structuredImpact);
+  const delta = {
+    trust: baseDelta.trust + impactDelta.trust,
+    affinity: baseDelta.affinity + impactDelta.affinity,
+    tension: baseDelta.tension + impactDelta.tension,
+  } satisfies RelationshipDelta;
 
   const emotionReason =
     params.action === "expose"
@@ -419,6 +446,10 @@ export function nextSpeakerState(params: {
         ? "플레이어의 자백이 계산을 다시 하게 만들었다."
         : params.action === "stall"
           ? "결정 지연이 오히려 긴장을 끌어올렸다."
+          : params.structuredImpact.impactTags.includes("target_blame_high_up")
+            ? "플레이어의 말이 특정 인물을 중심 책임선으로 강하게 밀어 올렸다."
+            : params.structuredImpact.impactTags.some((tag) => tag.startsWith("player_"))
+              ? "플레이어 자신에 대한 방 안의 평가가 흔들렸다."
           : params.npc.emotion.reason;
 
   const nextNpc = applyRelationshipDelta(params.npc, delta);

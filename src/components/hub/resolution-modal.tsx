@@ -87,6 +87,16 @@ export function ResolutionModal({
 
           <p className="text-base leading-8 text-[var(--ink-muted)]">{endingLine}</p>
 
+          {world.datasetExportedAt ? (
+            <div className="rounded-[18px] border border-[var(--panel-border)] bg-white/12 px-4 py-3 text-sm leading-6 text-[var(--ink-muted)]">
+              <p className="font-semibold text-foreground">Dataset export complete</p>
+              <p>Episode {world.episodeId}</p>
+              {world.exportPaths.richTrace ? <p>{world.exportPaths.richTrace}</p> : null}
+              {world.exportPaths.sft ? <p>{world.exportPaths.sft}</p> : null}
+              {world.exportPaths.review ? <p>{world.exportPaths.review}</p> : null}
+            </div>
+          ) : null}
+
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"

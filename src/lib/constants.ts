@@ -12,6 +12,7 @@ export const MAX_SHORT_MEMORIES = 8;
 export const MAX_LONG_MEMORIES = 5;
 export const MAX_CONVERSATION_MESSAGES = 10;
 export const MAX_RETRIEVED_MEMORIES = 4;
+export const MAX_RETRIEVED_KNOWLEDGE = 5;
 
 export const PLAYER_ACTION_LABELS: Record<PlayerAction, string> = {
   make_case: "논리 제시",
