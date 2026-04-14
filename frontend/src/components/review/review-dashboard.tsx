@@ -9,6 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { buildClientApiUrl } from "@/lib/api-client";
 import type {
   PairReviewItemView,
   ReviewCandidateView,
@@ -329,7 +330,7 @@ function CompactReviewCard({
     startTransition(async () => {
       setMessage(null);
 
-      const response = await fetch("/api/review", {
+      const response = await fetch(buildClientApiUrl("/api/review"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -703,7 +704,7 @@ export function ReviewDashboard({
     let cancelled = false;
 
     async function loadFinalizeStatus() {
-      const response = await fetch("/api/review/finalize", {
+      const response = await fetch(buildClientApiUrl("/api/review/finalize"), {
         cache: "no-store",
       });
 
@@ -754,7 +755,7 @@ export function ReviewDashboard({
   }
 
   async function refreshFinalizeStatus() {
-    const response = await fetch("/api/review/finalize", {
+    const response = await fetch(buildClientApiUrl("/api/review/finalize"), {
       cache: "no-store",
     });
 
@@ -814,7 +815,7 @@ export function ReviewDashboard({
     );
 
     try {
-      const response = await fetch("/api/review/finalize", {
+      const response = await fetch(buildClientApiUrl("/api/review/finalize"), {
         method: "POST",
       });
       const payload = await response.json().catch(() => null);

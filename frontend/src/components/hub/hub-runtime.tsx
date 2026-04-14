@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { HubClient } from "@/components/hub/hub-client";
 import { Panel } from "@/components/ui/panel";
+import { buildClientApiUrl } from "@/lib/api-client";
 import type { WorldSnapshot } from "@/lib/types";
 
 function isWorldError(payload: unknown): payload is { message?: string } {
@@ -72,7 +73,7 @@ export function HubRuntime() {
       setError(null);
 
       try {
-        const response = await fetch("/api/world", {
+        const response = await fetch(buildClientApiUrl("/api/world"), {
           cache: "no-store",
           signal: controller.signal,
         });

@@ -11,6 +11,7 @@ import { StickySummaryHeader } from "@/components/hub/sticky-summary-header";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
+import { buildClientApiUrl } from "@/lib/api-client";
 import { DEFAULT_PLAYER_ID } from "@/lib/constants";
 import type {
   InteractionResponsePayload,
@@ -119,7 +120,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
     setDraftWarning(null);
 
     try {
-      const response = await fetch("/api/interact", {
+      const response = await fetch(buildClientApiUrl("/api/interact"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,7 +166,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
     setError(null);
 
     try {
-      const response = await fetch("/api/reset", { method: "POST" });
+      const response = await fetch(buildClientApiUrl("/api/reset"), {
+        method: "POST",
+      });
       const data = (await response.json()) as WorldSnapshot | { message?: string };
 
       if (!response.ok) {
