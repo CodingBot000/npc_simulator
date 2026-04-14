@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { EventLog } from "@/components/hub/event-log";
 import { InteractionPanel } from "@/components/hub/interaction-panel";
+import { MissionBriefCard } from "@/components/hub/mission-brief-card";
 import { NpcList } from "@/components/hub/npc-list";
 import { PressureBoard } from "@/components/hub/pressure-board";
 import { ResolutionModal } from "@/components/hub/resolution-modal";
@@ -34,13 +34,14 @@ export function HubClient({ initialWorld }: HubClientProps) {
     initialWorld.npcs[0]?.persona.id ?? "",
   );
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(
-    initialWorld.npcs.find((npc) => npc.persona.id !== initialWorld.npcs[0]?.persona.id)?.persona.id ??
-      null,
+    initialWorld.npcs.find(
+      (npc) => npc.persona.id !== initialWorld.npcs[0]?.persona.id,
+    )?.persona.id ?? null,
   );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastOutcome, setLastOutcome] =
     useState<InteractionResponsePayload | null>(null);
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
@@ -50,6 +51,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
     initialWorld.resolution.resolved,
   );
   const summarySectionRef = useRef<HTMLDivElement | null>(null);
+  const allowDevTools =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("dev") === "1";
 
   const selectedNpc =
     world.npcs.find((npc) => npc.persona.id === selectedNpcId) ?? world.npcs[0];
@@ -136,7 +140,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
       if (!response.ok) {
         throw new Error(
-          isApiError(data) ? data.message || "상호작용 처리에 실패했습니다." : "상호작용 처리에 실패했습니다.",
+          isApiError(data)
+            ? data.message || "상호작용 처리에 실패했습니다."
+            : "상호작용 처리에 실패했습니다.",
         );
       }
 
@@ -164,7 +170,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
       if (!response.ok) {
         throw new Error(
-          isApiError(data) ? data.message || "상태 초기화에 실패했습니다." : "상태 초기화에 실패했습니다.",
+          isApiError(data)
+            ? data.message || "상태 초기화에 실패했습니다."
+            : "상태 초기화에 실패했습니다.",
         );
       }
 
@@ -177,6 +185,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
       );
       setLastOutcome(null);
       setDraft("");
+      setDraftWarning(null);
       setGameOverOpen(false);
     } catch (resetError) {
       setError(
@@ -206,7 +215,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
     const actionDefinition = world.availableActions.find((item) => item.id === action);
 
     if (actionDefinition?.requiresTarget && !selectedTargetId) {
-      setDraftWarning("이 행동은 먼저 논의 대상을 골라야 합니다.");
+      setDraftWarning("이 행동은 먼저 흔들 사람을 골라야 합니다.");
       return;
     }
 
@@ -231,58 +240,24 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
       <main className="min-h-screen overflow-x-auto px-6 py-6">
         <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
-          <Panel
-            eyebrow="Crisis Chamber"
-            title={world.presentation.appTitle}
-            subtitle={`${world.world.location} · ${world.world.time} · ${world.world.mood}`}
-            trailing={
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/review"
-                  className="rounded-full border border-[var(--panel-border)] bg-white/60 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--accent)]"
-                >
-                  데이터 검수
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setInspectorOpen((current) => !current)}
-                  className="rounded-full border border-[var(--panel-border)] bg-white/60 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)]"
-                >
-                  {inspectorOpen ? "감독자 닫기" : "감독자 열기"}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetWorld}
-                  disabled={busy}
-                  className="rounded-full bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  reset
-                </button>
-              </div>
-            }
-          >
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="rounded-full bg-[var(--panel-strong)] px-3 py-1 font-semibold text-[var(--accent)]">
-                {world.runtime.label}
-              </span>
-              <span className="text-[var(--ink-muted)]">{world.runtime.detail}</span>
-              <span className="rounded-full bg-white/40 px-3 py-1 font-semibold text-[var(--teal)]">
-                Episode {world.episodeId.slice(0, 8)}
-              </span>
-              <span className="text-[var(--ink-muted)]">
-                {world.datasetExportedAt ? "dataset exported" : "dataset pending"}
-              </span>
-            </div>
-            {error ? (
-              <p className="mt-3 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-[var(--danger)]">
-                {error}
-              </p>
-            ) : null}
-          </Panel>
+          <MissionBriefCard
+            busy={busy}
+            round={world.round}
+            world={world.world}
+            onRestart={() => {
+              void resetWorld();
+            }}
+          />
+
+          {error ? (
+            <p className="rounded-2xl bg-rose-100 px-4 py-3 text-sm text-[var(--danger)]">
+              {error}
+            </p>
+          ) : null}
 
           <div
             ref={summarySectionRef}
-            className="grid gap-4 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-start"
+            className="grid gap-4 grid-cols-[minmax(0,6.5fr)_minmax(0,3.5fr)] items-start"
           >
             <PressureBoard
               entries={world.consensusBoard}
@@ -311,65 +286,74 @@ export function HubClient({ initialWorld }: HubClientProps) {
             onTogglePinned={() => setStickyPinned((current) => !current)}
           />
 
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="grid gap-4 grid-cols-[minmax(0,6.5fr)_minmax(360px,3.5fr)] items-start">
-              <div className="min-w-0">
-                <InteractionPanel
-                  npc={selectedNpc}
-                  conversation={conversation}
-                  draft={draft}
-                  busy={busy}
-                  subtitle={world.presentation.interactionSubtitle}
-                  placeholder={world.presentation.interactionPlaceholder}
-                  availableActions={world.availableActions}
-                  targetOptions={targetOptions}
-                  selectedTargetId={selectedTargetId}
-                  round={world.round}
-                  resolution={world.resolution}
-                  lastOutcome={lastOutcome}
-                  draftWarning={draftWarning}
-                  onDraftChange={(value) => {
-                    setDraft(value);
-                    if (value.trim()) {
-                      setDraftWarning(null);
-                    }
-                  }}
-                  onTargetChange={(value) => {
-                    setSelectedTargetId(value);
+          <div className="grid gap-4 grid-cols-[minmax(0,6.5fr)_minmax(360px,3.5fr)] items-start">
+            <div className="min-w-0">
+              <InteractionPanel
+                npc={selectedNpc}
+                conversation={conversation}
+                draft={draft}
+                busy={busy}
+                subtitle={world.presentation.interactionSubtitle}
+                placeholder={world.presentation.interactionPlaceholder}
+                availableActions={world.availableActions}
+                targetOptions={targetOptions}
+                selectedTargetId={selectedTargetId}
+                round={world.round}
+                resolution={world.resolution}
+                lastOutcome={lastOutcome}
+                draftWarning={draftWarning}
+                onDraftChange={(value) => {
+                  setDraft(value);
+                  if (value.trim()) {
                     setDraftWarning(null);
-                  }}
-                  onSubmit={handleSubmit}
-                  onAction={handleAction}
-                />
-              </div>
-
-              <div className="min-w-0">
-                <NpcCard key={selectedNpc.persona.id} npc={selectedNpc} />
-              </div>
+                  }
+                }}
+                onTargetChange={(value) => {
+                  setSelectedTargetId(value);
+                  setDraftWarning(null);
+                }}
+                onSubmit={handleSubmit}
+                onAction={handleAction}
+              />
             </div>
 
-            <div
-              className={`grid gap-4 items-stretch ${
-                inspectorOpen
-                ? "grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]"
-                : "grid-cols-1"
-            }`}
-          >
-            <div className="min-h-[420px] min-w-0">
-              <EventLog events={world.events} />
+            <div className="min-w-0">
+              <NpcCard key={selectedNpc.persona.id} npc={selectedNpc} />
             </div>
+          </div>
 
-            {inspectorOpen ? (
-              <div className="min-h-[420px] min-w-0">
+          <div className="min-w-0">
+            <EventLog events={world.events} />
+          </div>
+
+          {allowDevTools ? (
+            <Panel
+              eyebrow="개발자"
+              title="개발자 도구"
+              subtitle="기본 사용자 동선에서는 숨겨진 내부 정보를 여기서만 펼칠 수 있다."
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setInspectorOpen((current) => !current)}
+                  className="rounded-full border border-[var(--panel-border)] bg-white/10 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)] hover:bg-white/18"
+                >
+                  {inspectorOpen ? "내부 정보 닫기" : "내부 정보 열기"}
+                </button>
+              }
+            >
+              {inspectorOpen ? (
                 <InspectorPanel
                   inspector={world.lastInspector}
                   npc={selectedNpc}
                   open={inspectorOpen}
                 />
-              </div>
-            ) : null}
-          </div>
-        </div>
+              ) : (
+                <p className="text-sm leading-6 text-[var(--ink-muted)]">
+                  `?dev=1`로 들어왔을 때만 보이는 섹션이다. 플레이어 화면에서는 기본으로 감춘다.
+                </p>
+              )}
+            </Panel>
+          ) : null}
         </div>
       </main>
     </>

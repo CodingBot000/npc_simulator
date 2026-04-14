@@ -14,12 +14,12 @@ function HubLoadingState() {
     <main className="min-h-screen overflow-x-auto px-6 py-6">
       <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
         <Panel
-          eyebrow="Crisis Chamber"
-          title="Pelagia-9: Sacrifice Chamber"
-          subtitle="데이터 동기화 중"
+          eyebrow="준비 중"
+          title="펠라지아-9 상황을 불러오는 중"
+          subtitle="첫 턴을 시작할 수 있게 방 안 상태를 다시 맞추고 있다."
         >
           <p className="text-sm text-[var(--ink-muted)]">
-            통제실 상태를 불러오는 중이다.
+            잠시만 기다리면 바로 협상을 시작할 수 있다.
           </p>
         </Panel>
       </div>
@@ -38,9 +38,9 @@ function HubErrorState({
     <main className="min-h-screen overflow-x-auto px-6 py-6">
       <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
         <Panel
-          eyebrow="Crisis Chamber"
-          title="Pelagia-9: Sacrifice Chamber"
-          subtitle="데이터 동기화 실패"
+          eyebrow="다시 시도"
+          title="상황을 다시 불러와야 한다"
+          subtitle="방 안 상태를 읽지 못해서 첫 턴을 아직 열지 못했다."
         >
           <div className="space-y-4">
             <p className="rounded-2xl bg-rose-100 px-4 py-3 text-sm text-[var(--danger)]">

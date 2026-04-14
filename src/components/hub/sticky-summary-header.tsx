@@ -23,13 +23,13 @@ export function StickySummaryHeader({
 }: StickySummaryHeaderProps) {
   return (
     <div
-      className={`pointer-events-none fixed inset-x-0 top-0 z-50 px-6 transition-all duration-200 ${
+      className={`play-session-card pointer-events-none fixed inset-x-0 top-0 z-50 px-6 transition-all duration-200 ${
         visible ? "opacity-100" : "opacity-0"
       }`}
       aria-hidden={!visible}
     >
       <div
-        className={`mx-auto grid min-w-[1280px] w-full max-w-[1540px] grid-cols-[minmax(0,2fr)_minmax(0,3fr)_44px] items-center gap-4 rounded-[22px] px-4 py-3 panel-surface pointer-events-auto transition-all duration-200 ${
+        className={`mx-auto grid min-w-[1280px] w-full max-w-[1540px] grid-cols-[minmax(0,6.5fr)_minmax(0,3.5fr)_44px] items-center gap-4 rounded-[22px] px-4 py-3 panel-surface pointer-events-auto transition-all duration-200 ${
           visible ? "translate-y-0" : "-translate-y-2"
         }`}
       >
@@ -42,9 +42,7 @@ export function StickySummaryHeader({
           {consensusEntries.map((entry, index) => (
             <article
               key={entry.candidateId}
-              className={`min-w-0 rounded-[16px] border bg-white/18 px-3 py-2 ${
-                index === 0 ? "border-[var(--danger)]" : "border-[var(--panel-border)]"
-              }`}
+              className="min-w-0 rounded-[16px] border border-[var(--panel-border)] bg-white/18 px-3 py-2"
             >
               <div className="flex items-center justify-between gap-2">
                 <p

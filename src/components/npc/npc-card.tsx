@@ -65,7 +65,7 @@ function OverviewGrid({ npc }: { npc: NpcState }) {
     <div className="grid gap-4 grid-cols-2">
       <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-          Current State
+          지금 상태
         </p>
         <p className="text-sm leading-7 text-foreground">{npc.statusLine}</p>
         <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">{npc.emotion.reason}</p>
@@ -73,14 +73,14 @@ function OverviewGrid({ npc }: { npc: NpcState }) {
 
       <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-          Current Need
+          지금 원하는 것
         </p>
         <p className="text-sm leading-7 text-foreground">{npc.goals.currentNeed}</p>
       </div>
 
       <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-          Recent Memory
+          최근 남은 기억
         </p>
         {latestMemory ? (
           <p className="text-sm leading-7 text-[var(--ink-muted)]">{latestMemory.summary}</p>
@@ -93,7 +93,7 @@ function OverviewGrid({ npc }: { npc: NpcState }) {
 
       <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-          Survival Logic
+          살아남으려는 논리
         </p>
         <p className="text-sm leading-7 text-[var(--ink-muted)]">
           {npc.decision.survivalRationale}
@@ -107,17 +107,17 @@ function RelationshipSection({ npc }: { npc: NpcState }) {
   return (
     <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-        Relationship
+        당신과의 거리
       </p>
       <div className="grid gap-4 grid-cols-3">
-        <Meter label="Trust" value={npc.relationship.playerTrust} color="var(--teal)" />
+        <Meter label="신뢰" value={npc.relationship.playerTrust} color="var(--teal)" />
         <Meter
-          label="Affinity"
+          label="호감"
           value={npc.relationship.playerAffinity}
           color="var(--accent)"
         />
         <Meter
-          label="Tension"
+          label="긴장"
           value={npc.relationship.playerTension}
           color="var(--danger)"
         />
@@ -132,14 +132,14 @@ function DetailSections({ npc }: { npc: NpcState }) {
       <section className="space-y-4 border-r border-[var(--panel-border)] pr-5">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            Tone
+            말투
           </p>
           <p className="text-sm leading-7 text-[var(--ink-muted)]">{npc.persona.tone}</p>
         </div>
 
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            Values
+            중요하게 여기는 것
           </p>
           <p className="text-sm leading-7 text-[var(--ink-muted)]">
             {npc.persona.values.join(" · ")}
@@ -150,7 +150,7 @@ function DetailSections({ npc }: { npc: NpcState }) {
       <section className="space-y-4 border-r border-[var(--panel-border)] pr-5">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            Red Lines
+            넘기 힘든 선
           </p>
           <p className="text-sm leading-7 text-[var(--ink-muted)]">
             {npc.decision.redLines.join(" · ")}
@@ -159,7 +159,7 @@ function DetailSections({ npc }: { npc: NpcState }) {
 
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            All Traits
+            드러난 성향
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {npc.persona.traits.map((trait) => (
@@ -172,7 +172,7 @@ function DetailSections({ npc }: { npc: NpcState }) {
       <aside className="space-y-4 pl-1">
         <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4 text-sm leading-6 text-[var(--ink-muted)]">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-            Memory Archive
+            기억 조각
           </p>
           <ul className="space-y-2">
             {npc.memories.slice(0, 4).map((memory) => (
@@ -229,9 +229,10 @@ function DetailModal({
       />
 
       <Panel
-        eyebrow="Focused Survivor"
+        eyebrow="집중 보기"
         title={`${npc.persona.name} · ${npc.persona.role}`}
         subtitle={`${relationshipSummary(npc.relationship)} · 현재 논리: ${npc.decision.biasSummary}`}
+        className="play-session-card relative z-10 flex max-h-[calc(100vh-3rem)] w-full max-w-[1160px] flex-col overflow-hidden"
         trailing={
           <button
             type="button"
@@ -241,7 +242,6 @@ function DetailModal({
             닫기
           </button>
         }
-        className="relative z-10 flex max-h-[calc(100vh-3rem)] w-full max-w-[1160px] flex-col overflow-hidden"
         contentClassName="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto pr-2"
       >
         <SummaryChips npc={npc} />
@@ -259,9 +259,10 @@ export function NpcCard({ npc }: NpcCardProps) {
   return (
     <>
       <Panel
-        eyebrow="Focused Survivor"
+        eyebrow="상황"
         title={`${npc.persona.name} · ${npc.persona.role}`}
         subtitle={`${relationshipSummary(npc.relationship)} · 현재 논리: ${npc.decision.biasSummary}`}
+        className="play-session-card"
         trailing={
           <button
             type="button"

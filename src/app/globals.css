@@ -76,6 +76,10 @@ body::after {
   backdrop-filter: blur(14px);
 }
 
+.play-session-card :where(p, span, button, select, textarea, option, li, label, h3) {
+  font-size: 0.75rem !important;
+}
+
 .display-heading {
   font-family: var(--font-display), serif;
   letter-spacing: 0.03em;
