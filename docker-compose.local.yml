@@ -3,10 +3,11 @@ services:
     image: node:22-alpine
     working_dir: /workspace
     command: >
-      sh -lc "npm ci && npm run dev --workspace frontend -- --hostname 0.0.0.0"
+      sh -lc "npm ci && npm run dev --workspace frontend -- --hostname 0.0.0.0 --port ${FRONTEND_DEV_PORT:-3000}"
     environment:
       NPC_SIMULATOR_ROOT: /workspace
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      API_BASE_URL: ${API_BASE_URL:-http://backend:8080}
       LLM_PROVIDER_MODE: ${LLM_PROVIDER_MODE:-codex}
       LOCAL_REPLY_ADAPTER_MODE: ${LOCAL_REPLY_ADAPTER_MODE:-off}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4}
@@ -19,7 +20,7 @@ services:
       - .:/workspace
       - frontend-node-modules:/workspace/node_modules
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_HOST_PORT:-3000}:${FRONTEND_DEV_PORT:-3000}"
     depends_on:
       - backend
 
@@ -41,7 +42,7 @@ services:
       - .:/workspace
       - ./backend/storage:/srv/npc-simulator/storage
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${BACKEND_HOST_PORT:-8080}:${BACKEND_PORT:-8080}"
     depends_on:
       - postgres
 
