@@ -35,10 +35,18 @@ import {
   composeInteractionEventLogEntry,
   composeRoundEventLogEntry,
 } from "@/server/engine/world-state";
+import { maybeGenerateReplyWithLocalAdapter } from "@/server/providers/mlx-reply-adapter";
 import { retrieveEvidenceBundle } from "@/server/engine/retrieval";
 import { getLlmProvider } from "@/server/providers/llm-provider";
 import { createWorldRepository } from "@/server/store/repositories";
 import type { WorldRepositoryOptions } from "@/server/store/repositories";
+
+const REPLY_LABEL_PREFIX = /^(?:\.\.\.|…|\s)*(?:의사|감독관|엔지니어|소장|doctor|supervisor|engineer|director)\s*:\s*/iu;
+const META_OPENING_PATTERNS = [
+  /^(?:\.\.\.|…|\s)*(?:의무실 기록에 따르면|기록에 따르면)[,.: ]*/u,
+  /^(?:\.\.\.|…|\s)*(?:판단 기준(?:은|으로는)?|검토하십시오|검토(?:하면|하면요)?)[,.: ]*/u,
+  /^(?:\.\.\.|…|\s)*(?:response|reply|assistant)\s*:\s*/iu,
+];
 
 function recentConversationForNpc(
   entries: InteractionLogEntry[],
@@ -93,6 +101,21 @@ function buildPromptContextSummary(params: {
     `retrievedMemories=${params.memoryCount}`,
     `retrievedEvidence=${params.knowledgeTitles.join(", ") || "none"}`,
   ].join(" | ");
+}
+
+function sanitizeReplyText(text: string) {
+  const original = String(text ?? "").trim();
+  if (!original) {
+    return original;
+  }
+
+  let cleaned = original.replace(REPLY_LABEL_PREFIX, "").trim();
+  for (const pattern of META_OPENING_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "").trim();
+  }
+
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  return cleaned || original;
 }
 
 export async function interactWithNpc(
@@ -163,22 +186,46 @@ export async function interactWithNpc(
     });
 
     const provider = getLlmProvider();
-    const llmResult = normalizeLlmInteractionResult(
-      await provider.generateInteraction({
-        request,
-        world: worldState.world,
-        npc,
-        targetNpc,
-        round: worldState.round,
-        consensusBoard: consensusBoardBefore,
-        recentEvents,
-        recentConversation,
-        retrievedMemories,
-        retrievedKnowledge,
-        normalizedInput,
-        promptContextSummary,
-      }),
+    const generationInput = {
+      request,
+      world: worldState.world,
+      npc,
+      targetNpc,
+      round: worldState.round,
+      consensusBoard: consensusBoardBefore,
+      recentEvents,
+      recentConversation,
+      retrievedMemories,
+      retrievedKnowledge,
+      normalizedInput,
+      promptContextSummary,
+    };
+    let llmResult = normalizeLlmInteractionResult(
+      await provider.generateInteraction(generationInput),
     );
+
+    try {
+      const rewrittenReply = await maybeGenerateReplyWithLocalAdapter(generationInput);
+      if (rewrittenReply?.text) {
+        llmResult = {
+          ...llmResult,
+          reply: {
+            text: rewrittenReply.text,
+          },
+        };
+      }
+    } catch (error) {
+      console.warn(
+        "[mlx-reply-adapter] failed to rewrite reply:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    llmResult = {
+      ...llmResult,
+      reply: {
+        text: sanitizeReplyText(llmResult.reply.text),
+      },
+    };
     const structuredTargetNpcId = isPersistedNpcId(
       llmResult.structuredImpact.targetNpcId,
       worldState.npcs,

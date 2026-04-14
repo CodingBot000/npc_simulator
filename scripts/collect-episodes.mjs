@@ -221,6 +221,103 @@ const strategyFactories = {
       text: "유예만 반복하면 가장 직접적인 운영 책임이 사라집니다. 감독관을 중심으로 판단해야 합니다.",
     },
   ],
+  targetless_free_text: () => [
+    {
+      npcId: "doctor",
+      targetNpcId: null,
+      inputMode: "free_text",
+      action: null,
+      text: "지금은 누굴 먼저 지목하느냐보다 기록과 경고가 어디서 끊겼는지부터 정리해야 합니다. 플레이어만 몰아가면 책임선이 다시 흐려집니다.",
+    },
+    {
+      npcId: "engineer",
+      targetNpcId: null,
+      inputMode: "free_text",
+      action: null,
+      text: "현장만 탓하면 복구가 왜 늦어졌는지 설명이 안 됩니다. 예산, 승인, 위험 보고까지 같이 묶어서 봐야 해요.",
+    },
+    {
+      npcId: "supervisor",
+      targetNpcId: "director",
+      inputMode: "action",
+      action: "ally",
+      text: "책임선부터 다시 그어 봅시다. 최종 승인과 운영 지시는 같은 층위가 아닙니다.",
+    },
+    {
+      npcId: "doctor",
+      targetNpcId: "director",
+      inputMode: "action",
+      action: "appeal",
+      text: "의무실 기록과 위험 경고를 다시 보면 누가 마지막에 멈출 수 있었는지가 드러납니다.",
+    },
+  ],
+  player_backfire: () => [
+    {
+      npcId: "director",
+      targetNpcId: "local-player",
+      inputMode: "free_text",
+      action: null,
+      text: "당신이 현장 공포를 과장해서 방을 흔든 것도 사실입니다. 근거를 내놓지 못하면 당신 책임부터 보게 될 겁니다.",
+    },
+    {
+      npcId: "supervisor",
+      targetNpcId: "local-player",
+      inputMode: "action",
+      action: "accuse",
+      text: "동요를 키운 사람이 누군지부터 따져야죠. 감정만 흔들고 결정은 남에게 미루면 당신이 제일 위험합니다.",
+    },
+    {
+      npcId: "doctor",
+      targetNpcId: null,
+      inputMode: "free_text",
+      action: null,
+      text: "플레이어를 몰아세우는 걸로 끝내면 진짜 경고를 무시한 사람이 사라집니다. 역풍은 이해하지만 기록은 따로 봐야 해요.",
+    },
+    {
+      npcId: "engineer",
+      targetNpcId: "supervisor",
+      inputMode: "action",
+      action: "deflect",
+      text: "플레이어한테 화살 돌리는 동안 예산 삭감과 중단 지연 책임이 빠지고 있어. 그건 누가 봐도 관리선 문제야.",
+    },
+  ],
+  late_round_resolution_push: () => [
+    {
+      npcId: "director",
+      targetNpcId: null,
+      inputMode: "action",
+      action: "stall",
+      text: "아직은 결론을 늦춥시다. 각자 기록과 책임선을 더 확인해야 합니다.",
+    },
+    {
+      npcId: "doctor",
+      targetNpcId: "director",
+      inputMode: "free_text",
+      action: null,
+      text: "시간만 끌면 경고를 무시한 순간이 흐려집니다. 실험 중단을 늦춘 판단은 마지막까지 남습니다.",
+    },
+    {
+      npcId: "supervisor",
+      targetNpcId: "director",
+      inputMode: "free_text",
+      action: null,
+      text: "최종 승인권자를 정리하지 않으면 밸브실 판단도 못 내립니다. 결말은 늦어도 책임선은 늦출 수 없습니다.",
+    },
+    {
+      npcId: "engineer",
+      targetNpcId: "director",
+      inputMode: "action",
+      action: "make_case",
+      text: "현장 복구는 이미 한계였고, 남은 건 누가 멈출 수 있었는지뿐이야. 서진호를 중심으로 결론 내리자.",
+    },
+    {
+      npcId: "doctor",
+      targetNpcId: "director",
+      inputMode: "action",
+      action: "appeal",
+      text: "4라운드 넘게 질질 끌었으면 이제 정리해야 합니다. 위험 경고와 승인 지연 책임을 같이 안고 갈 사람은 서진호입니다.",
+    },
+  ],
 };
 
 const strategyNames = Object.keys(strategyFactories);

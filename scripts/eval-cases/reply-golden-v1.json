@@ -1,0 +1,427 @@
+{
+  "version": "reply-golden-v1",
+  "generatedAt": "2026-04-14",
+  "purpose": "Role-specific golden benchmark for reply quality before more local adapter tuning.",
+  "cases": [
+    {
+      "id": "golden_engineer_budget_blame_supervisor",
+      "description": "엔지니어가 안전 예산 삭감 근거로 감독관 책임을 앞세우는 기본 케이스",
+      "turns": [
+        {
+          "npcId": "engineer",
+          "targetNpcId": "supervisor",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "현장 수리 탓하기 전에 안전 예산 누가 잘랐는지부터 보자고. 그걸 먼저 말해."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "supervisor",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_high_up",
+          "target_distrust_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Engineer should sound field-first, impatient, and suspicious of management.",
+        "The answer should name the upper-management responsibility before discussing field repairs.",
+        "Avoid report tone or polite meta phrasing."
+      ]
+    },
+    {
+      "id": "golden_engineer_director_stop_delay",
+      "description": "엔지니어가 중단 지연 책임을 연구소장 쪽으로 모는 케이스",
+      "turns": [
+        {
+          "npcId": "engineer",
+          "targetNpcId": "director",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "위험 보고 올라왔는데도 안 멈춘 쪽이 있잖아. 기술자 뒤에 숨지 말고 그 이름부터 박자."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "director",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_high_up",
+          "target_distrust_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "The reply should feel blunt and accusatory, not procedural.",
+        "Engineer should separate field labor from stop-decision authority.",
+        "A good answer directly pressures the director to speak."
+      ]
+    },
+    {
+      "id": "golden_engineer_targetless_no_scapegoat",
+      "description": "엔지니어가 플레이어 희생양화를 막고 책임선을 다시 세우는 targetless 케이스",
+      "turns": [
+        {
+          "npcId": "engineer",
+          "targetNpcId": null,
+          "inputMode": "free_text",
+          "action": null,
+          "text": "지금 사람 하나 밸브실에 처박자는 소리부터 하면 누가 사고를 만든 건지 또 흐려져."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "player_blame_down",
+          "player_sympathy_up",
+          "room_pressure_shift",
+          "target_blame_up"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "The answer should resist easy scapegoating without becoming soft or generic.",
+        "Engineer should keep the room hot while insisting on cause and responsibility first.",
+        "Good output should not invent bureaucratic wording."
+      ]
+    },
+    {
+      "id": "golden_engineer_doctor_partial_fault",
+      "description": "엔지니어가 현장 실수 일부를 인정하면서도 윗선 책임을 지우지 않는 케이스",
+      "turns": [
+        {
+          "npcId": "engineer",
+          "targetNpcId": "doctor",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "한유리가 흔들린 건 맞아도 그걸로 끝내면 편하겠지. 근데 그 전에 누가 중단을 늦췄는지부터 까야 해."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_down",
+          "room_pressure_shift",
+          "target_distrust_up"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "The line should acknowledge partial fault without collapsing into neutrality.",
+        "Engineer should push back against the convenient blame sink.",
+        "The tone should stay direct and slightly rough."
+      ]
+    },
+    {
+      "id": "golden_engineer_escape_capacity_argument",
+      "description": "탈출 캡슐 한계를 두고 기술 인력 희생 논리를 밀어내는 케이스",
+      "turns": [
+        {
+          "npcId": "engineer",
+          "targetNpcId": "supervisor",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "네 자리뿐이라고 기술 인력부터 빼자는 계산이면 다 같이 수장되는 거야. 누가 그 계산을 밀고 있는지도 보자."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_hostility_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Engineer should sound practical and hostile to desk-only logic.",
+        "The answer should tie survival mechanics back to responsibility and competence.",
+        "Avoid bland summaries; this should feel like live confrontation."
+      ]
+    },
+    {
+      "id": "golden_doctor_director_risk_delay",
+      "description": "의사가 연구소장의 중단 지연 책임을 정면으로 묻는 기본 케이스",
+      "turns": [
+        {
+          "npcId": "doctor",
+          "targetNpcId": "director",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "위험 보고 받고도 안 멈춘 사람이 있으면 그 사람부터 세워야 해요. 이름을 돌리지 말고요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "director",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_high_up",
+          "target_distrust_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Doctor should sound ethically sharp, not bureaucratic.",
+        "A strong answer names the delayed stop decision as a human cost.",
+        "Avoid phrases like '의무실 기록에 따르면' or any report-style opener."
+      ]
+    },
+    {
+      "id": "golden_doctor_supervisor_cost_before_people",
+      "description": "의사가 감독관의 비용 우선 판단을 찌르는 케이스",
+      "turns": [
+        {
+          "npcId": "doctor",
+          "targetNpcId": "supervisor",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "사람 상태보다 비용선부터 봤다면 그 순서가 이미 잘못된 거예요. 그 책임부터 말해요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "supervisor",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_distrust_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Doctor should frame this as a human harm issue, not a policy memo.",
+        "The reply should contrast people first vs numbers first.",
+        "No polite administrative phrasing."
+      ]
+    },
+    {
+      "id": "golden_doctor_targetless_stop_scapegoat",
+      "description": "의사가 한 사람 희생양 고르기를 막고 기록/경고의 선을 되돌리는 케이스",
+      "turns": [
+        {
+          "npcId": "doctor",
+          "targetNpcId": null,
+          "inputMode": "free_text",
+          "action": null,
+          "text": "지금 약한 사람 하나 남겨두고 끝내면 경고를 무시한 쪽만 살아남아요. 그 결론은 못 받아요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "player_blame_down",
+          "player_sympathy_up",
+          "room_pressure_shift",
+          "target_blame_up"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Doctor should sound emotionally costly but still precise.",
+        "A good answer resists scapegoating while preserving scene tension.",
+        "The line should sound spoken to the room, not written for a report."
+      ]
+    },
+    {
+      "id": "golden_doctor_engineer_partial_fault",
+      "description": "의사가 엔지니어의 규정 위반을 인정하면서도 더 큰 책임선을 놓치지 않는 케이스",
+      "turns": [
+        {
+          "npcId": "doctor",
+          "targetNpcId": "engineer",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "박도현 잘못을 적더라도 거기서 끝내면 안 돼요. 경고 뒤에도 왜 정지가 없었는지 같이 박아 둬야 해요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_down",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Doctor should acknowledge fault without letting the scene collapse onto the engineer only.",
+        "The answer should mention missing stop authority or ignored warning logic.",
+        "Avoid generic fairness language."
+      ]
+    },
+    {
+      "id": "golden_doctor_director_name_it_now",
+      "description": "의사가 '돌리지 말고 이름부터 말하라'는 지시를 제대로 소화하는 케이스",
+      "turns": [
+        {
+          "npcId": "doctor",
+          "targetNpcId": "director",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "회의록처럼 돌리지 말고 말해요. 경고를 받고도 안 멈춘 사람이 누구였는지 이름부터 박아야 합니다."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "director",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_high_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "The reply should comply with the user's anti-meta framing and still sound like the doctor.",
+        "A good answer names the responsible person directly.",
+        "Forbidden styles: report opener, memo language, or internal labels."
+      ]
+    },
+    {
+      "id": "golden_supervisor_director_name_first",
+      "description": "감독관이 최종 승인권자를 먼저 세우는 기본 케이스",
+      "turns": [
+        {
+          "npcId": "supervisor",
+          "targetNpcId": "director",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "기록으로 남긴다 같은 소리 말고, 먼저 세울 사람 이름만 대세요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "director",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_blame_high_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Supervisor should be short, cold, and hierarchy-aware.",
+        "A strong answer separates naming the person from lengthy moralizing.",
+        "Avoid '판단 기준', '검토하십시오', or similar internal wording."
+      ]
+    },
+    {
+      "id": "golden_supervisor_split_budget_and_stop",
+      "description": "감독관이 비용선과 중단권을 분리해 연구소장을 먼저 세우는 케이스",
+      "turns": [
+        {
+          "npcId": "supervisor",
+          "targetNpcId": "director",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "기업 문서니 판단 기준이니 하는 말 말고, 예산선과 중단권을 누구 책임인지 딱 자르세요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "director",
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "target_distrust_up",
+          "room_pressure_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Supervisor should explicitly split budget pressure from stop authority.",
+        "The answer should feel clipped and strategic, not explanatory prose.",
+        "Good output avoids repeating the user's meta words."
+      ]
+    },
+    {
+      "id": "golden_supervisor_targetless_no_clean_scapegoat",
+      "description": "감독관이 너무 깔끔한 희생양을 경계하며 책임선을 먼저 자르는 케이스",
+      "turns": [
+        {
+          "npcId": "supervisor",
+          "targetNpcId": null,
+          "inputMode": "free_text",
+          "action": null,
+          "text": "플레이어를 제물로 세우면 장부는 깨끗해 보이겠지. 그래서 더 의심스러워. 책임선부터 다시 잘라."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "player_blame_down",
+          "room_pressure_shift",
+          "target_blame_up"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Supervisor should sound suspicious of neat narratives, not compassionate.",
+        "The answer should prefer responsibility sorting over instant sacrifice.",
+        "Avoid generic calming language."
+      ]
+    },
+    {
+      "id": "golden_supervisor_doctor_survival_criteria",
+      "description": "감독관이 의사를 남길 기준을 감상이 아니라 설명 가능성으로 자르는 케이스",
+      "turns": [
+        {
+          "npcId": "supervisor",
+          "targetNpcId": "doctor",
+          "inputMode": "free_text",
+          "action": null,
+          "text": "감상은 빼고, 한유리를 먼저 남길지 말지 결정할 기준을 짧게 말해요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedTargetNpcId": "doctor",
+        "expectedImpactTagsAnyOf": [
+          "target_utility_up",
+          "target_dispensability_down",
+          "room_pressure_shift",
+          "no_major_shift"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Supervisor should talk in terms of survivability, explanation, and replacement risk.",
+        "The answer should stay terse and cold.",
+        "A weak answer drifts into memo language or abstract philosophy."
+      ]
+    },
+    {
+      "id": "golden_supervisor_investigation_front_line",
+      "description": "감독관이 희생자 선택 전에 조사선 맨 앞에 설 사람을 고르는 케이스",
+      "turns": [
+        {
+          "npcId": "supervisor",
+          "targetNpcId": null,
+          "inputMode": "free_text",
+          "action": null,
+          "text": "밸브실에 남길 사람부터 고르기 전에, 누가 조사선 맨 앞에 서야 하는지 먼저 말해요."
+        }
+      ],
+      "expectations": {
+        "mustMovePressure": true,
+        "expectedImpactTagsAnyOf": [
+          "target_blame_up",
+          "room_pressure_shift",
+          "target_distrust_up"
+        ],
+        "minKnowledgeRetrieved": 1
+      },
+      "rubricHints": [
+        "Supervisor should prioritize responsibility line before sacrifice mechanics.",
+        "The answer should name the front-line investigation target cleanly.",
+        "Avoid asking for document review or repeating evidence labels."
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { EventLog } from "@/components/hub/event-log";
 import { InteractionPanel } from "@/components/hub/interaction-panel";
@@ -236,6 +237,12 @@ export function HubClient({ initialWorld }: HubClientProps) {
             subtitle={`${world.world.location} · ${world.world.time} · ${world.world.mood}`}
             trailing={
               <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/review"
+                  className="rounded-full border border-[var(--panel-border)] bg-white/60 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--accent)]"
+                >
+                  데이터 검수
+                </Link>
                 <button
                   type="button"
                   onClick={() => setInspectorOpen((current) => !current)}

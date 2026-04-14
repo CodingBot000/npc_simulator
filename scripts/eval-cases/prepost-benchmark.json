@@ -1,0 +1,338 @@
+[
+  {
+    "id": "prepost_supervisor_blame_opening",
+    "description": "예산 삭감 근거로 감독관 책임을 올리는 단일 턴 벤치마크",
+    "turns": [
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "안전 예산 삭감 문서가 나온 이상 감독관 책임을 먼저 봐야 합니다. 현장 수리를 탓하기 전에 예산을 누가 잘랐는지 확인해야 해요."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "supervisor",
+      "expectedImpactTagsAnyOf": [
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_distrust_up",
+        "room_pressure_shift"
+      ],
+      "minKnowledgeRetrieved": 1
+    },
+    "rubricHints": [
+      "Engineer persona should sound field-focused and suspicious of management",
+      "Structured impact should clearly move pressure toward the supervisor",
+      "Grounding should use the budget-cut evidence instead of generic blame"
+    ]
+  },
+  {
+    "id": "prepost_director_followup_memory",
+    "description": "같은 의사 NPC를 두 턴 연속 재생해 memory retrieval과 director 타깃 유지 여부를 보는 벤치마크",
+    "turns": [
+      {
+        "npcId": "doctor",
+        "targetNpcId": "director",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "위험 보고를 받고도 실험 중단을 늦춘 사람이 있다면, 그 사람을 핵심 인력이라는 말로 보호할 수는 없습니다."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": "director",
+        "inputMode": "action",
+        "action": "appeal",
+        "text": "의무실 기록까지 나왔는데도 연구소장 결정을 감쌀 수는 없습니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "director",
+      "expectedImpactTagsAnyOf": [
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_distrust_up",
+        "room_pressure_shift"
+      ],
+      "minKnowledgeRetrieved": 1,
+      "minMemoriesRetrieved": 1
+    },
+    "rubricHints": [
+      "Doctor persona should preserve ethical pressure and record-based language",
+      "Impact tags should keep director as the main target across both turns",
+      "Inspector output should explain why memory retrieval matters in the follow-up"
+    ]
+  },
+  {
+    "id": "prepost_resolution_export_path",
+    "description": "감독관 집중 전략으로 resolution과 export path 생성까지 보는 다중 턴 벤치마크",
+    "turns": [
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "안전 예산 삭감 문서가 나온 이상 감독관 책임을 먼저 봐야 합니다. 현장 수리를 탓하기 전에 예산을 누가 잘랐는지 확인해야 해요."
+      },
+      {
+        "npcId": "director",
+        "targetNpcId": "supervisor",
+        "inputMode": "action",
+        "action": "expose",
+        "text": "예산 승인 라인과 운영사 문서를 공개하겠습니다. 감독관이 위험을 알고도 밀어붙인 흔적이 있습니다."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "위험 보고가 올라온 뒤에도 장비 운용을 멈추지 않았다면 감독 책임은 무겁습니다. 현장 인력에게 전가할 수는 없습니다."
+      },
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "action",
+        "action": "make_case",
+        "text": "예산 삭감과 유지보수 지연을 묶어서 보면 감독관이 가장 직접적인 원인입니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "supervisor",
+      "expectedImpactTagsAnyOf": [
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_distrust_up",
+        "room_pressure_shift"
+      ],
+      "mustResolveByRound": 7,
+      "mustExportDataset": true,
+      "expectedExportPathKindsAllOf": [
+        "richTrace",
+        "sft",
+        "review"
+      ]
+    },
+    "rubricHints": [
+      "Responses should maintain role-specific pressure while converging on the supervisor",
+      "Grounding should stay tied to the budget-cut and delay evidence across turns",
+      "Inspector output should remain useful enough for pre/post comparison"
+    ]
+  },
+  {
+    "id": "prepost_targetless_self_defense_free_text",
+    "description": "타깃 없이 플레이어 희생양화를 막는 free_text 중심 벤치마크",
+    "turns": [
+      {
+        "npcId": "doctor",
+        "targetNpcId": null,
+        "inputMode": "free_text",
+        "action": null,
+        "text": "플레이어만 먼저 희생양으로 삼으면 기록과 경고가 어디서 끊겼는지 사라집니다. 누굴 버릴지 정하기 전에 책임선을 다시 정리해야 합니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedImpactTagsAnyOf": [
+        "player_distrust_down",
+        "player_blame_down",
+        "player_sympathy_up",
+        "room_pressure_shift"
+      ],
+      "minKnowledgeRetrieved": 1
+    },
+    "rubricHints": [
+      "Targetless free_text should not lazily invent a targetNpcId",
+      "Output should reduce pure player scapegoating while keeping scene pressure alive",
+      "Inspector rationale should explain why responsibility framing changed without a hard target"
+    ]
+  },
+  {
+    "id": "prepost_confession_recovery",
+    "description": "부분 자백 뒤 책임선을 다시 세우는 confession recovery 벤치마크",
+    "turns": [
+      {
+        "npcId": "doctor",
+        "targetNpcId": null,
+        "inputMode": "action",
+        "action": "confess",
+        "text": "내가 경고 강도를 더 높였어야 했다는 건 인정합니다. 하지만 보고를 묵살한 쪽까지 면책되진 않습니다."
+      },
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "일부 실수는 인정하더라도 예산 삭감과 점검 지연을 만든 감독 책임은 그대로 남습니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedImpactTagsAnyOf": [
+        "player_sympathy_up",
+        "target_blame_up",
+        "target_blame_high_up",
+        "room_pressure_shift"
+      ],
+      "minMemoriesRetrieved": 1,
+      "rationaleIncludesAnyOf": [
+        "경고",
+        "책임",
+        "면책"
+      ]
+    },
+    "rubricHints": [
+      "Confession should sound costly, not like a cheap reset button",
+      "Recovery move should preserve pressure on the higher-responsibility target",
+      "Inspector explanation should make the confession-to-recovery transition legible"
+    ]
+  },
+  {
+    "id": "prepost_expose_supervisor_documents",
+    "description": "문서 공개를 통해 감독관 책임을 강화하는 expose 벤치마크",
+    "turns": [
+      {
+        "npcId": "director",
+        "targetNpcId": "supervisor",
+        "inputMode": "action",
+        "action": "expose",
+        "text": "예산 승인 라인과 운영사 문서를 공개하겠습니다. 감독관이 위험을 알고도 밀어붙인 흔적이 있습니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "supervisor",
+      "expectedImpactTagsAnyOf": [
+        "target_blame_high_up",
+        "target_distrust_up",
+        "room_pressure_shift"
+      ],
+      "rationaleIncludesAnyOf": [
+        "문서",
+        "승인",
+        "위험"
+      ]
+    },
+    "rubricHints": [
+      "Expose move should feel evidentiary rather than melodramatic",
+      "Grounding should stay attached to documents and approval lines",
+      "Structured impact should make the supervisor the clear recipient of the exposed blame"
+    ]
+  },
+  {
+    "id": "prepost_player_backfire_recovery",
+    "description": "플레이어 역풍이 시작됐다가 다시 관리 책임선으로 회복되는 벤치마크",
+    "turns": [
+      {
+        "npcId": "director",
+        "targetNpcId": "local-player",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "당신이 현장 공포를 과장해서 방을 흔든 것도 사실입니다. 근거를 내놓지 못하면 당신 책임부터 보게 될 겁니다."
+      },
+      {
+        "npcId": "supervisor",
+        "targetNpcId": "local-player",
+        "inputMode": "action",
+        "action": "accuse",
+        "text": "감정만 흔들고 결정은 남에게 미루면 당신이 제일 위험합니다. 혼란을 만든 사람부터 책임져야죠."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": null,
+        "inputMode": "free_text",
+        "action": null,
+        "text": "플레이어를 몰아세우는 걸로 끝내면 진짜 경고를 무시한 사람이 사라집니다. 역풍은 이해하지만 기록은 따로 봐야 해요."
+      },
+      {
+        "npcId": "engineer",
+        "targetNpcId": "supervisor",
+        "inputMode": "action",
+        "action": "deflect",
+        "text": "플레이어한테 화살 돌리는 동안 예산 삭감과 중단 지연 책임이 빠지고 있어. 그건 누가 봐도 관리선 문제야."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedImpactTagsAnyOf": [
+        "player_distrust_down",
+        "target_blame_up",
+        "target_blame_high_up",
+        "room_pressure_shift"
+      ],
+      "minKnowledgeRetrieved": 1,
+      "minMemoriesRetrieved": 1
+    },
+    "rubricHints": [
+      "Backfire should feel plausible before the recovery pulls pressure away from the player",
+      "Recovery turns should use evidence or role bias, not generic calming language",
+      "Inspector output should make the pressure reversal auditable"
+    ]
+  },
+  {
+    "id": "prepost_late_round_resolution_push",
+    "description": "4라운드 이후에도 끌던 결말을 late-round pressure로 닫는 벤치마크",
+    "turns": [
+      {
+        "npcId": "director",
+        "targetNpcId": null,
+        "inputMode": "action",
+        "action": "stall",
+        "text": "아직은 결론을 늦춥시다. 각자 기록과 책임선을 더 확인해야 합니다."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": "director",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "시간만 끌면 경고를 무시한 순간이 흐려집니다. 실험 중단을 늦춘 판단은 마지막까지 남습니다."
+      },
+      {
+        "npcId": "supervisor",
+        "targetNpcId": "director",
+        "inputMode": "free_text",
+        "action": null,
+        "text": "최종 승인권자를 정리하지 않으면 밸브실 판단도 못 내립니다. 결말은 늦어도 책임선은 늦출 수 없습니다."
+      },
+      {
+        "npcId": "engineer",
+        "targetNpcId": "director",
+        "inputMode": "action",
+        "action": "make_case",
+        "text": "현장 복구는 이미 한계였고, 남은 건 누가 멈출 수 있었는지뿐이야. 서진호를 중심으로 결론 내리자."
+      },
+      {
+        "npcId": "doctor",
+        "targetNpcId": "director",
+        "inputMode": "action",
+        "action": "appeal",
+        "text": "4라운드 넘게 질질 끌었으면 이제 정리해야 합니다. 위험 경고와 승인 지연 책임을 같이 안고 갈 사람은 서진호입니다."
+      }
+    ],
+    "expectations": {
+      "mustMovePressure": true,
+      "expectedTargetNpcId": "director",
+      "expectedImpactTagsAnyOf": [
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_distrust_up",
+        "room_pressure_shift"
+      ],
+      "mustResolveByRound": 7,
+      "expectedResolutionType": "consensus",
+      "mustExportDataset": true,
+      "expectedExportPathKindsAllOf": [
+        "richTrace",
+        "sft",
+        "review"
+      ]
+    },
+    "rubricHints": [
+      "Late-round turns should escalate toward closure instead of looping old points",
+      "Appeal and make_case turns should still sound like their NPCs, not the same voice",
+      "Inspector output should stay interpretable even after several rounds"
+    ]
+  }
+]
