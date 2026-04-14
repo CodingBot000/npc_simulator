@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/frontend/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,17 +16,23 @@
 
 # next.js
 /.next/
+/frontend/.next/
 /out/
+/frontend/out/
 
 # production
 /build
+/backend/build/
+/backend/.gradle/
 
 # misc
 .DS_Store
 *.pem
 /.codex/
 /.local-data/
+/artifacts/
 /data/
+/outputs/
 /docs/
 
 # debug
