@@ -2,12 +2,16 @@ package com.npcsimulator.infra.bridge;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -20,20 +24,17 @@ public class NodeBridgeService {
     private final Path repoRoot;
     private final boolean bridgeEnabled;
 
-    public NodeBridgeService(
-        ObjectMapper objectMapper,
-        @Value("${npc-simulator.bridge.enabled:true}") boolean bridgeEnabled
-    ) {
-        this.objectMapper = objectMapper;
+    public NodeBridgeService(@Value("${npc-simulator.bridge.enabled:true}") boolean bridgeEnabled) {
+        this.objectMapper = JsonMapper.builder().findAndAddModules().build();
         this.bridgeEnabled = bridgeEnabled;
         this.repoRoot = resolveRepoRoot();
     }
 
-    public BridgeEnvelope invoke(String operation, HttpHeaders headers, JsonNode body) {
+    public BridgeEnvelope invoke(String operation, HttpHeaders headers, Object body) {
         if (!bridgeEnabled) {
             return new BridgeEnvelope(
                 503,
-                objectMapper.createObjectNode().put("message", "Node bridge is disabled.")
+                "{\"message\":\"Node bridge is disabled.\"}"
             );
         }
 
@@ -51,20 +52,22 @@ public class NodeBridgeService {
             Process process = processBuilder.start();
             var input = objectMapper.createObjectNode();
             input.set("headers", objectMapper.valueToTree(headers.toSingleValueMap()));
-            input.set("body", body == null ? objectMapper.nullNode() : body);
+            input.set("body", body == null ? objectMapper.nullNode() : objectMapper.valueToTree(body));
 
             try (var writer = process.outputWriter(StandardCharsets.UTF_8)) {
                 writer.write(objectMapper.writeValueAsString(input));
             }
 
+            CompletableFuture<String> stdoutFuture = readStream(process.getInputStream());
+            CompletableFuture<String> stderrFuture = readStream(process.getErrorStream());
             boolean finished = process.waitFor(2, TimeUnit.MINUTES);
             if (!finished) {
                 process.destroyForcibly();
                 throw new IllegalStateException("Node bridge timed out.");
             }
 
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            String stdout = stdoutFuture.get(5, TimeUnit.SECONDS).trim();
+            String stderr = stderrFuture.get(5, TimeUnit.SECONDS).trim();
 
             if (process.exitValue() != 0) {
                 throw new IllegalStateException(stderr.isBlank() ? stdout : stderr);
@@ -74,11 +77,31 @@ public class NodeBridgeService {
                 throw new IllegalStateException("Node bridge returned an empty response.");
             }
 
-            return objectMapper.readValue(stdout, BridgeEnvelope.class);
-        } catch (IOException | InterruptedException error) {
+            JsonNode envelope = objectMapper.readTree(stdout);
+            JsonNode bodyNode = envelope.path("body");
+
+            return new BridgeEnvelope(
+                envelope.path("status").asInt(500),
+                bodyNode.isMissingNode() ? "null" : objectMapper.writeValueAsString(bodyNode)
+            );
+        } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Failed to execute node bridge", error);
+        } catch (ExecutionException | java.util.concurrent.TimeoutException error) {
+            throw new IllegalStateException("Failed to read node bridge output", error);
+        } catch (IOException error) {
+            throw new IllegalStateException("Failed to execute node bridge", error);
         }
+    }
+
+    private CompletableFuture<String> readStream(InputStream stream) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            } catch (IOException error) {
+                throw new IllegalStateException("Failed to read node bridge stream", error);
+            }
+        });
     }
 
     private List<String> buildCommand(Path tsxPath, Path scriptPath, String operation) {

@@ -7,6 +7,7 @@ import {
 } from "@/lib/types";
 import { appConfig } from "@/server/config";
 import { CodexProvider } from "@/server/providers/codex-provider";
+import { DeterministicProvider } from "@/server/providers/deterministic-provider";
 import { OpenAiProvider } from "@/server/providers/openai-provider";
 
 export const llmInteractionSchema = z.strictObject({
@@ -144,11 +145,17 @@ export const NPC_INTERACTION_JSON_SCHEMA = {
 
 let codexProvider: CodexProvider | null = null;
 let openAiProvider: OpenAiProvider | null = null;
+let deterministicProvider: DeterministicProvider | null = null;
 
 export function getLlmProvider(): LlmProvider {
   if (appConfig.providerMode === "openai") {
     openAiProvider ??= new OpenAiProvider();
     return openAiProvider;
+  }
+
+  if (appConfig.providerMode === "deterministic") {
+    deterministicProvider ??= new DeterministicProvider();
+    return deterministicProvider;
   }
 
   codexProvider ??= new CodexProvider();

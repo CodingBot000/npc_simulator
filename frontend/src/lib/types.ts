@@ -56,7 +56,7 @@ export type AllowedActionType = (typeof allowedActionTypes)[number];
 export type PlayerAction = (typeof playerActions)[number];
 export type ImpactTag = (typeof impactTags)[number];
 export type InputMode = "free_text" | "action";
-export type LlmProviderMode = "codex" | "openai";
+export type LlmProviderMode = "codex" | "openai" | "deterministic";
 
 export type NpcId = string;
 export type CandidateId = string;

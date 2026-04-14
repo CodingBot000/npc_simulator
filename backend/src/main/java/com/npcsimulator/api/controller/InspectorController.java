@@ -1,9 +1,9 @@
 package com.npcsimulator.api.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.npcsimulator.infra.bridge.BridgeEnvelope;
 import com.npcsimulator.infra.bridge.NodeBridgeService;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -21,8 +21,10 @@ public class InspectorController {
     }
 
     @GetMapping
-    public ResponseEntity<JsonNode> inspector(@RequestHeader HttpHeaders headers) {
+    public ResponseEntity<String> inspector(@RequestHeader HttpHeaders headers) {
         BridgeEnvelope result = nodeBridgeService.invoke("inspector", headers, null);
-        return ResponseEntity.status(result.status()).body(result.body());
+        return ResponseEntity.status(result.status())
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(result.bodyJson());
     }
 }

@@ -3,7 +3,11 @@ import path from "node:path";
 import type { LlmProviderMode } from "@/lib/types";
 
 const providerMode =
-  process.env.LLM_PROVIDER_MODE === "openai" ? "openai" : "codex";
+  process.env.LLM_PROVIDER_MODE === "openai"
+    ? "openai"
+    : process.env.LLM_PROVIDER_MODE === "deterministic"
+      ? "deterministic"
+      : "codex";
 const localReplyAdapterMode =
   process.env.LOCAL_REPLY_ADAPTER_MODE === "off"
     ? "off"

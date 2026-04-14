@@ -1,9 +1,10 @@
 package com.npcsimulator.api.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.npcsimulator.infra.bridge.BridgeEnvelope;
 import com.npcsimulator.infra.bridge.NodeBridgeService;
+import java.util.Map;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,11 +23,13 @@ public class InteractionController {
     }
 
     @PostMapping
-    public ResponseEntity<JsonNode> interact(
+    public ResponseEntity<String> interact(
         @RequestHeader HttpHeaders headers,
-        @RequestBody JsonNode body
+        @RequestBody Map<String, Object> body
     ) {
         BridgeEnvelope result = nodeBridgeService.invoke("interact", headers, body);
-        return ResponseEntity.status(result.status()).body(result.body());
+        return ResponseEntity.status(result.status())
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(result.bodyJson());
     }
 }

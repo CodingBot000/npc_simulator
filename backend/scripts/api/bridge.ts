@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { postInteractApiResponse } from "@/server/api/interaction-api";
@@ -27,7 +26,13 @@ interface BridgeInput {
 }
 
 async function readInput(): Promise<BridgeInput> {
-  const raw = await fs.readFile(0, "utf8").catch(() => "");
+  process.stdin.setEncoding("utf8");
+
+  let raw = "";
+
+  for await (const chunk of process.stdin) {
+    raw += chunk;
+  }
 
   if (!raw.trim()) {
     return {};

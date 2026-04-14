@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: npc-simulator-backend
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/npc_simulator}
     username: ${SPRING_DATASOURCE_USERNAME:npc_simulator}

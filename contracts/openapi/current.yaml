@@ -1,0 +1,238 @@
+openapi: 3.1.0
+info:
+  title: NPC Simulator Backend API
+  version: 2026-04-15
+  description: |
+    Current backend-facing contract snapshot after the Spring Boot bridge cut.
+    Response bodies for world and review payloads are intentionally broad in this
+    snapshot because the domain port is still backed by the existing TypeScript engine.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/world:
+    get:
+      operationId: getWorld
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current world snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldSnapshot"
+  /api/reset:
+    post:
+      operationId: resetWorld
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reset world snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldSnapshot"
+  /api/interact:
+    post:
+      operationId: interact
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InteractionRequest"
+      responses:
+        "200":
+          description: Interaction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InteractionResponse"
+  /api/inspector:
+    get:
+      operationId: getInspector
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest inspector payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inspector:
+                    oneOf:
+                      - type: "null"
+                      - type: object
+                        additionalProperties: true
+                required:
+                  - inspector
+  /api/review:
+    get:
+      operationId: getReviewDashboard
+      responses:
+        "200":
+          description: Review dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewDashboardData"
+    patch:
+      operationId: patchReviewDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewDecisionRequest"
+      responses:
+        "200":
+          description: Updated review item
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/review/finalize:
+    get:
+      operationId: getReviewFinalizeStatus
+      responses:
+        "200":
+          description: Finalize job status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      operationId: runReviewFinalize
+      responses:
+        "200":
+          description: Finalize job status after execution
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+components:
+  schemas:
+    InteractionRequest:
+      type: object
+      properties:
+        npcId:
+          type: string
+        targetNpcId:
+          type:
+            - string
+            - "null"
+        inputMode:
+          type: string
+          enum:
+            - free_text
+            - action
+        text:
+          type: string
+        action:
+          type:
+            - string
+            - "null"
+          enum:
+            - make_case
+            - expose
+            - appeal
+            - ally
+            - deflect
+            - stall
+            - confess
+            - "null"
+        playerId:
+          type: string
+      required:
+        - npcId
+        - targetNpcId
+        - inputMode
+        - text
+        - action
+        - playerId
+    InteractionResponse:
+      type: object
+      additionalProperties: true
+    WorldSnapshot:
+      type: object
+      additionalProperties: true
+    ReviewDashboardData:
+      type: object
+      additionalProperties: true
+    ReviewDecisionRequest:
+      oneOf:
+        - type: object
+          properties:
+            kind:
+              const: sft
+            reviewId:
+              type: string
+            decision:
+              type:
+                - string
+                - "null"
+              enum:
+                - include
+                - exclude
+                - escalate
+                - "null"
+            reviewer:
+              type:
+                - string
+                - "null"
+            notes:
+              type: string
+          required:
+            - kind
+            - reviewId
+            - decision
+        - type: object
+          properties:
+            kind:
+              const: pair
+            reviewId:
+              type: string
+            decision:
+              type:
+                - string
+                - "null"
+              enum:
+                - include
+                - flip
+                - exclude
+                - escalate
+                - "null"
+            reviewer:
+              type:
+                - string
+                - "null"
+            notes:
+              type: string
+          required:
+            - kind
+            - reviewId
+            - decision
