@@ -4,6 +4,17 @@ server:
 spring:
   application:
     name: npc-simulator-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/npc_simulator}
+    username: ${SPRING_DATASOURCE_USERNAME:npc_simulator}
+    password: ${SPRING_DATASOURCE_PASSWORD:npc_simulator}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 management:
   endpoints:
@@ -18,7 +29,5 @@ management:
 npc-simulator:
   storage:
     root: ${BACKEND_STORAGE_ROOT:/srv/npc-simulator/storage}
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:}
-    username: ${SPRING_DATASOURCE_USERNAME:}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+  bridge:
+    enabled: ${NPC_SIMULATOR_BRIDGE_ENABLED:true}
