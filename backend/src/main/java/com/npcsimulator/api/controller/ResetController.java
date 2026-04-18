@@ -1,7 +1,10 @@
 package com.npcsimulator.api.controller;
 
-import com.npcsimulator.infra.bridge.BridgeEnvelope;
-import com.npcsimulator.infra.bridge.NodeBridgeService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.npcsimulator.runtime.RuntimeApiException;
+import com.npcsimulator.runtime.RuntimeWorldService;
+import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,17 +17,40 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/reset")
 public class ResetController {
 
-    private final NodeBridgeService nodeBridgeService;
+    private final RuntimeWorldService runtimeWorldService;
+    private final ObjectMapper objectMapper;
 
-    public ResetController(NodeBridgeService nodeBridgeService) {
-        this.nodeBridgeService = nodeBridgeService;
+    public ResetController(RuntimeWorldService runtimeWorldService, ObjectMapper objectMapper) {
+        this.runtimeWorldService = runtimeWorldService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
     public ResponseEntity<String> reset(@RequestHeader HttpHeaders headers) {
-        BridgeEnvelope result = nodeBridgeService.invoke("reset", headers, null);
-        return ResponseEntity.status(result.status())
+        try {
+            JsonNode body = runtimeWorldService.resetWorld(headers);
+            return jsonResponse(ResponseEntity.ok(), body);
+        } catch (RuntimeApiException error) {
+            return ResponseEntity.status(error.getStatus())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(writeJson(Map.of("message", error.getMessage())));
+        }
+    }
+
+    private ResponseEntity<String> jsonResponse(
+        ResponseEntity.BodyBuilder builder,
+        JsonNode body
+    ) {
+        return builder
             .contentType(MediaType.APPLICATION_JSON)
-            .body(result.bodyJson());
+            .body(writeJson(body));
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception error) {
+            throw new IllegalStateException("Failed to serialize reset response.", error);
+        }
     }
 }

@@ -41,6 +41,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
   );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [interactionBusy, setInteractionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastOutcome, setLastOutcome] =
@@ -116,6 +117,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
     text: string;
   }) {
     setBusy(true);
+    setInteractionBusy(true);
     setError(null);
     setDraftWarning(null);
 
@@ -157,6 +159,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
           : "상호작용 처리에 실패했습니다.",
       );
     } finally {
+      setInteractionBusy(false);
       setBusy(false);
     }
   }
@@ -274,6 +277,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
               selectedNpcId={selectedNpc.persona.id}
               subtitle={world.presentation.npcListSubtitle}
               riskByNpcId={riskByNpcId}
+              disabled={busy}
               onSelect={setSelectedNpcId}
             />
           </div>
@@ -285,6 +289,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
             npcs={world.npcs}
             selectedNpcId={selectedNpc.persona.id}
             riskByNpcId={riskByNpcId}
+            disabled={busy}
             onSelectNpc={setSelectedNpcId}
             onTogglePinned={() => setStickyPinned((current) => !current)}
           />
@@ -296,6 +301,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
                 conversation={conversation}
                 draft={draft}
                 busy={busy}
+                waitingForReply={interactionBusy}
                 subtitle={world.presentation.interactionSubtitle}
                 placeholder={world.presentation.interactionPlaceholder}
                 availableActions={world.availableActions}

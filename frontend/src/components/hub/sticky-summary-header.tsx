@@ -7,6 +7,7 @@ interface StickySummaryHeaderProps {
   npcs: NpcState[];
   selectedNpcId: string;
   riskByNpcId: Record<string, number>;
+  disabled?: boolean;
   onSelectNpc: (npcId: string) => void;
   onTogglePinned: () => void;
 }
@@ -18,6 +19,7 @@ export function StickySummaryHeader({
   npcs,
   selectedNpcId,
   riskByNpcId,
+  disabled = false,
   onSelectNpc,
   onTogglePinned,
 }: StickySummaryHeaderProps) {
@@ -78,12 +80,13 @@ export function StickySummaryHeader({
                 <button
                   key={npc.persona.id}
                   type="button"
+                  disabled={disabled}
                   onClick={() => onSelectNpc(npc.persona.id)}
                   className={`min-w-0 rounded-[16px] border px-3 py-2 text-left transition ${
                     selected
                       ? "border-[var(--accent)] bg-[var(--panel-strong)] shadow-[0_10px_24px_rgba(176,91,45,0.14)]"
                       : "border-[var(--panel-border)] bg-white/18 hover:border-[var(--teal)] hover:bg-white/24"
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-55`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-[12px] font-semibold leading-4 text-foreground">

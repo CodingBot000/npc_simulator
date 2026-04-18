@@ -7,6 +7,9 @@
     "paths": {
       "@/*": [
         "./frontend/src/*"
+      ],
+      "@server/*": [
+        "./backend/scripts/server/*"
       ]
     },
     "resolveJsonModule": true,

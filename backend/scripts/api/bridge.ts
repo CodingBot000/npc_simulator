@@ -1,17 +1,14 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { postInteractApiResponse } from "@/server/api/interaction-api";
-import {
-  getReviewDashboardApiResponse,
-  getReviewFinalizeStatusApiResponse,
-  patchReviewDecisionApiResponse,
-  postReviewFinalizeApiResponse,
-} from "@/server/api/review-api";
+import { postInteractApiResponse } from "@server/api/interaction-api";
+import { postRuntimeInteractWorkerResponse } from "../runtime/interaction-worker";
+import { closeDbPool } from "@server/db/postgres";
 import {
   getInspectorApiResponse,
   getWorldApiResponse,
   resetWorldApiResponse,
-} from "@/server/api/world-api";
+} from "@server/api/world-api";
+import { createSeedStateBundle } from "../runtime/world-bundle";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -51,17 +48,19 @@ async function main() {
     case "reset":
       return resetWorldApiResponse(input.headers);
     case "interact":
-      return postInteractApiResponse(input);
+      return postInteractApiResponse({
+        headers: input.headers,
+        body: input.body,
+      });
+    case "runtime-interact-worker":
+      return postRuntimeInteractWorkerResponse(input.body);
     case "inspector":
       return getInspectorApiResponse(input.headers);
-    case "review-dashboard":
-      return getReviewDashboardApiResponse();
-    case "review-update":
-      return patchReviewDecisionApiResponse(input.body);
-    case "review-finalize-status":
-      return getReviewFinalizeStatusApiResponse();
-    case "review-finalize-run":
-      return postReviewFinalizeApiResponse();
+    case "runtime-seed-bundle":
+      return {
+        status: 200,
+        body: createSeedStateBundle(),
+      };
     default:
       return {
         status: 400,
@@ -89,4 +88,7 @@ main()
       })}\n`,
     );
     process.exitCode = 0;
+  })
+  .finally(async () => {
+    await closeDbPool().catch(() => {});
   });

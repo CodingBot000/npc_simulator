@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  getNumberOption,
   getStringOption,
   parseCommaSeparatedOption,
   parseCliArgs,
@@ -8,6 +9,7 @@ import {
   resolveProjectPath,
   writeJsonFile,
 } from "./_episode-cli-helpers.mjs";
+import { closeDbPool, loadSnapshotRowsFromDb } from "./_db-runtime.mjs";
 
 const DEFAULT_TRAIN_INPUT = "data/train/sft/live/final_sft_train.jsonl";
 const DEFAULT_VALID_INPUT = "data/train/sft/live/final_sft_dev.jsonl";
@@ -32,6 +34,7 @@ function usage() {
     "Usage: node scripts/export-mlx-sft-dataset.mjs [options]",
     "",
     "Options:",
+    "  --snapshot-id <id>     source active/explicit DB snapshot id for SFT rows",
     `  --train-input <path>   source train JSONL (default: ${DEFAULT_TRAIN_INPUT})`,
     `  --valid-input <path>   source valid JSONL (default: ${DEFAULT_VALID_INPUT})`,
     `  --output-dir <path>    output directory for MLX chat JSONL files (default: ${DEFAULT_OUTPUT_DIR})`,
@@ -180,6 +183,7 @@ async function main() {
 
   const trainInput = getStringOption(options, "train-input", DEFAULT_TRAIN_INPUT);
   const validInput = getStringOption(options, "valid-input", DEFAULT_VALID_INPUT);
+  const snapshotId = getNumberOption(options, "snapshot-id", null);
   const outputDir = getStringOption(options, "output-dir", DEFAULT_OUTPUT_DIR);
   const inputFormat = getStringOption(options, "input-format", DEFAULT_INPUT_FORMAT);
   const assistantFormat = getStringOption(
@@ -199,10 +203,27 @@ async function main() {
     );
   }
 
-  const [trainResult, validResult] = await Promise.all([
-    readJsonlInputs(trainInput, DEFAULT_TRAIN_INPUT),
-    readJsonlInputs(validInput, DEFAULT_VALID_INPUT),
-  ]);
+  const [trainResult, validResult] = snapshotId
+    ? await Promise.all([
+        loadSnapshotRowsFromDb({ kind: "sft", snapshotId, splitName: "train" }).then(
+          (result) => ({
+            inputPaths: [`db:npc_dataset_snapshot:${result.snapshotId}:train`],
+            rows: result.rows,
+            snapshotId: result.snapshotId,
+          }),
+        ),
+        loadSnapshotRowsFromDb({ kind: "sft", snapshotId, splitName: "dev" }).then(
+          (result) => ({
+            inputPaths: [`db:npc_dataset_snapshot:${result.snapshotId}:dev`],
+            rows: result.rows,
+            snapshotId: result.snapshotId,
+          }),
+        ),
+      ])
+    : await Promise.all([
+        readJsonlInputs(trainInput, DEFAULT_TRAIN_INPUT),
+        readJsonlInputs(validInput, DEFAULT_VALID_INPUT),
+      ]);
   const trainRows = trainResult.rows;
   const validRows = validResult.rows;
 
@@ -228,6 +249,7 @@ async function main() {
       (assistantFormat === "reply_text" ? DEFAULT_REPLY_ONLY_SYSTEM_PROMPT : null),
     trainInputPaths: trainResult.inputPaths,
     validInputPaths: validResult.inputPaths,
+    sourceSnapshotId: snapshotId ?? null,
     trainOutput,
     validOutput,
     counts: {
@@ -255,4 +277,6 @@ async function main() {
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
+}).finally(async () => {
+  await closeDbPool();
 });

@@ -23,10 +23,21 @@ public class NodeBridgeService {
     private final ObjectMapper objectMapper;
     private final Path repoRoot;
     private final boolean bridgeEnabled;
+    private final String datasourceUrl;
+    private final String datasourceUsername;
+    private final String datasourcePassword;
 
-    public NodeBridgeService(@Value("${npc-simulator.bridge.enabled:true}") boolean bridgeEnabled) {
+    public NodeBridgeService(
+        @Value("${npc-simulator.bridge.enabled:true}") boolean bridgeEnabled,
+        @Value("${spring.datasource.url:}") String datasourceUrl,
+        @Value("${spring.datasource.username:}") String datasourceUsername,
+        @Value("${spring.datasource.password:}") String datasourcePassword
+    ) {
         this.objectMapper = JsonMapper.builder().findAndAddModules().build();
         this.bridgeEnabled = bridgeEnabled;
+        this.datasourceUrl = datasourceUrl;
+        this.datasourceUsername = datasourceUsername;
+        this.datasourcePassword = datasourcePassword;
         this.repoRoot = resolveRepoRoot();
     }
 
@@ -48,6 +59,15 @@ public class NodeBridgeService {
             ProcessBuilder processBuilder = new ProcessBuilder(buildCommand(tsxPath, scriptPath, operation));
             processBuilder.directory(repoRoot.toFile());
             processBuilder.environment().putIfAbsent("NPC_SIMULATOR_ROOT", repoRoot.toString());
+            if (datasourceUrl != null && !datasourceUrl.isBlank()) {
+                processBuilder.environment().put("SPRING_DATASOURCE_URL", datasourceUrl);
+            }
+            if (datasourceUsername != null && !datasourceUsername.isBlank()) {
+                processBuilder.environment().put("SPRING_DATASOURCE_USERNAME", datasourceUsername);
+            }
+            if (datasourcePassword != null && !datasourcePassword.isBlank()) {
+                processBuilder.environment().put("SPRING_DATASOURCE_PASSWORD", datasourcePassword);
+            }
 
             Process process = processBuilder.start();
             var input = objectMapper.createObjectNode();

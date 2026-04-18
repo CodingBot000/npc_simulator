@@ -12,13 +12,14 @@ import {
   loadPlainRecords,
   normalizeHumanDecision,
 } from "./_curation-helpers.mjs";
+import { closeDbPool, loadPairReviewRecordsFromDb } from "./_db-runtime.mjs";
 import {
   writeJsonLines,
   writeSummaryJson,
 } from "./_quality-judge-helpers.mjs";
 
 const DEFAULT_PAIR_INPUT = "data/evals/preference/candidate_pairs_live_gap1.jsonl";
-const DEFAULT_REVIEW_INPUT = "data/review/live/human_review_pair_queue.jsonl";
+const DEFAULT_REVIEW_INPUT = "db";
 
 function usage() {
   printUsage([
@@ -26,7 +27,7 @@ function usage() {
     "",
     "Options:",
     `  --pairs-input <path[,path]>    candidate pair input (default: ${DEFAULT_PAIR_INPUT})`,
-    `  --review-input <path[,path]>   human pair review annotations (default: ${DEFAULT_REVIEW_INPUT})`,
+    `  --review-input <path[,path]|db> human pair review annotations (default: ${DEFAULT_REVIEW_INPUT})`,
     "  --collector-input <path[,path]> collector summary files for strategy lookup",
     "  --output-dir <path>            output directory (default: data/train/preference)",
     "  --dataset-version <value>      dataset version label (default: auto date-based label)",
@@ -36,6 +37,10 @@ function usage() {
 }
 
 async function loadOptionalPlainRecords(input, defaultPatterns) {
+  if (input === "db") {
+    return loadPairReviewRecordsFromDb();
+  }
+
   try {
     return await loadPlainRecords(input, defaultPatterns);
   } catch (error) {
@@ -321,4 +326,6 @@ async function main() {
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
+}).finally(async () => {
+  await closeDbPool();
 });

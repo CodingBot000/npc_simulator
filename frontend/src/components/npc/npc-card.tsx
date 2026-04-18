@@ -185,6 +185,55 @@ function DetailSections({ npc }: { npc: NpcState }) {
   );
 }
 
+function InlineDetailCards({ npc }: { npc: NpcState }) {
+  return (
+    <div className="grid gap-3 border-t border-[var(--panel-border)] pt-5">
+      <div className="grid gap-3 grid-cols-2">
+        <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+            말투
+          </p>
+          <p className="text-sm leading-7 text-[var(--ink-muted)]">{npc.persona.tone}</p>
+          <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+            중요하게 여기는 것
+          </p>
+          <p className="text-sm leading-7 text-[var(--ink-muted)]">
+            {npc.persona.values.join(" · ")}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+            넘기 힘든 선
+          </p>
+          <p className="text-sm leading-7 text-[var(--ink-muted)]">
+            {npc.decision.redLines.join(" · ")}
+          </p>
+          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+            드러난 성향
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {npc.persona.traits.map((trait) => (
+              <TraitBadge key={trait} trait={trait} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/20 p-4 text-sm leading-6 text-[var(--ink-muted)]">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+          기억 조각
+        </p>
+        <ul className="space-y-2">
+          {npc.memories.slice(0, 4).map((memory) => (
+            <li key={memory.id}>{memory.summary}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function DetailModal({
   npc,
   open,
@@ -277,6 +326,7 @@ export function NpcCard({ npc }: NpcCardProps) {
           <SummaryChips npc={npc} />
           <OverviewGrid npc={npc} />
           <RelationshipSection npc={npc} />
+          <InlineDetailCards npc={npc} />
         </div>
       </Panel>
 

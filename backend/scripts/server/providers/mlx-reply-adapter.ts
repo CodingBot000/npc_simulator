@@ -1,0 +1,522 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
+import type { GenerateInteractionInput } from "@/lib/types";
+import { PROJECT_ROOT, appConfig } from "@server/config";
+import { dbQuery } from "@server/db/postgres";
+import { getCurrentScenario } from "@server/scenario";
+
+const LOCAL_MLX_BINARY = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.generate");
+const GENERIC_SYSTEM_PROMPT =
+  "해저연구소 생존 협상 NPC로서 주어진 상태와 근거를 사용해 직접 대사만 출력한다. 설명문, 요약문, 해설, JSON, 목록, 라벨은 금지한다. 플레이어 또는 다른 NPC에게 지금 이 자리에서 바로 말하듯 한 단락의 한국어 대사만 말한다.";
+const SCENE_STATE_MIN_SYSTEM_PROMPT =
+  "해저연구소 생존 협상 장면 안의 생존자로서, 아래 상태를 바탕으로 지금 방 안 사람에게 바로 하는 한국어 대사만 한 단락으로 말한다.";
+const ROLE_SYSTEM_PROMPTS: Record<string, string> = {
+  doctor:
+    "해저연구소 의사 NPC로서 주어진 상태와 근거를 사용해 직접 대사만 출력한다. 의무실 기록, 경고, 무시된 중단 신호를 근거로 누가 사람을 버렸는지 직접 짚는다. 반드시 3~4개의 짧은 문장으로 말하고, 기록이나 경고 하나는 구체적으로 꺼내며, 책임져야 할 사람 이름을 바로 부른다. 회의록, 보고서, 판결문처럼 말하지 말고 지금 눈앞 사람에게 쏘아붙이듯 말한다. '의무실 기록에 따르면', '그럼에도 불구하고', '책임을 져야 합니다' 같은 보고서 문체와 존칭투, JSON, 라벨은 금지한다.",
+  supervisor:
+    "해저연구소 감독관 NPC로서 주어진 상태와 근거를 사용해 직접 대사만 출력한다. 법적 책임, 비용선, 설명 가능성, 책임 분리를 기준으로 차갑게 자른다. 반드시 2~4개의 짧은 문장으로 말하고, 비용선과 중단권을 분리해 설명하며, 누가 먼저 답해야 하는지 한 사람을 선명하게 찍는다. 보고서, 메모, 검토 의견처럼 말하지 말고 지금 방 안에서 상대를 잘라내듯 짧게 말한다. '판단 기준', '검토하십시오', '기록으로 명확히' 같은 내부 문구, 훈령문, JSON, 라벨은 금지한다.",
+};
+const NPC_STYLE_HINTS: Record<string, string> = {
+  engineer:
+    "직선적이고 거칠다. 관리직 책임 회피를 싫어하고 현장 단어를 자주 쓴다. 공손체보다 반말/직설체에 가깝다.",
+  doctor:
+    "차분하지만 죄책감이 배어 있다. 윤리와 기록을 중시한다. 설교문보다 사람을 향한 직접 발화로 말한다.",
+  supervisor:
+    "감정을 눌러 말한다. 법적 책임, 비용, 대체 가능성을 기준으로 자른다. 군더더기 없이 차갑게 말한다.",
+  director:
+    "짧게 끊어 말하고 권위를 지키려 한다. 조직, 승인, 통제 계통을 중시한다. 훈계문보다 통제하는 대사처럼 말한다.",
+};
+const NPC_DISPLAY_LABELS: Record<string, string> = {
+  engineer: "박도현(엔지니어)",
+  doctor: "한유리(의사)",
+  supervisor: "마야 로웰(감독관)",
+  director: "서진호(연구소장)",
+};
+type PromptFormat = "raw_json" | "situation_card" | "direct_scene";
+type ScenePromptFormat = PromptFormat | "scene_state_min";
+
+const ADAPTER_CONFIGS: Record<
+  string,
+  { path: string; promptFormat: ScenePromptFormat }
+> = {
+  doctor: {
+    path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-doctor-role-v2"),
+    promptFormat: "raw_json",
+  },
+  supervisor: {
+    path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-supervisor-role-v3"),
+    promptFormat: "raw_json",
+  },
+  default: {
+    path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-aug26-v3"),
+    promptFormat: "raw_json",
+  },
+};
+
+let binaryCheckPromise: Promise<boolean> | null = null;
+const adapterAvailability = new Map<string, Promise<boolean>>();
+
+function containsHangul(text: string) {
+  return /[가-힣]/u.test(text);
+}
+
+function looksEnglishOnly(text: string) {
+  return /[A-Za-z]/u.test(text) && !containsHangul(text);
+}
+
+function extractDelimitedText(output: string) {
+  const matches = [...String(output).matchAll(/==========\n([\s\S]*?)\n==========/g)];
+  return matches.at(-1)?.[1]?.trim() ?? "";
+}
+
+function normalizeReplyText(text: string) {
+  return text
+    .trim()
+    .replace(/^(엔지니어|의사|감독관|소장|director|supervisor|doctor|engineer)\s*:\s*/iu, "")
+    .trim();
+}
+
+function normalizeInlineText(text: string) {
+  return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+function truncateForPrompt(text: string, maxLength = 96) {
+  const normalized = normalizeInlineText(text);
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+async function fileExists(filePath: string) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getAdapterConfigForNpc(npcId: string) {
+  return ADAPTER_CONFIGS[npcId] ?? ADAPTER_CONFIGS.default;
+}
+
+function supportsPromotedAdapterLookup() {
+  const datasourceUrl = process.env.SPRING_DATASOURCE_URL ?? "";
+  return /postgres(?:ql)?:/u.test(datasourceUrl);
+}
+
+async function getPromotedAdapterConfigForNpc(npcId: string) {
+  if (!supportsPromotedAdapterLookup()) {
+    return null;
+  }
+
+  const bindingKeys =
+    npcId === "default" ? ["default"] : [npcId, "default"];
+
+  try {
+    const result = await dbQuery<{
+      output_adapter_path: string | null;
+      promoted_binding_key: string | null;
+    }>(
+      `SELECT output_adapter_path, promoted_binding_key
+         FROM npc_training_run
+        WHERE state = 'succeeded'
+          AND promoted_at IS NOT NULL
+          AND output_adapter_path IS NOT NULL
+          AND promoted_binding_key = ANY($1::text[])
+        ORDER BY CASE WHEN promoted_binding_key = $2 THEN 0 ELSE 1 END,
+                 promoted_at DESC,
+                 id DESC
+        LIMIT 1`,
+      [bindingKeys, npcId],
+    );
+
+    const row = result.rows[0];
+    if (!row?.output_adapter_path) {
+      return null;
+    }
+
+    const promptBinding = row.promoted_binding_key ?? npcId;
+    const baseConfig = ADAPTER_CONFIGS[promptBinding] ?? ADAPTER_CONFIGS.default;
+    return {
+      path: row.output_adapter_path,
+      promptFormat: baseConfig.promptFormat,
+    } as const;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveAdapterConfigForNpc(npcId: string) {
+  const promotedConfig = await getPromotedAdapterConfigForNpc(npcId);
+  return promotedConfig ?? getAdapterConfigForNpc(npcId);
+}
+
+async function hasMlxBinary() {
+  if (!binaryCheckPromise) {
+    binaryCheckPromise = fileExists(LOCAL_MLX_BINARY);
+  }
+  return binaryCheckPromise;
+}
+
+async function hasAdapter(adapterPath: string) {
+  if (!adapterAvailability.has(adapterPath)) {
+    adapterAvailability.set(
+      adapterPath,
+      fileExists(path.join(adapterPath, "adapters.safetensors")),
+    );
+  }
+  return adapterAvailability.get(adapterPath) ?? Promise.resolve(false);
+}
+
+function resolveSystemPrompt(npcId: string, promptFormat: ScenePromptFormat) {
+  if (promptFormat === "scene_state_min") {
+    return SCENE_STATE_MIN_SYSTEM_PROMPT;
+  }
+
+  return ROLE_SYSTEM_PROMPTS[npcId] ?? GENERIC_SYSTEM_PROMPT;
+}
+
+function parsePromptContextSummary(summary: string) {
+  const result = {
+    roundBefore: null as string | null,
+    leaderBefore: null as string | null,
+    target: null as string | null,
+  };
+
+  const parts = String(summary ?? "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  for (const part of parts) {
+    const [rawKey, ...rest] = part.split("=");
+    const key = rawKey?.trim();
+    const value = rest.join("=").trim() || null;
+
+    if (key === "roundBefore") {
+      result.roundBefore = value;
+    } else if (key === "leaderBefore") {
+      result.leaderBefore = value;
+    } else if (key === "target") {
+      result.target = value;
+    }
+  }
+
+  return result;
+}
+
+function resolveTargetLabel(input: GenerateInteractionInput) {
+  const context = parsePromptContextSummary(input.promptContextSummary);
+
+  return (
+    input.targetNpc?.persona.name ||
+    context.target ||
+    NPC_DISPLAY_LABELS[input.request.targetNpcId ?? ""] ||
+    input.request.targetNpcId ||
+    "none"
+  );
+}
+
+function summarizeKnowledgeForPrompt(
+  entry: GenerateInteractionInput["retrievedKnowledge"][number],
+) {
+  const summary = normalizeInlineText(entry.summary || entry.title || "");
+  const title = normalizeInlineText(entry.title);
+  let text = summary;
+
+  if (title && text.startsWith(title)) {
+    text = text.slice(title.length).replace(/^[:,-]\s*/, "").trim();
+  }
+
+  if (!text) {
+    text = title;
+  }
+
+  return truncateForPrompt(text);
+}
+
+function buildEvidencePromptSummary(input: GenerateInteractionInput) {
+  const summaries = input.retrievedKnowledge
+    .slice(0, 4)
+    .map((entry) => summarizeKnowledgeForPrompt(entry))
+    .filter(Boolean);
+
+  return summaries.length > 0 ? summaries.join(" / ") : "없음";
+}
+
+function resolveLeaderLabel(input: GenerateInteractionInput) {
+  const context = parsePromptContextSummary(input.promptContextSummary);
+  return context.leaderBefore ?? input.consensusBoard[0]?.candidateLabel ?? "none";
+}
+
+function summarizeChatMessageForPrompt(
+  entry: GenerateInteractionInput["recentConversation"][number],
+) {
+  const speakerLabel =
+    entry.speaker === "player"
+      ? "플레이어"
+      : NPC_DISPLAY_LABELS[entry.npcId] ?? entry.npcId ?? "다른 생존자";
+
+  return `${speakerLabel}: ${truncateForPrompt(entry.text, 72)}`;
+}
+
+function buildRecentConversationPromptSummary(input: GenerateInteractionInput) {
+  const currentPlayerText = normalizeInlineText(
+    input.request.text || input.normalizedInput.promptSummary,
+  );
+
+  const lines = input.recentConversation
+    .filter((entry) => normalizeInlineText(entry.text) !== currentPlayerText)
+    .slice(-2)
+    .map((entry) => summarizeChatMessageForPrompt(entry))
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines.join(" / ") : null;
+}
+
+function buildRecentEventPromptSummary(input: GenerateInteractionInput) {
+  const lines = input.recentEvents
+    .slice(-2)
+    .map((entry) => truncateForPrompt(entry.detail || entry.title || "", 84))
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines.join(" / ") : null;
+}
+
+function buildAdapterPromptContextSummary(input: GenerateInteractionInput) {
+  const context = parsePromptContextSummary(input.promptContextSummary);
+
+  return [
+    `roundBefore=${context.roundBefore ?? String(input.round.currentRound)}`,
+    `leaderBefore=${context.leaderBefore ?? input.consensusBoard[0]?.candidateLabel ?? "none"}`,
+    `target=${resolveTargetLabel(input)}`,
+    `retrievedMemories=${input.retrievedMemories.length}`,
+    `retrievedEvidence=${buildEvidencePromptSummary(input)}`,
+  ].join(" | ");
+}
+
+function buildRawJsonPrompt(input: GenerateInteractionInput) {
+  const scenario = getCurrentScenario();
+  const userPayload = {
+    scenarioId: scenario.id,
+    turnIndex: input.round.currentRound,
+    npcId: input.npc.persona.id,
+    targetNpcId: input.request.targetNpcId,
+    npcStyleHint: NPC_STYLE_HINTS[input.npc.persona.id] ?? null,
+    playerText: input.request.text || input.normalizedInput.promptSummary,
+    normalizedInputSummary: input.normalizedInput.promptSummary,
+    promptContextSummary: buildAdapterPromptContextSummary(input),
+  };
+
+  return [
+    "다음은 NPC 응답 생성 입력이다.",
+    "입력 JSON:",
+    JSON.stringify(userPayload, null, 2),
+    "출력 규칙:",
+    "- 지금 이 자리에서 바로 내뱉는 대사만 말한다.",
+    "- 두세 문장 이상으로 말하고, 책임선이나 근거 하나는 분명히 찍는다.",
+    "- 입력 JSON의 필드명이나 '판단 기준' 같은 내부 메모 문구를 그대로 따라 말하지 않는다.",
+    "- 화자 라벨, 설명, 요약, JSON, 메타 발언을 쓰지 않는다.",
+  ].join("\n");
+}
+
+function buildSituationCardPrompt(input: GenerateInteractionInput) {
+  const scenario = getCurrentScenario();
+  const context = parsePromptContextSummary(input.promptContextSummary);
+  const targetLabel = resolveTargetLabel(input);
+  const evidenceSummary = buildEvidencePromptSummary(input);
+
+  return [
+    "상황 카드",
+    `- 시나리오: ${scenario.id}`,
+    `- 화자: ${NPC_DISPLAY_LABELS[input.npc.persona.id] ?? `${input.npc.persona.name}(${input.npc.persona.role})`}`,
+    `- 상대: ${targetLabel}`,
+    `- 플레이어 발화: "${input.request.text || input.normalizedInput.promptSummary}"`,
+    `- 플레이어 의도 요약: ${input.normalizedInput.promptSummary}`,
+    `- 현재 라운드: ${context.roundBefore ?? String(input.round.currentRound)}`,
+    `- 직전 압박 선두: ${context.leaderBefore ?? input.consensusBoard[0]?.candidateLabel ?? "없음"}`,
+    `- 핵심 근거: ${evidenceSummary}`,
+    `- 말투 힌트: ${NPC_STYLE_HINTS[input.npc.persona.id] ?? "없음"}`,
+    "출력 규칙:",
+    "- 지금 이 자리에서 바로 내뱉는 대사만 말한다.",
+    "- 두세 문장 이상으로 말하고, 책임선이나 근거 하나는 분명히 찍는다.",
+    "- 필드명, 키, 내부 메모 문구를 따라 읽지 않는다.",
+    "- 화자 라벨, 설명, 요약, JSON, 메타 발언을 쓰지 않는다.",
+  ].join("\n");
+}
+
+function buildDirectScenePrompt(input: GenerateInteractionInput) {
+  const context = parsePromptContextSummary(input.promptContextSummary);
+  const targetLabel = resolveTargetLabel(input);
+  const evidenceSummary = buildEvidencePromptSummary(input);
+
+  return [
+    `너는 지금 ${NPC_DISPLAY_LABELS[input.npc.persona.id] ?? `${input.npc.persona.name}(${input.npc.persona.role})`}로 말한다.`,
+    targetLabel && targetLabel !== "none"
+      ? `상대는 ${targetLabel}다. 지금 그 사람이나 방 안 사람들에게 바로 쏘아붙이듯 말해라.`
+      : "상대가 정해지지 않았다. 지금 방 안 사람들에게 바로 말해라.",
+    `플레이어가 방금 이렇게 말했다: "${input.request.text || input.normalizedInput.promptSummary}"`,
+    `지금 기억해야 할 근거: ${evidenceSummary}.`,
+    `현재 라운드는 ${context.roundBefore ?? String(input.round.currentRound)}다.`,
+    `직전 압박 선두는 ${resolveLeaderLabel(input) ?? "없음"}였다.`,
+    `말투 힌트: ${NPC_STYLE_HINTS[input.npc.persona.id] ?? "없음"}`,
+    "보고서, 회의록, 판결문처럼 쓰지 말고 지금 이 자리의 대사로만 2~4문장 말해라.",
+    "문장 첫머리에 의무실 기록에 따르면, 판단 기준, 검토하십시오 같은 메타 문구를 쓰지 마라.",
+    "화자 라벨, JSON, 목록, 요약문은 금지다.",
+  ].join("\n");
+}
+
+function buildSceneStateMinPrompt(input: GenerateInteractionInput) {
+  const speakerLabel =
+    NPC_DISPLAY_LABELS[input.npc.persona.id] ??
+    `${input.npc.persona.name}(${input.npc.persona.role})`;
+  const targetLabel = resolveTargetLabel(input);
+  const evidenceLines = input.retrievedKnowledge
+    .slice(0, 3)
+    .map((entry) => summarizeKnowledgeForPrompt(entry))
+    .filter(Boolean);
+  const currentGoal = truncateForPrompt(input.npc.goals.currentGoal || "", 96);
+  const survivalBias = truncateForPrompt(
+    input.npc.decision.survivalRationale || input.npc.decision.biasSummary || "",
+    120,
+  );
+  const recentConversation = buildRecentConversationPromptSummary(input);
+  const recentEvent = buildRecentEventPromptSummary(input);
+
+  return [
+    `화자: ${speakerLabel}`,
+    `상대: ${targetLabel === "none" ? "없음" : targetLabel}`,
+    `플레이어 발화: "${input.request.text || input.normalizedInput.promptSummary}"`,
+    "",
+    "화자 상태",
+    `- 감정: ${input.npc.emotion.primary} ${input.npc.emotion.intensity}`,
+    currentGoal ? `- 현재 목표: ${currentGoal}` : null,
+    survivalBias ? `- 생존 편향: ${survivalBias}` : null,
+    "",
+    "지금 장면",
+    `- 라운드: ${input.round.currentRound}`,
+    `- 직전 압박 선두: ${resolveLeaderLabel(input) === "none" ? "없음" : resolveLeaderLabel(input)}`,
+    recentEvent ? `- 최근 사건: ${recentEvent}` : null,
+    recentConversation ? `- 최근 대화: ${recentConversation}` : null,
+    "",
+    "근거",
+    ...(evidenceLines.length > 0 ? evidenceLines.map((line) => `- ${line}`) : ["- 뚜렷한 근거 없음"]),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildPrompt(
+  input: GenerateInteractionInput,
+  promptFormat: ScenePromptFormat,
+) {
+  if (promptFormat === "situation_card") {
+    return buildSituationCardPrompt(input);
+  }
+
+  if (promptFormat === "direct_scene") {
+    return buildDirectScenePrompt(input);
+  }
+
+  if (promptFormat === "scene_state_min") {
+    return buildSceneStateMinPrompt(input);
+  }
+
+  return buildRawJsonPrompt(input);
+}
+
+async function runMlxGenerate(args: string[]) {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(LOCAL_MLX_BINARY, args, {
+      cwd: PROJECT_ROOT,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error("mlx_lm.generate timed out after 120000ms."));
+    }, 120000);
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || stdout.trim() || "mlx_lm.generate failed."));
+        return;
+      }
+      resolve(extractDelimitedText(stdout || stderr));
+    });
+  });
+}
+
+export async function maybeGenerateReplyWithLocalAdapter(
+  input: GenerateInteractionInput,
+) {
+  const mode = appConfig.localReplyAdapterMode;
+  if (mode === "off") {
+    return null;
+  }
+
+  const playerText = input.request.text || input.normalizedInput.promptSummary;
+  if (looksEnglishOnly(playerText)) {
+    return null;
+  }
+
+  const binaryAvailable = await hasMlxBinary();
+  if (!binaryAvailable) {
+    if (mode === "on") {
+      throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
+    }
+    return null;
+  }
+
+  const adapterConfig = await resolveAdapterConfigForNpc(input.npc.persona.id);
+  const adapterPath = adapterConfig.path;
+  const adapterAvailable = await hasAdapter(adapterPath);
+  if (!adapterAvailable) {
+    if (mode === "on") {
+      throw new Error(`Adapter not found: ${adapterPath}`);
+    }
+    return null;
+  }
+
+  const text = await runMlxGenerate([
+    "--model",
+    appConfig.localReply.mlxModel,
+    "--adapter-path",
+    adapterPath,
+    "--system-prompt",
+    resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+    "--prompt",
+    buildPrompt(input, adapterConfig.promptFormat),
+    "--max-tokens",
+    String(appConfig.localReply.maxTokens),
+  ]);
+
+  const normalized = text.trim();
+  const cleaned = normalizeReplyText(normalized);
+  if (!cleaned || /^!+$/u.test(cleaned)) {
+    return null;
+  }
+
+  return {
+    text: cleaned,
+    adapterPath,
+  };
+}

@@ -18,6 +18,10 @@ import type {
   ReviewDatasetView,
   ReviewKind,
   ReviewSourceMode,
+  ReviewTrainingBindingKey,
+  ReviewTrainingKind,
+  ReviewTrainingRunView,
+  ReviewTrainingStatusView,
   SftReviewItemView,
 } from "@/lib/review-types";
 
@@ -33,6 +37,12 @@ const PAIR_DECISIONS: Exclude<PairReviewItemView["decision"], null>[] = [
   "flip",
   "exclude",
   "escalate",
+];
+const TRAINING_BINDING_KEYS: ReviewTrainingBindingKey[] = [
+  "default",
+  "doctor",
+  "supervisor",
+  "director",
 ];
 
 function isSftItem(item: ReviewItem): item is SftReviewItemView {
@@ -94,6 +104,20 @@ function summarize(items: ReviewItem[]) {
 
 function totalCount(dataset: ReviewDatasetView) {
   return dataset.sftItems.length + dataset.pairItems.length;
+}
+
+function isHumanReviewed(item: ReviewItem) {
+  return item.decision !== null;
+}
+
+function filterDatasetByReviewedState(
+  dataset: ReviewDatasetView,
+  reviewed: boolean,
+): ReviewDatasetView {
+  return {
+    sftItems: dataset.sftItems.filter((item) => isHumanReviewed(item) === reviewed),
+    pairItems: dataset.pairItems.filter((item) => isHumanReviewed(item) === reviewed),
+  };
 }
 
 function updateHumanItemInData(
@@ -189,6 +213,431 @@ function TextBlock({
       className={`rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-7 text-foreground/95 ${className}`}
     >
       {children}
+    </div>
+  );
+}
+
+function trainingActionButtonClassName(
+  tone: "sft" | "dpo" | "eval" | "accept" | "reject" | "promote",
+) {
+  const baseClassName =
+    "w-full rounded-full border px-5 py-2.5 text-sm font-semibold transition-[transform,box-shadow,background-color,border-color,color,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.985] disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-[rgba(255,255,255,0.04)] disabled:text-white/35 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:brightness-100 disabled:active:translate-y-0 disabled:active:scale-100";
+
+  switch (tone) {
+    case "sft":
+      return `${baseClassName} border-[rgba(209,111,76,0.36)] bg-[rgba(209,111,76,0.92)] text-white shadow-[0_10px_24px_rgba(209,111,76,0.24)] hover:bg-[rgba(209,111,76,1)] hover:shadow-[0_14px_28px_rgba(209,111,76,0.34)] active:bg-[rgba(182,90,56,1)] active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.22)] focus-visible:ring-[rgba(209,111,76,0.5)]`;
+    case "dpo":
+      return `${baseClassName} border-[rgba(76,194,200,0.38)] bg-[rgba(76,194,200,0.92)] text-black shadow-[0_10px_24px_rgba(76,194,200,0.22)] hover:bg-[rgba(91,214,220,1)] hover:shadow-[0_14px_28px_rgba(76,194,200,0.32)] active:bg-[rgba(54,167,174,1)] active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.18)] focus-visible:ring-[rgba(76,194,200,0.5)]`;
+    case "eval":
+      return `${baseClassName} border-white/18 bg-white/7 text-foreground shadow-[0_10px_22px_rgba(0,0,0,0.12)] hover:border-white/30 hover:bg-white/13 hover:shadow-[0_14px_26px_rgba(0,0,0,0.18)] active:bg-white/16 active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.2)] focus-visible:ring-white/35`;
+    case "accept":
+      return `${baseClassName} border-[rgba(74,166,124,0.26)] bg-[rgba(74,166,124,0.18)] text-[var(--success)] shadow-[0_8px_18px_rgba(74,166,124,0.12)] hover:border-[rgba(74,166,124,0.42)] hover:bg-[rgba(74,166,124,0.28)] hover:shadow-[0_12px_24px_rgba(74,166,124,0.18)] active:bg-[rgba(74,166,124,0.34)] active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.18)] focus-visible:ring-[rgba(74,166,124,0.45)]`;
+    case "reject":
+      return `${baseClassName} border-[rgba(214,90,90,0.26)] bg-[rgba(214,90,90,0.18)] text-[var(--danger)] shadow-[0_8px_18px_rgba(214,90,90,0.12)] hover:border-[rgba(214,90,90,0.42)] hover:bg-[rgba(214,90,90,0.28)] hover:shadow-[0_12px_24px_rgba(214,90,90,0.18)] active:bg-[rgba(214,90,90,0.34)] active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.18)] focus-visible:ring-[rgba(214,90,90,0.45)]`;
+    case "promote":
+      return `${baseClassName} border-[rgba(76,194,200,0.34)] bg-[rgba(76,194,200,0.18)] text-[var(--teal)] shadow-[0_8px_18px_rgba(76,194,200,0.12)] hover:border-[rgba(76,194,200,0.5)] hover:bg-[rgba(76,194,200,0.28)] hover:shadow-[0_12px_24px_rgba(76,194,200,0.18)] active:bg-[rgba(76,194,200,0.34)] active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.18)] focus-visible:ring-[rgba(76,194,200,0.45)]`;
+  }
+}
+
+function GuideModalFrame({
+  open,
+  onClose,
+  closeAriaLabel,
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  closeAriaLabel: string;
+  eyebrow: string;
+  title: string;
+  description: ReactNode;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,10,17,0.78)] p-4 backdrop-blur-sm sm:p-6">
+      <button
+        type="button"
+        aria-label={closeAriaLabel}
+        onClick={onClose}
+        className="absolute inset-0"
+      />
+
+      <div className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#08131a] px-5 py-5 text-left shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:px-6 sm:py-6">
+        <div className="mb-5 shrink-0 flex items-start justify-between gap-4">
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--teal)]">
+              {eyebrow}
+            </p>
+            <h2 className="text-2xl font-semibold text-foreground">{title}</h2>
+            <div className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">{description}</div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-white/10"
+          >
+            닫기
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function PromotionSlotGuideModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <GuideModalFrame
+      open={open}
+      onClose={onClose}
+      closeAriaLabel="promotion slot guide 닫기"
+      eyebrow="Promotion Slot Guide"
+      title="슬롯별 의미"
+      description="학습 결과를 어떤 runtime adapter 자리로 승격할지 정하는 선택이다."
+    >
+      <div className="space-y-3">
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">default</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            기본 응답 경로에서 우선 쓰는 공용 adapter 슬롯이다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">doctor</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            의사 NPC에 붙일 전용 adapter 슬롯이다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">supervisor</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            감독관 NPC에 붙일 전용 adapter 슬롯이다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">director</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            소장 NPC에 붙일 전용 adapter 슬롯이다.
+          </p>
+        </TextBlock>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-left">
+        <p className="text-sm font-semibold text-foreground">예시</p>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[var(--ink-muted)]">
+          <li>전체적으로 무난한 SFT 결과면 `default`에 승격한다.</li>
+          <li>특정 캐릭터 말투만 유독 좋아졌으면 `doctor`, `supervisor`, `director` 같은 캐릭터별 slot에 올린다.</li>
+        </ul>
+      </div>
+    </GuideModalFrame>
+  );
+}
+
+function TrainingExecutionGuideModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <GuideModalFrame
+      open={open}
+      onClose={onClose}
+      closeAriaLabel="training execution guide 닫기"
+      eyebrow="Training Execution Guide"
+      title="버튼별 실행 가이드"
+      description={
+        <>
+          이 영역은 서비스 이용자용이 아니라 개발 중인 운영자가 학습 run을 관리하는 control
+          plane이다. 각 버튼은 현재 화면에 표시된 <code>runId</code> 와 선택된{" "}
+          <code>Promotion Slot</code> 을 기준으로 동작한다.
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">새로운 SFT Base 생성</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            finalized SFT 데이터셋으로 새 base adapter를 만든다. 새 데이터 회차를 시작할 때
+            가장 먼저 보는 버튼이다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">기존 SFT Base로 DPO 진행</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            현재 선택된 성공 SFT base와 finalized preference 데이터셋을 바탕으로 후속
+            미세조정을 수행한다. 새 데이터셋 회차라면 보통 새로운 SFT Base 생성 뒤에
+            실행한다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">골든 평가 실행</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            현재 표시된 성공 run을 선택된 <code>Promotion Slot</code> 의 baseline과 비교한다.
+            학습이 성공한 뒤에만 실행하는 검증 단계다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">채택 / 반려</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            골든 평가 결과를 보고 운영자가 최종 결정을 남긴다. 채택은 승격 후보 확정, 반려는
+            이번 run을 runtime 후보에서 제외하는 의미다.
+          </p>
+        </TextBlock>
+
+        <TextBlock className="text-left">
+          <p className="text-sm font-semibold text-foreground">runtime 승격</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            채택된 run의 adapter를 선택된 slot에 실제 배포한다. 이 단계부터 live runtime
+            경로에 영향이 간다.
+          </p>
+        </TextBlock>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-left">
+        <p className="text-sm font-semibold text-foreground">권장 실행 순서</p>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-7 text-[var(--ink-muted)]">
+          <li>review finalize를 끝내서 학습 대상 데이터셋을 고정한다.</li>
+          <li>새로운 SFT Base를 생성한다.</li>
+          <li>DPO가 필요하면 성공한 SFT base를 parent로 삼아 이어서 진행한다.</li>
+          <li>성공한 run에 대해 골든 평가를 실행한다.</li>
+          <li>평가 결과를 보고 채택 또는 반려를 기록한다.</li>
+          <li>채택된 run만 runtime slot으로 승격한다.</li>
+        </ol>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-left">
+        <p className="text-sm font-semibold text-foreground">순서 유의사항</p>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[var(--ink-muted)]">
+          <li>
+            골든 평가는 학습이 성공한 뒤에만 의미가 있다. 평가를 먼저 누르면 안 된다.
+          </li>
+          <li>
+            채택 / 반려는 골든 평가가 끝난 run에 대해서만 결정한다. 새 학습을 안 돌렸어도
+            화면에 잡힌 기존 latest run에 대해 다시 누를 수 있다.
+          </li>
+          <li>
+            runtime 승격은 채택된 run만 가능하다. 아무 학습 없이 빈 상태에서 누르는 버튼이
+            아니다.
+          </li>
+          <li>
+            DPO는 독립 시작점이 아니다. 보통 새 회차에서는 새로운 SFT Base 생성 다음에
+            실행하고, 예외적으로는 이미 존재하는 성공 SFT base를 의도적으로 재사용할 때만
+            바로 진행한다.
+          </li>
+          <li>
+            현재 선택한 <code>Promotion Slot</code> 은 골든 평가의 비교 기준과 승격 대상 둘
+            다에 영향을 준다.
+          </li>
+        </ul>
+      </div>
+    </GuideModalFrame>
+  );
+}
+
+function basenameFromPath(path: string | null) {
+  if (!path) {
+    return "-";
+  }
+
+  const normalized = path.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  return segments[segments.length - 1] || path;
+}
+
+function describeTrainingRunOrigin(run: ReviewTrainingRunView) {
+  if (
+    run.runId.startsWith("real-eval-import-") ||
+    run.message?.toLowerCase().includes("imported")
+  ) {
+    return "검증용 import run";
+  }
+
+  if (run.kind === "dpo") {
+    return "후속 DPO run";
+  }
+
+  return "실학습 run";
+}
+
+function dpoExecutionModeLabel(
+  mode: ReviewTrainingStatusView["dpo"]["executionMode"],
+) {
+  switch (mode) {
+    case "needs_new_sft":
+      return "새 SFT Base 필요";
+    case "reuse_existing_sft":
+      return "기존 성공 SFT Base 재사용";
+    default:
+      return "판단 불가";
+  }
+}
+
+function dpoFingerprintRelationLabel(
+  relation: ReviewTrainingStatusView["dpo"]["sftFingerprintRelation"],
+) {
+  switch (relation) {
+    case "match":
+      return "finalized SFT fingerprint 일치";
+    case "mismatch":
+      return "finalized SFT fingerprint 불일치";
+    default:
+      return "finalized SFT fingerprint 확인 불가";
+  }
+}
+
+function TrainingRunDetailCard({
+  eyebrow,
+  run,
+  emptyMessage,
+  messageOverride,
+  note,
+  action,
+}: {
+  eyebrow: string;
+  run: ReviewTrainingRunView | null;
+  emptyMessage: ReactNode;
+  messageOverride?: string | null;
+  note?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <p className="mb-2 text-xs uppercase tracking-[0.18em] text-foreground/80">{eyebrow}</p>
+          {run ? (
+            <>
+              <p className="text-lg font-semibold text-foreground">
+                {run.kind.toUpperCase()} · {describeTrainingRunOrigin(run)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                dataset {run.sourceDatasetVersion ?? "-"} · adapter {basenameFromPath(run.adapterPath)}
+              </p>
+              <p className="mt-2 break-all font-mono text-[11px] text-[var(--ink-muted)]">
+                runId {run.runId}
+              </p>
+            </>
+          ) : (
+            <div className="text-sm leading-7 text-[var(--ink-muted)]">{emptyMessage}</div>
+          )}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+
+      {note ? (
+        <div className="mt-4 rounded-2xl border border-[rgba(209,111,76,0.24)] bg-[rgba(209,111,76,0.1)] px-4 py-3 text-sm leading-7 text-[var(--accent)]">
+          {note}
+        </div>
+      ) : null}
+
+      {run ? (
+        <div className="mt-4 space-y-2 text-sm text-[var(--ink-muted)]">
+          <p>runId: {run.runId}</p>
+          <p>kind: {run.kind}</p>
+          <p>state: {run.state}</p>
+          <p>step: {run.currentStep ?? "-"}</p>
+          <p>message: {messageOverride ?? run.message ?? "-"}</p>
+          <p>dataset dir: {run.datasetDir ?? "-"}</p>
+          <p>adapter: {run.adapterPath ?? "-"}</p>
+          <p>log: {run.logPath ?? "-"}</p>
+          <p>startedAt: {formatTimestamp(run.startedAt ?? null)}</p>
+          <p>finishedAt: {formatTimestamp(run.finishedAt ?? null)}</p>
+          <p>updatedAt: {formatTimestamp(run.updatedAt ?? null)}</p>
+          <p>source dataset version: {run.sourceDatasetVersion ?? "-"}</p>
+          <p>fingerprint: {run.fingerprint ?? "-"}</p>
+          <p>source fingerprint: {run.sourceFingerprint ?? "-"}</p>
+          <p>parent run: {run.parentRunId ?? "-"}</p>
+          <p>
+            소요: build {formatDuration(run.durations.buildMs ?? null)} / train{" "}
+            {formatDuration(run.durations.trainMs ?? null)} / 전체{" "}
+            {formatDuration(run.durations.totalMs ?? null)}
+          </p>
+          <p>
+            eval: {run.evaluation.state ?? "idle"} / slot {run.evaluation.bindingKey ?? "-"}
+          </p>
+          <p>eval benchmark: {run.evaluation.benchmarkId ?? "-"}</p>
+          <p>eval baseline: {run.evaluation.baselineLabel ?? "-"}</p>
+          <p>
+            eval message: {run.evaluation.message ?? run.evaluation.recommendation ?? "-"}
+          </p>
+          <p>eval summary: {run.evaluation.summaryPath ?? "-"}</p>
+          <p>
+            eval startedAt: {formatTimestamp(run.evaluation.startedAt ?? null)} / finishedAt{" "}
+            {formatTimestamp(run.evaluation.finishedAt ?? null)}
+          </p>
+          <p>
+            winner: baseline {run.evaluation.winnerCounts?.baseline ?? "-"} / candidate{" "}
+            {run.evaluation.winnerCounts?.candidate ?? "-"} / tie{" "}
+            {run.evaluation.winnerCounts?.tie ?? "-"}
+          </p>
+          <p>
+            score: N {run.evaluation.baselineNaturalness ?? "-"} →{" "}
+            {run.evaluation.candidateNaturalness ?? "-"} / P{" "}
+            {run.evaluation.baselinePersonaFit ?? "-"} →{" "}
+            {run.evaluation.candidatePersonaFit ?? "-"} / A{" "}
+            {run.evaluation.baselineAntiMeta ?? "-"} →{" "}
+            {run.evaluation.candidateAntiMeta ?? "-"}
+          </p>
+          <p>eval confidence: {run.evaluation.confidence ?? "-"}</p>
+          <p>
+            decision: {run.decision.state ?? "pending"} / reviewer {run.decision.reviewer ?? "-"}
+          </p>
+          <p>decision notes: {run.decision.notes ?? "-"}</p>
+          <p>decidedAt: {formatTimestamp(run.decision.decidedAt ?? null)}</p>
+          <p>
+            promotion:{" "}
+            {run.promotion.isPromoted
+              ? `${run.promotion.bindingKey ?? "-"} @ ${formatTimestamp(
+                  run.promotion.promotedAt ?? null,
+                )}`
+              : "미승격"}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -303,11 +752,13 @@ function llmStatusLabel(item: ReviewItem) {
 function CompactReviewCard({
   item,
   reviewer,
+  sourceMode,
   readOnly,
   onItemSaved,
 }: {
   item: ReviewItem;
   reviewer: string;
+  sourceMode: ReviewSourceMode;
   readOnly: boolean;
   onItemSaved?: (item: ReviewItem) => void;
 }) {
@@ -377,7 +828,7 @@ function CompactReviewCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {readOnly ? (
+          {sourceMode === "llm_completed" ? (
             <>
               <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
                 LLM {llm?.provider ?? "unknown"}
@@ -393,6 +844,19 @@ function CompactReviewCard({
                 confidence {llm?.confidence ?? "-"}
               </span>
             </>
+          ) : sourceMode === "human_reviewed" ? (
+            <>
+              <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
+                reviewer {item.reviewer ?? "없음"}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-medium ${decisionTone(
+                  item.decision,
+                )}`}
+              >
+                사람 검수: {decisionLabel(item.decision)}
+              </span>
+            </>
           ) : (
             <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
               reviewer {reviewer || "미입력"}
@@ -400,11 +864,13 @@ function CompactReviewCard({
           )}
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${decisionTone(
-              readOnly ? llm?.suggestedDecision ?? null : item.decision,
+              sourceMode === "llm_completed" ? llm?.suggestedDecision ?? null : item.decision,
             )}`}
           >
-            {readOnly ? "LLM 판단" : "저장됨"}:{" "}
-            {readOnly ? llmStatusLabel(item) : decisionLabel(item.decision)}
+            {sourceMode === "llm_completed" ? "LLM 판단" : "저장됨"}:{" "}
+            {sourceMode === "llm_completed"
+              ? llmStatusLabel(item)
+              : decisionLabel(item.decision)}
           </span>
         </div>
       </div>
@@ -458,7 +924,7 @@ function CompactReviewCard({
           </div>
         )}
 
-        {readOnly ? (
+        {sourceMode === "llm_completed" ? (
           <TextBlock>
             <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">
               llm first pass
@@ -473,6 +939,21 @@ function CompactReviewCard({
             <div className="mt-3">
               <TagRow values={llm?.reasons ?? []} emptyLabel="LLM 메모 없음" />
             </div>
+          </TextBlock>
+        ) : sourceMode === "human_reviewed" ? (
+          <TextBlock>
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">
+              human review
+            </p>
+            <p className="mt-2 text-sm text-foreground">
+              reviewer {item.reviewer ?? "없음"} / decision {decisionLabel(item.decision)}
+            </p>
+            <p className="mt-2 text-sm text-[var(--ink-muted)]">
+              reviewed at {formatTimestamp(item.reviewedAt)}
+            </p>
+            <p className="mt-2 text-sm text-[var(--ink-muted)]">
+              notes {item.notes || "없음"}
+            </p>
           </TextBlock>
         ) : (
           <>
@@ -673,32 +1154,77 @@ export function ReviewDashboard({
   const [data, setData] = useState(initialData);
   const [sourceMode, setSourceMode] = useState<ReviewSourceMode>("human_required");
   const [kind, setKind] = useState<ReviewKind>("sft");
-  const [pendingOnly, setPendingOnly] = useState(true);
   const [reviewer, setReviewer] = useState("switch");
   const [finalizeStatus, setFinalizeStatus] = useState<ReviewFinalizeStatusView | null>(
     null,
   );
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const finalizePollRef = useRef<number | null>(null);
-
-  const activeDataset =
-    sourceMode === "human_required" ? data.humanRequired : data.llmCompleted;
-  const sourceItems =
-    kind === "sft" ? activeDataset.sftItems : activeDataset.pairItems;
-  const items = useMemo(
-    () =>
-      sourceMode === "human_required" && pendingOnly
-        ? sourceItems.filter((item) => item.status !== "reviewed" && !item.decision)
-        : sourceItems,
-    [pendingOnly, sourceItems, sourceMode],
+  const [trainingStatus, setTrainingStatus] = useState<ReviewTrainingStatusView | null>(
+    null,
   );
-  const stats = summarize(sourceItems);
+  const [trainingError, setTrainingError] = useState<string | null>(null);
+  const [trainingBindingKey, setTrainingBindingKey] =
+    useState<ReviewTrainingBindingKey>("default");
+  const [promotionGuideOpen, setPromotionGuideOpen] = useState(false);
+  const [trainingExecutionGuideOpen, setTrainingExecutionGuideOpen] = useState(false);
+  const [currentActionRunId, setCurrentActionRunId] = useState<string | null>(null);
+  const trainingPollRef = useRef<number | null>(null);
+
+  const humanRequiredDataset = useMemo(
+    () => filterDatasetByReviewedState(data.humanRequired, false),
+    [data.humanRequired],
+  );
+  const humanReviewedDataset = useMemo(
+    () => filterDatasetByReviewedState(data.humanRequired, true),
+    [data.humanRequired],
+  );
+  const activeDataset = useMemo(() => {
+    switch (sourceMode) {
+      case "human_required":
+        return humanRequiredDataset;
+      case "human_reviewed":
+        return humanReviewedDataset;
+      case "llm_completed":
+      default:
+        return data.llmCompleted;
+    }
+  }, [data.llmCompleted, humanRequiredDataset, humanReviewedDataset, sourceMode]);
+  const items = kind === "sft" ? activeDataset.sftItems : activeDataset.pairItems;
+  const stats = summarize(items);
   const pendingRequiredTotal = useMemo(
     () =>
       data.humanRequired.sftItems.filter((item) => !item.decision).length +
       data.humanRequired.pairItems.filter((item) => !item.decision).length,
     [data.humanRequired.pairItems, data.humanRequired.sftItems],
   );
+  const latestHistoricalRun = trainingStatus?.latestRun ?? null;
+  const currentActionRun = useMemo(() => {
+    if (!trainingStatus) {
+      return null;
+    }
+
+    if (currentActionRunId) {
+      if (trainingStatus.activeRun?.runId === currentActionRunId) {
+        return trainingStatus.activeRun;
+      }
+      if (trainingStatus.latestRun?.runId === currentActionRunId) {
+        return trainingStatus.latestRun;
+      }
+      return null;
+    }
+
+    return trainingStatus.activeRun ?? null;
+  }, [currentActionRunId, trainingStatus]);
+  const isHistoricalReoperation =
+    currentActionRun !== null &&
+    latestHistoricalRun !== null &&
+    currentActionRun.runId === latestHistoricalRun.runId &&
+    trainingStatus?.activeRun === null;
+  const canUseHistoricalRun =
+    trainingStatus?.activeRun === null &&
+    latestHistoricalRun !== null &&
+    currentActionRun?.runId !== latestHistoricalRun.runId;
 
   useEffect(() => {
     let cancelled = false;
@@ -725,8 +1251,72 @@ export function ReviewDashboard({
       if (finalizePollRef.current) {
         window.clearInterval(finalizePollRef.current);
       }
+      if (trainingPollRef.current) {
+        window.clearInterval(trainingPollRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTrainingStatus() {
+      const response = await fetch(buildClientApiUrl("/api/review/training"), {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as ReviewTrainingStatusView;
+      if (!cancelled) {
+        setTrainingStatus(payload);
+      }
+    }
+
+    void loadTrainingStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const shouldPoll =
+      trainingStatus?.activeRun?.state === "running" ||
+      trainingStatus?.latestRun?.evaluation.state === "running";
+
+    if (shouldPoll) {
+      if (!trainingPollRef.current) {
+        trainingPollRef.current = window.setInterval(() => {
+          void refreshTrainingStatus();
+        }, 2000);
+      }
+      return;
+    }
+
+    if (trainingPollRef.current) {
+      window.clearInterval(trainingPollRef.current);
+      trainingPollRef.current = null;
+    }
+  }, [trainingStatus?.activeRun?.state, trainingStatus?.latestRun?.evaluation.state]);
+
+  useEffect(() => {
+    if (!currentActionRunId && trainingStatus?.activeRun?.runId) {
+      setCurrentActionRunId(trainingStatus.activeRun.runId);
+      return;
+    }
+
+    if (
+      currentActionRunId &&
+      trainingStatus &&
+      trainingStatus.activeRun?.runId !== currentActionRunId &&
+      trainingStatus.latestRun?.runId !== currentActionRunId
+    ) {
+      setCurrentActionRunId(trainingStatus.activeRun?.runId ?? null);
+    }
+  }, [currentActionRun, currentActionRunId, trainingStatus]);
 
   function handleItemSaved(nextItem: ReviewItem) {
     setData((current) => {
@@ -752,6 +1342,8 @@ export function ReviewDashboard({
 
       return nextData;
     });
+
+    void refreshTrainingStatus();
   }
 
   async function refreshFinalizeStatus() {
@@ -837,11 +1429,170 @@ export function ReviewDashboard({
         window.clearInterval(finalizePollRef.current);
         finalizePollRef.current = null;
       }
+      await refreshTrainingStatus();
+    }
+  }
+
+  async function refreshTrainingStatus() {
+    const response = await fetch(buildClientApiUrl("/api/review/training"), {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = (await response.json()) as ReviewTrainingStatusView;
+    setTrainingStatus(payload);
+  }
+
+  async function handleTraining(kind: ReviewTrainingKind) {
+    setTrainingError(null);
+
+    try {
+      const response = await fetch(buildClientApiUrl("/api/review/training"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ kind }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "학습 실행에 실패했습니다.");
+      }
+
+      const nextStatus = payload as ReviewTrainingStatusView;
+      setTrainingStatus(nextStatus);
+      setCurrentActionRunId(nextStatus.activeRun?.runId ?? nextStatus.latestRun?.runId ?? null);
+    } catch (error) {
+      setTrainingError(
+        error instanceof Error ? error.message : "학습 실행에 실패했습니다.",
+      );
+      await refreshTrainingStatus();
+    }
+  }
+
+  async function handleTrainingEvaluation() {
+    if (!currentActionRun) {
+      return;
+    }
+
+    setTrainingError(null);
+
+    try {
+      const response = await fetch(buildClientApiUrl("/api/review/training/evaluate"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          runId: currentActionRun.runId,
+          bindingKey: trainingBindingKey,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "골든 평가 실행에 실패했습니다.");
+      }
+
+      const nextStatus = payload as ReviewTrainingStatusView;
+      setTrainingStatus(nextStatus);
+      setCurrentActionRunId(currentActionRun.runId);
+    } catch (error) {
+      setTrainingError(
+        error instanceof Error ? error.message : "골든 평가 실행에 실패했습니다.",
+      );
+      await refreshTrainingStatus();
+    }
+  }
+
+  async function handleTrainingDecision(decision: "accepted" | "rejected") {
+    if (!currentActionRun) {
+      return;
+    }
+
+    setTrainingError(null);
+
+    try {
+      const response = await fetch(buildClientApiUrl("/api/review/training/decision"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          runId: currentActionRun.runId,
+          decision,
+          reviewer,
+          notes: "",
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "학습 채택 여부 저장에 실패했습니다.");
+      }
+
+      const nextStatus = payload as ReviewTrainingStatusView;
+      setTrainingStatus(nextStatus);
+      setCurrentActionRunId(currentActionRun.runId);
+    } catch (error) {
+      setTrainingError(
+        error instanceof Error ? error.message : "학습 채택 여부 저장에 실패했습니다.",
+      );
+      await refreshTrainingStatus();
+    }
+  }
+
+  async function handleTrainingPromotion() {
+    if (!currentActionRun) {
+      return;
+    }
+
+    setTrainingError(null);
+
+    try {
+      const response = await fetch(buildClientApiUrl("/api/review/training/promote"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          runId: currentActionRun.runId,
+          bindingKey: trainingBindingKey,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "runtime 승격에 실패했습니다.");
+      }
+
+      const nextStatus = payload as ReviewTrainingStatusView;
+      setTrainingStatus(nextStatus);
+      setCurrentActionRunId(currentActionRun.runId);
+    } catch (error) {
+      setTrainingError(
+        error instanceof Error ? error.message : "runtime 승격에 실패했습니다.",
+      );
+      await refreshTrainingStatus();
     }
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+    <>
+      <PromotionSlotGuideModal
+        open={promotionGuideOpen}
+        onClose={() => setPromotionGuideOpen(false)}
+      />
+      <TrainingExecutionGuideModal
+        open={trainingExecutionGuideOpen}
+        onClose={() => setTrainingExecutionGuideOpen(false)}
+      />
+
+      <main className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--teal)]">
@@ -869,51 +1620,52 @@ export function ReviewDashboard({
       <CardSurface>
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            {([
-              ["human_required", "사람 검수 필요", totalCount(data.humanRequired)],
-              ["llm_completed", "LLM 검수 완료", totalCount(data.llmCompleted)],
-            ] as const).map(([entry, label, count]) => (
-              <button
-                key={entry}
-                type="button"
-                onClick={() => setSourceMode(entry)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  sourceMode === entry
-                    ? "bg-[var(--teal)] text-black"
-                    : "border border-white/10 bg-white/6 text-foreground/85 hover:bg-white/10"
-                }`}
-              >
-                {label} {count}
-              </button>
-            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                ["human_required", "사람 검수 필요", totalCount(humanRequiredDataset)],
+                ["human_reviewed", "사람 검수 완료", totalCount(humanReviewedDataset)],
+                ["llm_completed", "LLM 검수 완료", totalCount(data.llmCompleted)],
+              ] as const).map(([entry, label, count]) => (
+                <button
+                  key={entry}
+                  type="button"
+                  onClick={() => setSourceMode(entry)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    sourceMode === entry
+                      ? "bg-[var(--teal)] text-black"
+                      : "border border-white/10 bg-white/6 text-foreground/85 hover:bg-white/10"
+                  }`}
+                >
+                  {label} {count}
+                </button>
+              ))}
+            </div>
 
-            {(["sft", "pair"] as const).map((entry) => (
-              <button
-                key={entry}
-                type="button"
-                onClick={() => setKind(entry)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  kind === entry
-                    ? "bg-[var(--accent)] text-white"
-                    : "border border-white/10 bg-white/6 text-foreground/85 hover:bg-white/10"
-                }`}
-              >
-                {entry === "sft"
-                  ? `SFT ${activeDataset.sftItems.length}`
-                  : `Pair ${activeDataset.pairItems.length}`}
-              </button>
-            ))}
+            <span
+              aria-hidden="true"
+              className="px-1 text-sm font-semibold text-[var(--ink-muted)]"
+            >
+              |
+            </span>
 
-            {sourceMode === "human_required" ? (
-              <label className="ml-2 flex items-center gap-2 text-sm text-[var(--ink-muted)]">
-                <input
-                  type="checkbox"
-                  checked={pendingOnly}
-                  onChange={(event) => setPendingOnly(event.target.checked)}
-                />
-                대기 항목만 보기
-              </label>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {(["sft", "pair"] as const).map((entry) => (
+                <button
+                  key={entry}
+                  type="button"
+                  onClick={() => setKind(entry)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    kind === entry
+                      ? "bg-[var(--accent)] text-white"
+                      : "border border-white/10 bg-white/6 text-foreground/85 hover:bg-white/10"
+                  }`}
+                >
+                  {entry === "sft"
+                    ? `SFT ${activeDataset.sftItems.length}`
+                    : `Pair ${activeDataset.pairItems.length}`}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -949,6 +1701,13 @@ export function ReviewDashboard({
                   placeholder="이름"
                 />
               </label>
+            ) : sourceMode === "human_reviewed" ? (
+              <TextBlock>
+                <p className="mb-2 text-sm font-semibold text-foreground">읽기 전용</p>
+                <p className="text-sm text-[var(--ink-muted)]">
+                  이 탭은 사람이 이미 검수한 결과를 다시 확인하는 용도입니다.
+                </p>
+              </TextBlock>
             ) : (
               <TextBlock>
                 <p className="mb-2 text-sm font-semibold text-foreground">읽기 전용</p>
@@ -961,17 +1720,25 @@ export function ReviewDashboard({
             <TextBlock>
               <p className="mb-2 text-sm font-semibold text-foreground">
                 현재 모드:{" "}
-                {sourceMode === "human_required" ? "사람 검수 필요" : "LLM 검수 완료"} /{" "}
-                {kind === "sft" ? "SFT" : "Pair / DPO"}
+                {sourceMode === "human_required"
+                  ? "사람 검수 필요"
+                  : sourceMode === "human_reviewed"
+                    ? "사람 검수 완료"
+                    : "LLM 검수 완료"}{" "}
+                / {kind === "sft" ? "SFT" : "Pair / DPO"}
               </p>
               <p className="text-sm text-[var(--ink-muted)]">
                 {sourceMode === "human_required"
                   ? kind === "sft"
-                    ? "플레이어 입력과 NPC 응답을 보고 이 응답을 학습에 넣을지 직접 결정합니다."
-                    : "같은 입력에 대한 chosen / rejected를 비교해서 순서가 맞는지 직접 결정합니다."
-                  : kind === "sft"
-                    ? "전체 LLM 판정 결과 중 추가 사람 검수 없이 통과한 응답만 읽기 전용으로 확인합니다."
-                    : "전체 pair 판정 결과 중 추가 사람 검수 없이 통과한 pair만 읽기 전용으로 확인합니다."}
+                    ? "아직 사람이 직접 판정해야 하는 SFT 응답만 따로 보여줍니다."
+                    : "아직 사람이 직접 판정해야 하는 pair만 따로 보여줍니다."
+                  : sourceMode === "human_reviewed"
+                    ? kind === "sft"
+                      ? "사람이 이미 판정한 SFT 응답만 읽기 전용으로 다시 확인합니다."
+                      : "사람이 이미 판정한 pair만 읽기 전용으로 다시 확인합니다."
+                    : kind === "sft"
+                      ? "전체 LLM 판정 결과 중 추가 사람 검수 없이 통과한 응답만 읽기 전용으로 확인합니다."
+                      : "전체 pair 판정 결과 중 추가 사람 검수 없이 통과한 pair만 읽기 전용으로 확인합니다."}
               </p>
             </TextBlock>
           </div>
@@ -1048,6 +1815,269 @@ export function ReviewDashboard({
               </div>
             </TextBlock>
           </div>
+
+          <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
+              <p className="text-sm font-semibold text-foreground">Training</p>
+              <p className="text-sm text-[var(--ink-muted)]">
+                finalize가 최신 상태일 때만 로컬 Qwen SFT / DPO 학습을 시작할 수 있습니다.
+              </p>
+              <label className="block">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="block text-xs uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                    Promotion Slot
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPromotionGuideOpen(true)}
+                    className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-white/10"
+                  >
+                    가이드 보기
+                  </button>
+                </div>
+                <select
+                  value={trainingBindingKey}
+                  onChange={(event) =>
+                    setTrainingBindingKey(event.target.value as ReviewTrainingBindingKey)
+                  }
+                  className="w-full rounded-2xl border border-white/10 bg-black/15 px-3 py-2 text-sm text-foreground outline-none"
+                >
+                  {TRAINING_BINDING_KEYS.map((bindingKey) => (
+                    <option key={bindingKey} value={bindingKey}>
+                      {bindingKey}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setTrainingExecutionGuideOpen(true)}
+                  className="inline-flex items-center rounded-full border border-white/10 bg-transparent px-3 py-1.5 text-xs font-semibold text-[var(--ink-muted)] transition hover:border-white/20 hover:bg-white/6 hover:text-foreground"
+                >
+                  실행 가이드보기
+                </button>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm leading-7 text-[var(--ink-muted)]">
+                {currentActionRun ? (
+                  isHistoricalReoperation ? (
+                    <>
+                      현재는 <span className="font-semibold text-foreground">기존 run 재조작 모드</span>
+                      다. 아래 평가/채택/반려/승격 버튼은 새 run이 아니라{" "}
+                      <span className="font-semibold text-foreground">{currentActionRun.runId}</span>에
+                      적용된다.
+                    </>
+                  ) : (
+                    <>
+                      현재 조작 대상은{" "}
+                      <span className="font-semibold text-foreground">{currentActionRun.runId}</span>
+                      다. 아래 버튼은 이 run을 기준으로 동작한다.
+                    </>
+                  )
+                ) : latestHistoricalRun ? (
+                  <>
+                    새 run이 아직 없어 평가/채택/반려/승격 버튼을 잠가 두었습니다. 기존 run을 다시
+                    조작하시려면 오른쪽 정보 패널의{" "}
+                    <span className="font-semibold text-foreground">
+                      기존 run 기록 (latest historical run)
+                    </span>{" "}
+                    카드에서 명시적으로 현재 조작 대상으로 선택하셔야 합니다. 모바일에서는 같은 카드가
+                    버튼 영역 아래쪽에 보입니다.
+                  </>
+                ) : (
+                  <>아직 생성된 training run이 없어 조작 대상이 비어 있다.</>
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void handleTraining("sft")}
+                    disabled={!trainingStatus?.sft.canStart}
+                    className={trainingActionButtonClassName("sft")}
+                  >
+                    새로운 SFT Base 생성
+                  </button>
+                  <p className="px-1 text-xs leading-6 text-[var(--ink-muted)]">
+                    새 SFT 완료 후에는 그 결과가 이후 DPO parent가 됩니다.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void handleTraining("dpo")}
+                    disabled={!trainingStatus?.dpo.canStart}
+                    className={trainingActionButtonClassName("dpo")}
+                  >
+                    기존 SFT Base로 DPO 진행
+                  </button>
+                  <p className="px-1 text-xs leading-6 text-[var(--ink-muted)]">
+                    지금 누르면 현재 parent SFT run(
+                    <span className="font-mono text-[11px] text-foreground">
+                      {trainingStatus?.dpo.parentRunId ?? "-"}
+                    </span>
+                    )을 그대로 사용합니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleTrainingEvaluation()}
+                  disabled={
+                    !currentActionRun ||
+                    currentActionRun.state !== "succeeded" ||
+                    currentActionRun.evaluation.state === "running"
+                  }
+                  className={trainingActionButtonClassName("eval")}
+                >
+                  골든 평가 실행
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleTrainingDecision("accepted")}
+                    disabled={
+                      !currentActionRun ||
+                      currentActionRun.evaluation.state !== "succeeded"
+                    }
+                    className={trainingActionButtonClassName("accept")}
+                  >
+                    채택
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleTrainingDecision("rejected")}
+                    disabled={
+                      !currentActionRun ||
+                      currentActionRun.evaluation.state !== "succeeded"
+                    }
+                    className={trainingActionButtonClassName("reject")}
+                  >
+                    반려
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleTrainingPromotion()}
+                  disabled={
+                    !currentActionRun ||
+                    currentActionRun.decision.state !== "accepted"
+                  }
+                  className={trainingActionButtonClassName("promote")}
+                >
+                  runtime 승격
+                </button>
+              </div>
+            </div>
+
+            <TextBlock>
+              <p className="mb-2 text-sm font-semibold text-foreground">학습 상태</p>
+              <div className="space-y-4 text-sm text-[var(--ink-muted)]">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-[var(--accent)]">
+                      SFT
+                    </p>
+                    <p>dataset version: {trainingStatus?.sft.dataset.datasetVersion ?? "-"}</p>
+                    <p>row count: {trainingStatus?.sft.dataset.rowCount ?? "-"}</p>
+                    <p>
+                      상태:{" "}
+                      {trainingStatus?.sft.canStart
+                        ? "실행 가능"
+                        : trainingStatus?.sft.alreadyTrained
+                          ? "이미 학습됨"
+                          : "대기"}
+                    </p>
+                    <p>
+                      메시지: {trainingStatus?.sft.blockingIssues[0] ?? "문제 없음"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-[var(--teal)]">
+                      DPO
+                    </p>
+                    <p>dataset version: {trainingStatus?.dpo.dataset.datasetVersion ?? "-"}</p>
+                    <p>row count: {trainingStatus?.dpo.dataset.rowCount ?? "-"}</p>
+                    <p>
+                      DPO 실행 방식: {dpoExecutionModeLabel(trainingStatus?.dpo.executionMode ?? null)}
+                    </p>
+                    <p>
+                      현재 사용될 parent SFT: {trainingStatus?.dpo.parentRunId ?? "-"}
+                    </p>
+                    <p>
+                      판단 근거:{" "}
+                      {dpoFingerprintRelationLabel(trainingStatus?.dpo.sftFingerprintRelation ?? null)}
+                    </p>
+                    <p>
+                      parent SFT run: {trainingStatus?.dpo.parentRunId ?? "-"}
+                    </p>
+                    <p>
+                      메시지: {trainingStatus?.dpo.blockingIssues[0] ?? "문제 없음"}
+                    </p>
+                  </div>
+                </div>
+
+                <TrainingRunDetailCard
+                  eyebrow="현재 조작 대상"
+                  run={currentActionRun}
+                  messageOverride={trainingError ?? currentActionRun?.message ?? null}
+                  emptyMessage={
+                    latestHistoricalRun ? (
+                      <>
+                        아직 현재 조작 대상으로 잡힌 새 run이 없습니다. 과거 run을 다시
+                        조작하시려면 오른쪽 정보 패널의{" "}
+                        <span className="font-semibold text-foreground">
+                          기존 run 기록 (latest historical run)
+                        </span>{" "}
+                        카드에서 명시적으로 선택하셔야 합니다. 모바일에서는 같은 카드가 아래쪽에
+                        보입니다.
+                      </>
+                    ) : (
+                      <>아직 생성된 training run이 없다.</>
+                    )
+                  }
+                  note={
+                    isHistoricalReoperation ? (
+                      <>
+                        기존 run 재조작 모드다. 현재 표시된 `채택 / 반려 / runtime 승격`은 새로 만든
+                        run이 아니라 latest historical run에 다시 적용된다.
+                      </>
+                    ) : null
+                  }
+                />
+                <TrainingRunDetailCard
+                  eyebrow="기존 run 기록 (latest historical run)"
+                  run={latestHistoricalRun}
+                  emptyMessage={<>아직 기록된 latest historical run이 없다.</>}
+                  action={
+                    canUseHistoricalRun ? (
+                      <button
+                        type="button"
+                        onClick={() => setCurrentActionRunId(latestHistoricalRun?.runId ?? null)}
+                        className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-white/10"
+                      >
+                        이 run을 현재 조작 대상으로 사용
+                      </button>
+                    ) : isHistoricalReoperation ? (
+                      <button
+                        type="button"
+                        onClick={() => setCurrentActionRunId(null)}
+                        className="rounded-full border border-white/10 bg-transparent px-3 py-1.5 text-xs font-semibold text-[var(--ink-muted)] transition hover:border-white/20 hover:bg-white/6 hover:text-foreground"
+                      >
+                        현재 조작 대상 해제
+                      </button>
+                    ) : null
+                  }
+                  note={
+                    trainingStatus?.activeRun ? (
+                      <>지금은 새 run이 실행 중이라 historical run 재조작 선택을 잠시 숨긴 상태다.</>
+                    ) : currentActionRun === null ? (
+                      <>현재 조작 대상이 비어 있으므로 이 card는 조회 전용이다.</>
+                    ) : null
+                  }
+                />
+              </div>
+            </TextBlock>
+          </div>
         </div>
       </CardSurface>
 
@@ -1061,9 +2091,10 @@ export function ReviewDashboard({
         >
           {items.map((item) => (
             <CompactReviewCard
-              key={`${item.kind}:${item.reviewId}`}
+              key={item.reviewId}
               item={item}
               reviewer={reviewer}
+              sourceMode={sourceMode}
               readOnly={sourceMode !== "human_required"}
               onItemSaved={
                 sourceMode === "human_required" ? handleItemSaved : undefined
@@ -1078,6 +2109,7 @@ export function ReviewDashboard({
           </p>
         </CardSurface>
       )}
-    </main>
+      </main>
+    </>
   );
 }

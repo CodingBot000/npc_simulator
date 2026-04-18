@@ -19,6 +19,7 @@ import {
   loadSourceEntry,
   normalizeHumanDecision,
 } from "./_curation-helpers.mjs";
+import { closeDbPool, loadSftReviewRecordsFromDb } from "./_db-runtime.mjs";
 import {
   loadNormalizedRows,
   rankJudgedRecord,
@@ -30,7 +31,7 @@ const DEFAULT_INSTRUCTION =
   "해저연구소 생존 협상 NPC로서 주어진 상태, 기억, 근거를 사용해 한국어 공개 발화와 구조화된 추론 JSON을 생성한다.";
 const DEFAULT_KEEP_INPUT = "data/evals/filtered/keep_sft.jsonl";
 const DEFAULT_JUDGED_INPUT = "data/evals/judged/judged-review-live.jsonl";
-const DEFAULT_REVIEW_INPUT = "data/review/live/human_review_sft_queue.jsonl";
+const DEFAULT_REVIEW_INPUT = "db";
 
 function usage() {
   printUsage([
@@ -39,7 +40,7 @@ function usage() {
     "Options:",
     `  --keep-input <path[,path]>     keep rows to include automatically (default: ${DEFAULT_KEEP_INPUT})`,
     `  --judged-input <path[,path]>   judged review rows (default: ${DEFAULT_JUDGED_INPUT})`,
-    `  --review-input <path[,path]>   human review annotations (default: ${DEFAULT_REVIEW_INPUT})`,
+    `  --review-input <path[,path]|db> human review annotations (default: ${DEFAULT_REVIEW_INPUT})`,
     "  --collector-input <path[,path]> collector summary files for strategy lookup",
     "  --output-dir <path>            output directory (default: data/train/sft)",
     "  --dataset-version <value>      dataset version label (default: auto date-based label)",
@@ -69,6 +70,10 @@ async function loadOptionalNormalizedRows(input, defaultPatterns) {
 }
 
 async function loadOptionalPlainRecords(input, defaultPatterns) {
+  if (input === "db") {
+    return loadSftReviewRecordsFromDb();
+  }
+
   try {
     return await loadPlainRecords(input, defaultPatterns);
   } catch (error) {
@@ -432,4 +437,6 @@ async function main() {
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
+}).finally(async () => {
+  await closeDbPool();
 });

@@ -468,7 +468,6 @@ export interface InteractionResponsePayload {
 
 export interface LlmProvider {
   mode: LlmProviderMode;
-  getStatus(): Promise<RuntimeStatus>;
   generateInteraction(
     input: GenerateInteractionInput,
   ): Promise<LlmInteractionResult>;

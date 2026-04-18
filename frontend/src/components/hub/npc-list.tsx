@@ -9,6 +9,7 @@ interface NpcListProps {
   selectedNpcId: string;
   subtitle: string;
   riskByNpcId: Record<string, number>;
+  disabled?: boolean;
   onSelect: (npcId: string) => void;
 }
 
@@ -18,6 +19,7 @@ export function NpcList({
   selectedNpcId,
   subtitle,
   riskByNpcId,
+  disabled = false,
   onSelect,
 }: NpcListProps) {
   return (
@@ -35,12 +37,13 @@ export function NpcList({
             <button
               key={npc.persona.id}
               type="button"
+              disabled={disabled}
               onClick={() => onSelect(npc.persona.id)}
               className={`min-w-0 rounded-[22px] border px-3.5 py-3 text-left transition ${
                 selected
                   ? "border-[var(--accent)] bg-[var(--panel-strong)] shadow-[0_14px_30px_rgba(176,91,45,0.14)]"
                   : "border-[var(--panel-border)] bg-white/20 hover:border-[var(--teal)] hover:bg-white/30"
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-55`}
             >
               <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
                 <div className="min-w-0">

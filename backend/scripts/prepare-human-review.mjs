@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   getNumberOption,
   getStringOption,
@@ -23,6 +25,8 @@ import {
 const DEFAULT_SFT_REVIEW_INPUT = "data/evals/judged/judged-review-live.jsonl";
 const DEFAULT_PAIR_INPUT = "data/evals/preference/candidate_pairs_live_gap1.jsonl";
 const DEFAULT_OUTPUT_DIR = "data/review/live";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const REVIEW_SYNC_SCRIPT_PATH = path.join(PROJECT_ROOT, "backend", "scripts", "review-sync-queue.ts");
 
 function usage() {
   printUsage([
@@ -40,8 +44,39 @@ function usage() {
     "  --sft-top-audit-percent <n>    top percentile audit sample (default: 5)",
     "  --pair-top-audit-percent <n>   top percentile audit sample (default: 5)",
     `  --output-dir <path>            output directory (default: ${DEFAULT_OUTPUT_DIR})`,
+    "  --skip-db-sync                 skip DB sync after queue files are written",
     "  --help                         show this message",
   ]);
+}
+
+function runQueueSync(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--import", "tsx", REVIEW_SYNC_SCRIPT_PATH, ...args], {
+      cwd: PROJECT_ROOT,
+      env: {
+        ...process.env,
+        NPC_SIMULATOR_ROOT: PROJECT_ROOT,
+      },
+      stdio: "pipe",
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || stdout.trim() || "review queue DB sync failed"));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 async function loadOptionalNormalizedRows(input, defaultPatterns) {
@@ -428,6 +463,7 @@ async function main() {
     getNumberOption(options, "pair-top-audit-percent", 5),
     5,
   );
+  const skipDbSync = Boolean(options["skip-db-sync"]);
 
   const [reviewRowsResult, pairResult] = await Promise.all([
     loadOptionalNormalizedRows(reviewInput, [DEFAULT_SFT_REVIEW_INPUT]),
@@ -504,6 +540,21 @@ async function main() {
       summary: summaryOutput,
     },
   });
+
+  if (!skipDbSync) {
+    await runQueueSync([
+      "--mode",
+      "review-queue",
+      "--sft-json",
+      sftPrettyOutput,
+      "--pair-json",
+      pairPrettyOutput,
+      "--sft-jsonl",
+      sftOutput,
+      "--pair-jsonl",
+      pairOutput,
+    ]);
+  }
 }
 
 main().catch((error) => {

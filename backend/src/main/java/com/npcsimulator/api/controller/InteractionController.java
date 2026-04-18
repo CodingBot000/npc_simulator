@@ -1,7 +1,9 @@
 package com.npcsimulator.api.controller;
 
-import com.npcsimulator.infra.bridge.BridgeEnvelope;
-import com.npcsimulator.infra.bridge.NodeBridgeService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.npcsimulator.runtime.RuntimeApiException;
+import com.npcsimulator.runtime.RuntimeWorldService;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -16,10 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/interact")
 public class InteractionController {
 
-    private final NodeBridgeService nodeBridgeService;
+    private final RuntimeWorldService runtimeWorldService;
+    private final ObjectMapper objectMapper;
 
-    public InteractionController(NodeBridgeService nodeBridgeService) {
-        this.nodeBridgeService = nodeBridgeService;
+    public InteractionController(RuntimeWorldService runtimeWorldService, ObjectMapper objectMapper) {
+        this.runtimeWorldService = runtimeWorldService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
@@ -27,9 +31,23 @@ public class InteractionController {
         @RequestHeader HttpHeaders headers,
         @RequestBody Map<String, Object> body
     ) {
-        BridgeEnvelope result = nodeBridgeService.invoke("interact", headers, body);
-        return ResponseEntity.status(result.status())
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(result.bodyJson());
+        try {
+            JsonNode result = runtimeWorldService.interact(headers, body);
+            return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(writeJson(result));
+        } catch (RuntimeApiException error) {
+            return ResponseEntity.status(error.getStatus())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(writeJson(Map.of("message", error.getMessage())));
+        }
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception error) {
+            throw new IllegalStateException("Failed to serialize interaction response.", error);
+        }
     }
 }

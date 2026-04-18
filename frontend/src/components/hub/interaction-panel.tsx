@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AvailableActionDefinition,
   ChatMessage,
@@ -12,13 +12,13 @@ import type {
 } from "@/lib/types";
 import { TurnOutcomeStrip } from "@/components/hub/turn-outcome-strip";
 import { Panel } from "@/components/ui/panel";
-import { formatTimestampShort } from "@/lib/utils";
 
 interface InteractionPanelProps {
   npc: NpcState;
   conversation: ChatMessage[];
   draft: string;
   busy: boolean;
+  waitingForReply: boolean;
   subtitle: string;
   placeholder: string;
   availableActions: AvailableActionDefinition[];
@@ -83,6 +83,23 @@ function roundStatus(round: RoundState) {
   }
 
   return `지금은 ${round.currentRound}라운드다. 이제 판세가 굳으면 바로 결말이 날 수 있다.`;
+}
+
+function formatConversationTimestamp(timestamp: string) {
+  const source = new Date(timestamp);
+
+  if (Number.isNaN(source.getTime())) {
+    return "--.-- --:--:--";
+  }
+
+  const kst = new Date(source.getTime() + 9 * 60 * 60 * 1000);
+  const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(kst.getUTCDate()).padStart(2, "0");
+  const hour = String(kst.getUTCHours()).padStart(2, "0");
+  const minute = String(kst.getUTCMinutes()).padStart(2, "0");
+  const second = String(kst.getUTCSeconds()).padStart(2, "0");
+
+  return `${month}.${day} ${hour}:${minute}:${second}`;
 }
 
 function GuideAlertModal({
@@ -185,6 +202,7 @@ export function InteractionPanel({
   conversation,
   draft,
   busy,
+  waitingForReply,
   subtitle,
   placeholder,
   availableActions,
@@ -203,12 +221,15 @@ export function InteractionPanel({
   const [playInputMode, setPlayInputMode] = useState<PlayInputMode>("intent_only");
   const [draftConfirmed, setDraftConfirmed] = useState(false);
   const [localWarning, setLocalWarning] = useState<string | null>(null);
+  const [loadingDotCount, setLoadingDotCount] = useState(1);
+  const conversationViewportRef = useRef<HTMLDivElement | null>(null);
   const selectedTargetLabel =
     targetOptions.find((option) => option.id === selectedTargetId)?.label ?? null;
   const isDraftConfirmed =
     playInputMode === "combined" && draftConfirmed && draft.trim().length > 0;
   const showDirectInputCard = playInputMode !== "intent_only";
   const showIntentCard = playInputMode !== "free_text";
+  const inputModeDisabled = busy || resolution.resolved;
   const directInputDisabled = busy || resolution.resolved || !showDirectInputCard;
   const actionButtonsDisabled =
     busy || resolution.resolved || !showIntentCard;
@@ -219,6 +240,40 @@ export function InteractionPanel({
       ? "bg-[var(--teal)] hover:brightness-105"
       : "bg-[var(--accent)] hover:brightness-105";
   const activeWarning = localWarning ?? draftWarning;
+  const loadingLabel = `답변중${".".repeat(loadingDotCount)}`;
+  const conversationCardClassName =
+    playInputMode === "combined"
+      ? "flex h-[820px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4"
+      : "flex h-full min-h-0 flex-col rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4";
+
+  useEffect(() => {
+    if (!waitingForReply) {
+      setLoadingDotCount(1);
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setLoadingDotCount((current) => (current >= 5 ? 1 : current + 1));
+    }, 420);
+
+    return () => window.clearInterval(intervalId);
+  }, [waitingForReply]);
+
+  useEffect(() => {
+    const viewport = conversationViewportRef.current;
+
+    if (!viewport) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (viewport.scrollHeight > viewport.clientHeight) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [conversation.length, loadingDotCount, npc.persona.id, waitingForReply]);
 
   function handleDraftValueChange(value: string) {
     setDraftConfirmed(false);
@@ -349,7 +404,7 @@ export function InteractionPanel({
         </div>
 
         <div className="grid gap-4 grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-stretch">
-          <div className="flex h-full min-h-0 flex-col rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
+          <div className={conversationCardClassName}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
@@ -362,28 +417,42 @@ export function InteractionPanel({
               <p className="text-xs text-[var(--ink-muted)]">{conversation.length}개의 발화</p>
             </div>
 
-            <div className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
-              {conversation.length === 0 ? (
+            <div
+              ref={conversationViewportRef}
+              className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto pr-2"
+            >
+              {conversation.length === 0 && !waitingForReply ? (
                 <div className="rounded-2xl border border-dashed border-[var(--panel-border)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
                   아직 공개 발언이 없다. 아래 빠른 행동이나 직접 발언으로 첫 턴을 열어라.
                 </div>
               ) : (
-                conversation.map((message) => (
-                  <article
-                    key={message.id}
-                    className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
-                      message.speaker === "player"
-                        ? "ml-auto bg-[var(--teal-soft)] text-[var(--teal)]"
-                        : "bg-[var(--panel-strong)] text-foreground"
-                    }`}
-                  >
-                    <p className="text-sm leading-7">{message.text}</p>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
-                      {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
-                      {formatTimestampShort(message.timestamp)}
-                    </p>
-                  </article>
-                ))
+                <>
+                  {conversation.map((message) => (
+                    <article
+                      key={message.id}
+                      className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
+                        message.speaker === "player"
+                          ? "ml-auto bg-[var(--teal-soft)] text-[var(--teal)]"
+                          : "bg-[var(--panel-strong)] text-foreground"
+                      }`}
+                    >
+                      <p className="text-sm leading-7">{message.text}</p>
+                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
+                        {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
+                        {formatConversationTimestamp(message.timestamp)}
+                      </p>
+                    </article>
+                  ))}
+                  {waitingForReply ? (
+                    <article
+                      aria-live="polite"
+                      aria-atomic="true"
+                      className="max-w-[85%] rounded-[22px] bg-[var(--panel-strong)] px-4 py-3 text-foreground"
+                    >
+                      <p className="text-sm leading-7">{loadingLabel}</p>
+                    </article>
+                  ) : null}
+                </>
               )}
             </div>
           </div>
@@ -394,32 +463,47 @@ export function InteractionPanel({
                 입력 방식
               </p>
               <div className="mt-2 flex flex-wrap gap-4 text-sm text-[var(--ink-muted)]">
-                <label className="flex items-center gap-2">
+                <label
+                  className={`flex items-center gap-2 ${
+                    inputModeDisabled ? "cursor-not-allowed opacity-55" : ""
+                  }`}
+                >
                   <input
                     type="radio"
                     name="play-input-mode"
                     checked={playInputMode === "intent_only"}
                     onChange={() => handlePlayInputModeChange("intent_only")}
+                    disabled={inputModeDisabled}
                     className="h-3.5 w-3.5 accent-[var(--accent)]"
                   />
                   <span>의도만 전달</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label
+                  className={`flex items-center gap-2 ${
+                    inputModeDisabled ? "cursor-not-allowed opacity-55" : ""
+                  }`}
+                >
                   <input
                     type="radio"
                     name="play-input-mode"
                     checked={playInputMode === "free_text"}
                     onChange={() => handlePlayInputModeChange("free_text")}
+                    disabled={inputModeDisabled}
                     className="h-3.5 w-3.5 accent-[var(--accent)]"
                   />
                   <span>자유입력</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label
+                  className={`flex items-center gap-2 ${
+                    inputModeDisabled ? "cursor-not-allowed opacity-55" : ""
+                  }`}
+                >
                   <input
                     type="radio"
                     name="play-input-mode"
                     checked={playInputMode === "combined"}
                     onChange={() => handlePlayInputModeChange("combined")}
+                    disabled={inputModeDisabled}
                     className="h-3.5 w-3.5 accent-[var(--accent)]"
                   />
                   <span>모두 사용</span>
@@ -498,7 +582,7 @@ export function InteractionPanel({
                             </span>
                           ) : null}
                         </span>
-                        <span className="mt-1 block text-[0.25rem] leading-[0.3rem] text-[var(--ink-muted)]">
+                        <span className="mt-1 block whitespace-normal break-keep text-[0.2rem] leading-[0.9rem] text-[var(--ink-muted)]">
                           {uiCopy.effect}
                         </span>
                       </button>

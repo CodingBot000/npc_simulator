@@ -1,5 +1,7 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   getStringOption,
   parseCliArgs,
@@ -15,6 +17,8 @@ import {
 const DEFAULT_SFT_INPUT = "data/review/live/human_review_sft_queue.jsonl";
 const DEFAULT_PAIR_INPUT = "data/review/live/human_review_pair_queue.jsonl";
 const DEFAULT_OUTPUT_DIR = "data/review/live";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const REVIEW_SYNC_SCRIPT_PATH = path.join(PROJECT_ROOT, "backend", "scripts", "review-sync-queue.ts");
 
 function usage() {
   printUsage([
@@ -25,8 +29,39 @@ function usage() {
     `  --pair-input <path>           raw pair human review queue (default: ${DEFAULT_PAIR_INPUT})`,
     `  --output-dir <path>           output directory (default: ${DEFAULT_OUTPUT_DIR})`,
     "  --provider <codex|openai>     LLM provider (default: codex)",
+    "  --skip-db-sync                skip DB sync after LLM first-pass files are written",
     "  --help                        show this message",
   ]);
+}
+
+function runQueueSync(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--import", "tsx", REVIEW_SYNC_SCRIPT_PATH, ...args], {
+      cwd: PROJECT_ROOT,
+      env: {
+        ...process.env,
+        NPC_SIMULATOR_ROOT: PROJECT_ROOT,
+      },
+      stdio: "pipe",
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || stdout.trim() || "llm first-pass DB sync failed"));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 function ensureArray(value) {
@@ -97,6 +132,7 @@ async function main() {
   const pairInput = getStringOption(options, "pair-input", DEFAULT_PAIR_INPUT);
   const outputDir = getStringOption(options, "output-dir", DEFAULT_OUTPUT_DIR);
   const provider = getStringOption(options, "provider", "codex");
+  const skipDbSync = Boolean(options["skip-db-sync"]);
 
   if (!["codex", "openai"].includes(provider)) {
     throw new Error("--provider must be one of codex, openai");
@@ -214,6 +250,21 @@ async function main() {
     )}\n`,
     "utf8",
   );
+
+  if (!skipDbSync) {
+    await runQueueSync([
+      "--mode",
+      "llm-first-pass",
+      "--sft-json",
+      path.join(outputRoot, "llm_first_pass_sft_queue.json"),
+      "--pair-json",
+      path.join(outputRoot, "llm_first_pass_pair_queue.json"),
+      "--sft-jsonl",
+      path.join(outputRoot, "llm_first_pass_sft_queue.jsonl"),
+      "--pair-jsonl",
+      path.join(outputRoot, "llm_first_pass_pair_queue.jsonl"),
+    ]);
+  }
 
   console.log(
     `sft=${llmReviewedSft.length} pair=${llmReviewedPairs.length} output=${outputDir}`,

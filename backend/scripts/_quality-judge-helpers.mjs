@@ -993,12 +993,36 @@ function safeJsonParse(value) {
   }
 }
 
-function getDefaultModel(provider) {
-  if (provider === "openai") {
-    return process.env.PREMIUM_MODEL || process.env.OPENAI_MODEL || "gpt-5.4";
+function getEvalModelCandidates(explicitModel) {
+  if (explicitModel) {
+    return [explicitModel];
   }
 
-  return process.env.PREMIUM_MODEL || process.env.OPENAI_MODEL || "gpt-5.4";
+  return uniqueStrings([
+    process.env.EVAL_MODEL,
+    process.env.PREMIUM_MODEL,
+    process.env.OPENAI_MODEL,
+    "gpt-5.4",
+    process.env.EVAL_FALLBACK_MODEL,
+    process.env.PREMIUM_FALLBACK_MODEL,
+    process.env.LOW_COST_FALLBACK_MODEL,
+    "gpt-4.1-nano",
+  ]);
+}
+
+function extractOpenAiOutputText(payload) {
+  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
+    return payload.output_text.trim();
+  }
+
+  const textChunks =
+    payload?.output
+      ?.flatMap((entry) => entry.content ?? [])
+      .filter((entry) => entry.type === "output_text" && typeof entry.text === "string")
+      .map((entry) => entry.text.trim())
+      .filter(Boolean) ?? [];
+
+  return textChunks.join("\n").trim();
 }
 
 function runCommand(command, args, options = {}) {
@@ -1135,7 +1159,7 @@ async function runOpenAiStructuredPrompt(params) {
     );
   }
 
-  const outputText = payload?.output_text;
+  const outputText = extractOpenAiOutputText(payload);
   const parsed = safeJsonParse(stripCodeFence(outputText));
 
   if (!parsed) {
@@ -1147,21 +1171,33 @@ async function runOpenAiStructuredPrompt(params) {
 
 export async function runStructuredLlmJudge(params) {
   const provider = params.provider === "openai" ? "openai" : "codex";
-  const model = params.model || getDefaultModel(provider);
+  const models = getEvalModelCandidates(params.model);
+  let lastError = null;
 
-  if (provider === "openai") {
-    return runOpenAiStructuredPrompt({
-      ...params,
-      provider,
-      model,
-    });
+  for (const model of models) {
+    try {
+      if (provider === "openai") {
+        return await runOpenAiStructuredPrompt({
+          ...params,
+          provider,
+          model,
+        });
+      }
+
+      return await runCodexStructuredPrompt({
+        ...params,
+        provider,
+        model,
+      });
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("LLM judge failed with an unknown error.");
+    }
   }
 
-  return runCodexStructuredPrompt({
-    ...params,
-    provider,
-    model,
-  });
+  throw lastError ?? new Error("LLM judge failed without an error message.");
 }
 
 function buildDatasetJudgePrompts(record) {
