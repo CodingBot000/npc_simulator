@@ -179,6 +179,25 @@ function formatDuration(durationMs: number | null) {
   return `${(durationMs / 1000).toFixed(2)}초`;
 }
 
+function formatElapsedClock(durationMs: number | null) {
+  if (durationMs === null || !Number.isFinite(durationMs) || durationMs < 0) {
+    return "-";
+  }
+
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
+
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--teal)]">
@@ -326,10 +345,10 @@ function PromotionSlotGuideModal({
     <GuideModalFrame
       open={open}
       onClose={onClose}
-      closeAriaLabel="promotion slot guide 닫기"
-      eyebrow="Promotion Slot Guide"
+      closeAriaLabel="model promotion slot guide 닫기"
+      eyebrow="Model Promotion Slot Guide"
       title="슬롯별 의미"
-      description="학습 결과를 어떤 runtime adapter 자리로 승격할지 정하는 선택이다."
+      description="학습 결과를 어떤 runtime adapter slot에 Model Promotion 할지 정하는 선택이다."
     >
       <div className="space-y-3">
         <TextBlock className="text-left">
@@ -364,8 +383,11 @@ function PromotionSlotGuideModal({
       <div className="mt-5 rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-left">
         <p className="text-sm font-semibold text-foreground">예시</p>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[var(--ink-muted)]">
-          <li>전체적으로 무난한 SFT 결과면 `default`에 승격한다.</li>
-          <li>특정 캐릭터 말투만 유독 좋아졌으면 `doctor`, `supervisor`, `director` 같은 캐릭터별 slot에 올린다.</li>
+          <li>전체적으로 무난한 SFT 결과면 `default` slot으로 Model Promotion 한다.</li>
+          <li>
+            특정 캐릭터 말투만 유독 좋아졌으면 `doctor`, `supervisor`, `director` 같은
+            캐릭터별 slot으로 Model Promotion 한다.
+          </li>
         </ul>
       </div>
     </GuideModalFrame>
@@ -390,7 +412,7 @@ function TrainingExecutionGuideModal({
         <>
           이 영역은 서비스 이용자용이 아니라 개발 중인 운영자가 학습 run을 관리하는 control
           plane이다. 각 버튼은 현재 화면에 표시된 <code>runId</code> 와 선택된{" "}
-          <code>Promotion Slot</code> 을 기준으로 동작한다.
+          <code>Model Promotion Slot</code> 을 기준으로 동작한다.
         </>
       }
     >
@@ -413,26 +435,26 @@ function TrainingExecutionGuideModal({
         </TextBlock>
 
         <TextBlock className="text-left">
-          <p className="text-sm font-semibold text-foreground">골든 평가 실행</p>
+          <p className="text-sm font-semibold text-foreground">Golden-set Evaluation 실행</p>
           <p className="mt-2 text-sm text-[var(--ink-muted)]">
-            현재 표시된 성공 run을 선택된 <code>Promotion Slot</code> 의 baseline과 비교한다.
-            학습이 성공한 뒤에만 실행하는 검증 단계다.
+            현재 표시된 성공 run을 선택된 <code>Model Promotion Slot</code> 의 baseline과
+            비교한다. 학습이 성공한 뒤에만 실행하는 검증 단계다.
           </p>
         </TextBlock>
 
         <TextBlock className="text-left">
           <p className="text-sm font-semibold text-foreground">채택 / 반려</p>
           <p className="mt-2 text-sm text-[var(--ink-muted)]">
-            골든 평가 결과를 보고 운영자가 최종 결정을 남긴다. 채택은 승격 후보 확정, 반려는
-            이번 run을 runtime 후보에서 제외하는 의미다.
+            Golden-set Evaluation 결과를 보고 운영자가 최종 결정을 남긴다. 채택은 Model
+            Promotion 후보 확정, 반려는 이번 run을 runtime 후보에서 제외하는 의미다.
           </p>
         </TextBlock>
 
         <TextBlock className="text-left">
-          <p className="text-sm font-semibold text-foreground">runtime 승격</p>
+          <p className="text-sm font-semibold text-foreground">Model Promotion</p>
           <p className="mt-2 text-sm text-[var(--ink-muted)]">
-            채택된 run의 adapter를 선택된 slot에 실제 배포한다. 이 단계부터 live runtime
-            경로에 영향이 간다.
+            채택된 run의 adapter를 선택된 slot에 Model Promotion 한다. 이 단계부터 live
+            runtime 경로에 영향이 간다.
           </p>
         </TextBlock>
       </div>
@@ -443,9 +465,9 @@ function TrainingExecutionGuideModal({
           <li>review finalize를 끝내서 학습 대상 데이터셋을 고정한다.</li>
           <li>새로운 SFT Base를 생성한다.</li>
           <li>DPO가 필요하면 성공한 SFT base를 parent로 삼아 이어서 진행한다.</li>
-          <li>성공한 run에 대해 골든 평가를 실행한다.</li>
+          <li>성공한 run에 대해 Golden-set Evaluation을 실행한다.</li>
           <li>평가 결과를 보고 채택 또는 반려를 기록한다.</li>
-          <li>채택된 run만 runtime slot으로 승격한다.</li>
+          <li>채택된 run만 선택한 slot으로 Model Promotion 한다.</li>
         </ol>
       </div>
 
@@ -453,15 +475,16 @@ function TrainingExecutionGuideModal({
         <p className="text-sm font-semibold text-foreground">순서 유의사항</p>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[var(--ink-muted)]">
           <li>
-            골든 평가는 학습이 성공한 뒤에만 의미가 있다. 평가를 먼저 누르면 안 된다.
+            Golden-set Evaluation은 학습이 성공한 뒤에만 의미가 있다. 평가를 먼저 누르면 안
+            된다.
           </li>
           <li>
-            채택 / 반려는 골든 평가가 끝난 run에 대해서만 결정한다. 새 학습을 안 돌렸어도
-            화면에 잡힌 기존 latest run에 대해 다시 누를 수 있다.
+            채택 / 반려는 Golden-set Evaluation이 끝난 run에 대해서만 결정한다. 새 학습을 안
+            돌렸어도 화면에 잡힌 기존 latest run에 대해 다시 누를 수 있다.
           </li>
           <li>
-            runtime 승격은 채택된 run만 가능하다. 아무 학습 없이 빈 상태에서 누르는 버튼이
-            아니다.
+            Model Promotion은 채택된 run만 가능하다. 아무 학습 없이 빈 상태에서 누르는
+            버튼이 아니다.
           </li>
           <li>
             DPO는 독립 시작점이 아니다. 보통 새 회차에서는 새로운 SFT Base 생성 다음에
@@ -469,12 +492,89 @@ function TrainingExecutionGuideModal({
             바로 진행한다.
           </li>
           <li>
-            현재 선택한 <code>Promotion Slot</code> 은 골든 평가의 비교 기준과 승격 대상 둘
-            다에 영향을 준다.
+            현재 선택한 <code>Model Promotion Slot</code> 은 Golden-set Evaluation의 비교
+            기준과 Model Promotion 대상 둘 다에 영향을 준다.
           </li>
         </ul>
       </div>
     </GuideModalFrame>
+  );
+}
+
+function BlockingExecutionOverlay({
+  open,
+  title,
+  message,
+  runId,
+  step,
+  startedAt,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  runId: string | null;
+  step: string | null;
+  startedAt: string | null;
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    setNowMs(Date.now());
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.clearInterval(interval);
+    };
+  }, [open]);
+
+  if (!open) {
+    return null;
+  }
+
+  const startedAtMs = startedAt ? Date.parse(startedAt) : Number.NaN;
+  const elapsedMs = Number.isNaN(startedAtMs) ? null : Math.max(0, nowMs - startedAtMs);
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[rgba(3,10,17,0.84)] p-4 backdrop-blur-sm sm:p-6">
+      <div className="w-full max-w-[520px] rounded-[28px] border border-white/10 bg-[#08131a] px-6 py-6 shadow-2xl">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--teal)]">
+          Execution In Progress
+        </p>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-3 w-3 rounded-full bg-[var(--teal)] shadow-[0_0_18px_rgba(76,194,200,0.7)] animate-pulse" />
+          <h2 className="text-2xl font-semibold text-foreground">{title}</h2>
+        </div>
+        <p className="mt-4 text-sm leading-7 text-[var(--ink-muted)]">{message}</p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">경과 시간</p>
+            <p className="mt-2 text-xl font-semibold text-foreground">
+              {formatElapsedClock(elapsedMs)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">현재 단계</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">{step ?? "-"}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-7 text-[var(--ink-muted)]">
+          <p>runId: {runId ?? "요청 전송 중"}</p>
+          <p>startedAt: {formatTimestamp(startedAt)}</p>
+          <p>이 작업이 끝날 때까지 다른 조작은 잠시 막혀 있습니다.</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -501,6 +601,42 @@ function describeTrainingRunOrigin(run: ReviewTrainingRunView) {
   }
 
   return "실학습 run";
+}
+
+function describeTrainingRunStage(run: ReviewTrainingRunView) {
+  if (run.promotion.isPromoted) {
+    return "Model Promotion 완료";
+  }
+
+  if (run.decision.state === "accepted") {
+    return "채택 완료";
+  }
+
+  if (run.decision.state === "rejected") {
+    return "반려 완료";
+  }
+
+  if (run.evaluation.state === "succeeded") {
+    return "Golden-set Evaluation 완료";
+  }
+
+  if (run.evaluation.state === "running") {
+    return "Golden-set Evaluation 실행 중";
+  }
+
+  if (run.state === "running") {
+    return "학습 실행 중";
+  }
+
+  if (run.state === "failed") {
+    return "실패";
+  }
+
+  if (run.state === "succeeded") {
+    return "학습 완료";
+  }
+
+  return "상태 미확인";
 }
 
 function dpoExecutionModeLabel(
@@ -552,7 +688,8 @@ function TrainingRunDetailCard({
           {run ? (
             <>
               <p className="text-lg font-semibold text-foreground">
-                {run.kind.toUpperCase()} · {describeTrainingRunOrigin(run)}
+                {run.kind.toUpperCase()} · {describeTrainingRunOrigin(run)} ·{" "}
+                {describeTrainingRunStage(run)}
               </p>
               <p className="mt-1 text-sm text-[var(--ink-muted)]">
                 dataset {run.sourceDatasetVersion ?? "-"} · adapter {basenameFromPath(run.adapterPath)}
@@ -629,12 +766,12 @@ function TrainingRunDetailCard({
           <p>decision notes: {run.decision.notes ?? "-"}</p>
           <p>decidedAt: {formatTimestamp(run.decision.decidedAt ?? null)}</p>
           <p>
-            promotion:{" "}
+            model promotion:{" "}
             {run.promotion.isPromoted
               ? `${run.promotion.bindingKey ?? "-"} @ ${formatTimestamp(
                   run.promotion.promotedAt ?? null,
                 )}`
-              : "미승격"}
+              : "미적용"}
           </p>
         </div>
       ) : null}
@@ -1169,6 +1306,10 @@ export function ReviewDashboard({
   const [promotionGuideOpen, setPromotionGuideOpen] = useState(false);
   const [trainingExecutionGuideOpen, setTrainingExecutionGuideOpen] = useState(false);
   const [currentActionRunId, setCurrentActionRunId] = useState<string | null>(null);
+  const [pendingTrainingLaunch, setPendingTrainingLaunch] = useState<{
+    kind: ReviewTrainingKind;
+    startedAt: string;
+  } | null>(null);
   const trainingPollRef = useRef<number | null>(null);
 
   const humanRequiredDataset = useMemo(
@@ -1225,6 +1366,49 @@ export function ReviewDashboard({
     trainingStatus?.activeRun === null &&
     latestHistoricalRun !== null &&
     currentActionRun?.runId !== latestHistoricalRun.runId;
+  const blockingExecutionState = useMemo(() => {
+    if (trainingStatus?.activeRun?.state === "running") {
+      return {
+        title:
+          trainingStatus.activeRun.kind === "sft"
+            ? "새로운 SFT Base 생성 중"
+            : "기존 SFT Base로 DPO 진행 중",
+        message:
+          trainingStatus.activeRun.message ??
+          "학습 작업을 실행 중입니다. 완료될 때까지 잠시 기다려 주세요.",
+        runId: trainingStatus.activeRun.runId,
+        step: trainingStatus.activeRun.currentStep,
+        startedAt: trainingStatus.activeRun.startedAt,
+      };
+    }
+
+    if (trainingStatus?.latestRun?.evaluation.state === "running") {
+      return {
+        title: "Golden-set Evaluation 실행 중",
+        message:
+          trainingStatus.latestRun.evaluation.message ??
+          "Golden-set Evaluation을 진행 중입니다. 완료될 때까지 잠시 기다려 주세요.",
+        runId: trainingStatus.latestRun.runId,
+        step: "golden_eval",
+        startedAt: trainingStatus.latestRun.evaluation.startedAt,
+      };
+    }
+
+    if (pendingTrainingLaunch) {
+      return {
+        title:
+          pendingTrainingLaunch.kind === "sft"
+            ? "새로운 SFT Base 생성 시작 중"
+            : "기존 SFT Base로 DPO 진행 시작 중",
+        message: "실행 요청을 전송하고 있습니다. 잠시만 기다려 주세요.",
+        runId: null,
+        step: "launching",
+        startedAt: pendingTrainingLaunch.startedAt,
+      };
+    }
+
+    return null;
+  }, [pendingTrainingLaunch, trainingStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1448,6 +1632,10 @@ export function ReviewDashboard({
 
   async function handleTraining(kind: ReviewTrainingKind) {
     setTrainingError(null);
+    setPendingTrainingLaunch({
+      kind,
+      startedAt: new Date().toISOString(),
+    });
 
     try {
       const response = await fetch(buildClientApiUrl("/api/review/training"), {
@@ -1466,10 +1654,12 @@ export function ReviewDashboard({
       const nextStatus = payload as ReviewTrainingStatusView;
       setTrainingStatus(nextStatus);
       setCurrentActionRunId(nextStatus.activeRun?.runId ?? nextStatus.latestRun?.runId ?? null);
+      setPendingTrainingLaunch(null);
     } catch (error) {
       setTrainingError(
         error instanceof Error ? error.message : "학습 실행에 실패했습니다.",
       );
+      setPendingTrainingLaunch(null);
       await refreshTrainingStatus();
     }
   }
@@ -1495,7 +1685,7 @@ export function ReviewDashboard({
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(payload?.message ?? "골든 평가 실행에 실패했습니다.");
+        throw new Error(payload?.message ?? "Golden-set Evaluation 실행에 실패했습니다.");
       }
 
       const nextStatus = payload as ReviewTrainingStatusView;
@@ -1503,7 +1693,7 @@ export function ReviewDashboard({
       setCurrentActionRunId(currentActionRun.runId);
     } catch (error) {
       setTrainingError(
-        error instanceof Error ? error.message : "골든 평가 실행에 실패했습니다.",
+        error instanceof Error ? error.message : "Golden-set Evaluation 실행에 실패했습니다.",
       );
       await refreshTrainingStatus();
     }
@@ -1567,7 +1757,7 @@ export function ReviewDashboard({
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(payload?.message ?? "runtime 승격에 실패했습니다.");
+        throw new Error(payload?.message ?? "Model Promotion에 실패했습니다.");
       }
 
       const nextStatus = payload as ReviewTrainingStatusView;
@@ -1575,7 +1765,7 @@ export function ReviewDashboard({
       setCurrentActionRunId(currentActionRun.runId);
     } catch (error) {
       setTrainingError(
-        error instanceof Error ? error.message : "runtime 승격에 실패했습니다.",
+        error instanceof Error ? error.message : "Model Promotion에 실패했습니다.",
       );
       await refreshTrainingStatus();
     }
@@ -1590,6 +1780,14 @@ export function ReviewDashboard({
       <TrainingExecutionGuideModal
         open={trainingExecutionGuideOpen}
         onClose={() => setTrainingExecutionGuideOpen(false)}
+      />
+      <BlockingExecutionOverlay
+        open={blockingExecutionState !== null}
+        title={blockingExecutionState?.title ?? ""}
+        message={blockingExecutionState?.message ?? ""}
+        runId={blockingExecutionState?.runId ?? null}
+        step={blockingExecutionState?.step ?? null}
+        startedAt={blockingExecutionState?.startedAt ?? null}
       />
 
       <main className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
@@ -1825,7 +2023,7 @@ export function ReviewDashboard({
               <label className="block">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="block text-xs uppercase tracking-[0.18em] text-[var(--ink-muted)]">
-                    Promotion Slot
+                    Model Promotion Slot
                   </span>
                   <button
                     type="button"
@@ -1863,7 +2061,7 @@ export function ReviewDashboard({
                   isHistoricalReoperation ? (
                     <>
                       현재는 <span className="font-semibold text-foreground">기존 run 재조작 모드</span>
-                      다. 아래 평가/채택/반려/승격 버튼은 새 run이 아니라{" "}
+                      다. 아래 평가/채택/반려/Model Promotion 버튼은 새 run이 아니라{" "}
                       <span className="font-semibold text-foreground">{currentActionRun.runId}</span>에
                       적용된다.
                     </>
@@ -1876,8 +2074,8 @@ export function ReviewDashboard({
                   )
                 ) : latestHistoricalRun ? (
                   <>
-                    새 run이 아직 없어 평가/채택/반려/승격 버튼을 잠가 두었습니다. 기존 run을 다시
-                    조작하시려면 오른쪽 정보 패널의{" "}
+                    새 run이 아직 없어 평가/채택/반려/Model Promotion 버튼을 잠가 두었습니다.
+                    기존 run을 다시 조작하시려면 오른쪽 정보 패널의{" "}
                     <span className="font-semibold text-foreground">
                       기존 run 기록 (latest historical run)
                     </span>{" "}
@@ -1929,7 +2127,7 @@ export function ReviewDashboard({
                   }
                   className={trainingActionButtonClassName("eval")}
                 >
-                  골든 평가 실행
+                  Golden-set Evaluation 실행
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1964,7 +2162,7 @@ export function ReviewDashboard({
                   }
                   className={trainingActionButtonClassName("promote")}
                 >
-                  runtime 승격
+                  Model Promotion
                 </button>
               </div>
             </div>
@@ -2038,8 +2236,8 @@ export function ReviewDashboard({
                   note={
                     isHistoricalReoperation ? (
                       <>
-                        기존 run 재조작 모드다. 현재 표시된 `채택 / 반려 / runtime 승격`은 새로 만든
-                        run이 아니라 latest historical run에 다시 적용된다.
+                        기존 run 재조작 모드다. 현재 표시된 `채택 / 반려 / Model Promotion`은
+                        새로 만든 run이 아니라 latest historical run에 다시 적용된다.
                       </>
                     ) : null
                   }

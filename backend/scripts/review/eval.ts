@@ -658,7 +658,7 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
   await updateTrainingRunEvaluation({
     runId: args.runId,
     evalState: "running",
-    evalMessage: "골든 평가 실행 중",
+    evalMessage: "Golden-set Evaluation 실행 중",
     bindingKey: args.bindingKey,
     baselineLabel: args.baselineLabel,
     startedAt,
@@ -766,7 +766,7 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
     await updateTrainingRunEvaluation({
       runId: args.runId,
       evalState: "succeeded",
-      evalMessage: "골든 평가 완료",
+      evalMessage: "Golden-set Evaluation 완료",
       bindingKey: args.bindingKey,
       baselineLabel: args.baselineLabel,
       summaryPath,
@@ -778,7 +778,7 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
       runId: args.runId,
       level: "info",
       eventType: "golden_eval_finished",
-      message: "골든 평가 완료",
+      message: "Golden-set Evaluation 완료",
       payload: {
         bindingKey: args.bindingKey,
         baselineLabel: args.baselineLabel,

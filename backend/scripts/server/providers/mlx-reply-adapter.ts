@@ -6,6 +6,7 @@ import { PROJECT_ROOT, appConfig } from "@server/config";
 import { dbQuery } from "@server/db/postgres";
 import { getCurrentScenario } from "@server/scenario";
 
+// MLX runtime entrypoint for inference-time LoRA adapter routing and reply rewriting.
 const LOCAL_MLX_BINARY = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.generate");
 const GENERIC_SYSTEM_PROMPT =
   "해저연구소 생존 협상 NPC로서 주어진 상태와 근거를 사용해 직접 대사만 출력한다. 설명문, 요약문, 해설, JSON, 목록, 라벨은 금지한다. 플레이어 또는 다른 NPC에게 지금 이 자리에서 바로 말하듯 한 단락의 한국어 대사만 말한다.";

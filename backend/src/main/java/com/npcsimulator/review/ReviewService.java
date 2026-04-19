@@ -650,7 +650,7 @@ public class ReviewService {
             payload,
             "bindingKey",
             List.of("default", "doctor", "supervisor", "director"),
-            "잘못된 adapter 승격 슬롯입니다."
+            "잘못된 Model Promotion slot입니다."
         );
         if (bindingKey == null) {
             bindingKey = "default";
@@ -666,13 +666,13 @@ public class ReviewService {
         }
         if (!isSmokeTrainingEvaluationMode()) {
             if (blank(datasourceUrl) || datasourceUrl.startsWith("jdbc:h2:")) {
-                throw new ReviewApiException(HttpStatus.CONFLICT, "실운영 골든 평가는 Postgres 환경에서만 지원합니다.");
+                throw new ReviewApiException(HttpStatus.CONFLICT, "실운영 Golden-set Evaluation은 Postgres 환경에서만 지원합니다.");
             }
             if (!pathExists(resolveProjectPath(TSX_RELATIVE_PATH)) || !pathExists(resolveProjectPath(TRAINING_EVAL_WORKER_SCRIPT))) {
-                throw new ReviewApiException(HttpStatus.CONFLICT, "골든 평가 worker 실행 파일이 없습니다.");
+                throw new ReviewApiException(HttpStatus.CONFLICT, "Golden-set Evaluation worker 실행 파일이 없습니다.");
             }
             if (!pathExists(resolveProjectPath(trainingEvalCasesPath))) {
-                throw new ReviewApiException(HttpStatus.CONFLICT, "골든 평가 케이스 파일을 찾지 못했습니다.");
+                throw new ReviewApiException(HttpStatus.CONFLICT, "Golden-set Evaluation case 파일을 찾지 못했습니다.");
             }
         }
 
@@ -685,7 +685,7 @@ public class ReviewService {
             throw new ReviewApiException(HttpStatus.CONFLICT, "adapter 산출물이 없는 학습 run은 평가할 수 없습니다.");
         }
         if ("running".equals(run.evalState())) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "이미 골든 평가가 실행 중입니다. runId=" + run.runUid());
+            throw new ReviewApiException(HttpStatus.CONFLICT, "이미 Golden-set Evaluation이 실행 중입니다. runId=" + run.runUid());
         }
 
         PromotedBaseline baseline = resolvePromotedBaseline(bindingKey);
@@ -694,7 +694,7 @@ public class ReviewService {
         reviewRepository.updateTrainingRunEvaluation(
             run.runUid(),
             "running",
-            "골든 평가 실행 중",
+            "Golden-set Evaluation 실행 중",
             bindingKey,
             baseline.label(),
             null,
@@ -707,7 +707,7 @@ public class ReviewService {
             "info",
             "golden_eval_started",
             null,
-            "골든 평가 시작",
+            "Golden-set Evaluation 시작",
             objectMapper.createObjectNode()
                 .put("bindingKey", bindingKey)
                 .put("baselineLabel", baseline.label())
@@ -744,7 +744,7 @@ public class ReviewService {
         } catch (RuntimeException error) {
             String message = error instanceof ReviewApiException reviewApiException
                 ? reviewApiException.getMessage()
-                : "골든 평가 실행에 실패했습니다.";
+                : "Golden-set Evaluation 실행에 실패했습니다.";
             reviewRepository.updateTrainingRunEvaluation(
                 run.runUid(),
                 "failed",
@@ -791,7 +791,7 @@ public class ReviewService {
             throw new ReviewApiException(HttpStatus.CONFLICT, "성공한 학습 run만 채택 여부를 결정할 수 있습니다.");
         }
         if (!"succeeded".equals(run.evalState())) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "골든 평가가 완료된 뒤에만 채택 여부를 결정할 수 있습니다.");
+            throw new ReviewApiException(HttpStatus.CONFLICT, "Golden-set Evaluation이 완료된 뒤에만 채택 여부를 결정할 수 있습니다.");
         }
 
         String reviewedAt = Instant.now().toString();
@@ -821,7 +821,7 @@ public class ReviewService {
             payload,
             "bindingKey",
             List.of("default", "doctor", "supervisor", "director"),
-            "잘못된 adapter 승격 슬롯입니다."
+            "잘못된 Model Promotion slot입니다."
         );
         if (bindingKey == null) {
             bindingKey = "default";
@@ -831,13 +831,13 @@ public class ReviewService {
             requiredText(payload, "runId", "학습 runId가 필요합니다.")
         );
         if (!"succeeded".equals(run.state())) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "성공한 학습 run만 승격할 수 있습니다.");
+            throw new ReviewApiException(HttpStatus.CONFLICT, "성공한 학습 run만 Model Promotion 할 수 있습니다.");
         }
         if (!"accepted".equals(run.reviewDecision())) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "채택된 학습 run만 runtime에 승격할 수 있습니다.");
+            throw new ReviewApiException(HttpStatus.CONFLICT, "채택된 학습 run만 Model Promotion 할 수 있습니다.");
         }
         if (blank(run.outputAdapterPath()) || !pathExists(Path.of(run.outputAdapterPath()))) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "승격할 adapter 산출물을 찾지 못했습니다.");
+            throw new ReviewApiException(HttpStatus.CONFLICT, "Model Promotion 할 adapter 산출물을 찾지 못했습니다.");
         }
 
         String promotedAt = Instant.now().toString();
@@ -847,7 +847,7 @@ public class ReviewService {
             "info",
             "training_promoted",
             null,
-            "runtime adapter 승격",
+            "Model Promotion 적용",
             objectMapper.createObjectNode()
                 .put("bindingKey", bindingKey)
                 .put("adapterPath", run.outputAdapterPath())
@@ -1819,7 +1819,7 @@ public class ReviewService {
             reviewRepository.updateTrainingRunEvaluation(
                 run.runUid(),
                 "succeeded",
-                "골든 평가 완료",
+                "Golden-set Evaluation 완료",
                 bindingKey,
                 baseline.label(),
                 summaryPath.toString(),
@@ -1832,7 +1832,7 @@ public class ReviewService {
                 "info",
                 "golden_eval_finished",
                 null,
-                "골든 평가 완료",
+                "Golden-set Evaluation 완료",
                 object(summary)
             );
             registerTrainingArtifact(
@@ -1854,7 +1854,7 @@ public class ReviewService {
         } catch (Exception error) {
             String message = error instanceof ReviewApiException reviewApiException
                 ? reviewApiException.getMessage()
-                : "골든 평가 실행에 실패했습니다.";
+                : "Golden-set Evaluation 실행에 실패했습니다.";
             reviewRepository.updateTrainingRunEvaluation(
                 run.runUid(),
                 "failed",
