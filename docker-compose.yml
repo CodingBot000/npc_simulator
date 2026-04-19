@@ -1,0 +1,40 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      NODE_ENV: production
+      NPC_SIMULATOR_ROOT: /workspace
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://backend:8080}
+      LLM_PROVIDER_MODE: ${LLM_PROVIDER_MODE:-codex}
+      LOCAL_REPLY_ADAPTER_MODE: ${LOCAL_REPLY_ADAPTER_MODE:-off}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4}
+      LOW_COST_MODEL: ${LOW_COST_MODEL:-gpt-5.4-mini}
+      PREMIUM_MODEL: ${PREMIUM_MODEL:-gpt-5.4}
+      LOW_COST_FALLBACK_MODEL: ${LOW_COST_FALLBACK_MODEL:-gpt-5.4-mini}
+      PREMIUM_FALLBACK_MODEL: ${PREMIUM_FALLBACK_MODEL:-gpt-5.4-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-8080}
+      BACKEND_STORAGE_ROOT: ${BACKEND_STORAGE_ROOT:-/srv/npc-simulator/storage}
+      NPC_SIMULATOR_ROOT: /workspace
+      NPC_SIMULATOR_BRIDGE_ENABLED: ${NPC_SIMULATOR_BRIDGE_ENABLED:-true}
+      NPC_SIMULATOR_CORS_ALLOWED_ORIGINS: ${NPC_SIMULATOR_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-}
+    volumes:
+      - ./backend/storage:/srv/npc-simulator/storage
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"

@@ -1,0 +1,5 @@
+.gradle
+build
+storage
+node_modules
+*.log

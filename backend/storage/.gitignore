@@ -1,0 +1,11 @@
+*
+!.gitignore
+!data/
+!models/
+!artifacts/
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+artifacts/*
+!artifacts/.gitkeep

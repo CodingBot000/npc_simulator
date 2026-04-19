@@ -1,0 +1,11 @@
+.git
+.next
+.venv
+node_modules
+frontend/.next
+frontend/node_modules
+backend/.gradle
+backend/build
+artifacts
+outputs
+*.log

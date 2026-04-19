@@ -1,0 +1,34 @@
+{
+  "name": "@npc-simulator/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "zsh scripts/dev/next-dev.sh",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit",
+    "browser:install": "npx playwright install chromium",
+    "browser:cdp": "bash scripts/browser/start-browser-cdp-mac-v2.sh 9222 http://localhost:3000",
+    "browser:cdp:check": "node scripts/browser/check-cdp.mjs --cdp http://127.0.0.1:9222",
+    "browser:capture": "node scripts/browser/capture-via-cdp.mjs --cdp http://127.0.0.1:9222 --url http://localhost:3000 --out-dir ../artifacts/cdp-home"
+  },
+  "dependencies": {
+    "@types/pg": "^8.20.0",
+    "next": "16.2.2",
+    "pg": "^8.20.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
