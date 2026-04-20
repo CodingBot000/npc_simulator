@@ -36,22 +36,26 @@ const NPC_DISPLAY_LABELS: Record<string, string> = {
 };
 type PromptFormat = "raw_json" | "situation_card" | "direct_scene";
 type ScenePromptFormat = PromptFormat | "scene_state_min";
+type RuntimeArtifactKind = "mlx_adapter" | "mlx_fused_model" | "legacy_mlx_adapter";
 
 const ADAPTER_CONFIGS: Record<
   string,
-  { path: string; promptFormat: ScenePromptFormat }
+  { path: string; promptFormat: ScenePromptFormat; runtimeKind: RuntimeArtifactKind }
 > = {
   doctor: {
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-doctor-role-v2"),
     promptFormat: "raw_json",
+    runtimeKind: "legacy_mlx_adapter",
   },
   supervisor: {
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-supervisor-role-v3"),
     promptFormat: "raw_json",
+    runtimeKind: "legacy_mlx_adapter",
   },
   default: {
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-aug26-v3"),
     promptFormat: "raw_json",
+    runtimeKind: "legacy_mlx_adapter",
   },
 };
 
@@ -120,13 +124,15 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
   try {
     const result = await dbQuery<{
       output_adapter_path: string | null;
+      runtime_artifact_path: string | null;
+      runtime_artifact_kind: string | null;
       promoted_binding_key: string | null;
     }>(
-      `SELECT output_adapter_path, promoted_binding_key
+      `SELECT output_adapter_path, runtime_artifact_path, runtime_artifact_kind, promoted_binding_key
          FROM npc_training_run
         WHERE state = 'succeeded'
           AND promoted_at IS NOT NULL
-          AND output_adapter_path IS NOT NULL
+          AND COALESCE(runtime_artifact_path, output_adapter_path) IS NOT NULL
           AND promoted_binding_key = ANY($1::text[])
         ORDER BY CASE WHEN promoted_binding_key = $2 THEN 0 ELSE 1 END,
                  promoted_at DESC,
@@ -136,15 +142,21 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
     );
 
     const row = result.rows[0];
-    if (!row?.output_adapter_path) {
+    const runtimePath = row?.runtime_artifact_path ?? row?.output_adapter_path ?? null;
+    if (!runtimePath) {
       return null;
     }
 
     const promptBinding = row.promoted_binding_key ?? npcId;
     const baseConfig = ADAPTER_CONFIGS[promptBinding] ?? ADAPTER_CONFIGS.default;
+    const runtimeKind = await resolveRuntimeArtifactKind(
+      runtimePath,
+      row.runtime_artifact_kind,
+    );
     return {
-      path: row.output_adapter_path,
+      path: runtimePath,
       promptFormat: baseConfig.promptFormat,
+      runtimeKind,
     } as const;
   } catch {
     return null;
@@ -163,14 +175,32 @@ async function hasMlxBinary() {
   return binaryCheckPromise;
 }
 
-async function hasAdapter(adapterPath: string) {
-  if (!adapterAvailability.has(adapterPath)) {
+async function resolveRuntimeArtifactKind(
+  artifactPath: string,
+  artifactKind: string | null | undefined,
+) {
+  if (artifactKind === "mlx_adapter" || artifactKind === "mlx_fused_model" || artifactKind === "legacy_mlx_adapter") {
+    return artifactKind;
+  }
+  if (await fileExists(path.join(artifactPath, "adapters.safetensors"))) {
+    return "legacy_mlx_adapter" as const;
+  }
+  return "mlx_fused_model" as const;
+}
+
+async function hasRuntimeArtifact(
+  artifactPath: string,
+  artifactKind: RuntimeArtifactKind,
+) {
+  if (!adapterAvailability.has(`${artifactKind}:${artifactPath}`)) {
     adapterAvailability.set(
-      adapterPath,
-      fileExists(path.join(adapterPath, "adapters.safetensors")),
+      `${artifactKind}:${artifactPath}`,
+      artifactKind === "mlx_fused_model"
+        ? fileExists(artifactPath)
+        : fileExists(path.join(artifactPath, "adapters.safetensors")),
     );
   }
-  return adapterAvailability.get(adapterPath) ?? Promise.resolve(false);
+  return adapterAvailability.get(`${artifactKind}:${artifactPath}`) ?? Promise.resolve(false);
 }
 
 function resolveSystemPrompt(npcId: string, promptFormat: ScenePromptFormat) {
@@ -489,26 +519,42 @@ export async function maybeGenerateReplyWithLocalAdapter(
 
   const adapterConfig = await resolveAdapterConfigForNpc(input.npc.persona.id);
   const adapterPath = adapterConfig.path;
-  const adapterAvailable = await hasAdapter(adapterPath);
+  const adapterAvailable = await hasRuntimeArtifact(
+    adapterPath,
+    adapterConfig.runtimeKind,
+  );
   if (!adapterAvailable) {
     if (mode === "on") {
-      throw new Error(`Adapter not found: ${adapterPath}`);
+      throw new Error(`Runtime artifact not found: ${adapterPath}`);
     }
     return null;
   }
 
-  const text = await runMlxGenerate([
-    "--model",
-    appConfig.localReply.mlxModel,
-    "--adapter-path",
-    adapterPath,
-    "--system-prompt",
-    resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
-    "--prompt",
-    buildPrompt(input, adapterConfig.promptFormat),
-    "--max-tokens",
-    String(appConfig.localReply.maxTokens),
-  ]);
+  const text = await runMlxGenerate(
+    adapterConfig.runtimeKind === "mlx_fused_model"
+      ? [
+          "--model",
+          adapterPath,
+          "--system-prompt",
+          resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+          "--prompt",
+          buildPrompt(input, adapterConfig.promptFormat),
+          "--max-tokens",
+          String(appConfig.localReply.maxTokens),
+        ]
+      : [
+          "--model",
+          appConfig.localReply.mlxModel,
+          "--adapter-path",
+          adapterPath,
+          "--system-prompt",
+          resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+          "--prompt",
+          buildPrompt(input, adapterConfig.promptFormat),
+          "--max-tokens",
+          String(appConfig.localReply.maxTokens),
+        ],
+  );
 
   const normalized = text.trim();
   const cleaned = normalizeReplyText(normalized);

@@ -6,10 +6,11 @@ import path from "node:path";
 import type {
   ReviewTrainingKind,
   ReviewTrainingPreflightView,
+  ReviewTrainingRuntimeArtifactKind,
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
 } from "@/lib/review-types";
-import { PROJECT_ROOT, appConfig } from "@server/config";
+import { PROJECT_ROOT } from "@server/config";
 import { getReviewFinalizeStatus } from "./finalize";
 import {
   appendTrainingRunEventInDb,
@@ -20,7 +21,6 @@ import {
   getTrainingRunByFingerprint,
   getTrainingRunSpecFromDb,
   getTrainingStatusFromDb,
-  listTrainingRunsFromDb,
   registerTrainingArtifactInDb,
   updateTrainingRunStateInDb,
 } from "@server/db/review-db";
@@ -34,7 +34,6 @@ const WORKER_SCRIPT_PATH = path.join(
   "review-training-worker.ts",
 );
 const TSX_BINARY_PATH = path.join(PROJECT_ROOT, "node_modules", ".bin", "tsx");
-const MLX_LORA_BINARY_PATH = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.lora");
 const PYTHON_BINARY_PATH = path.join(PROJECT_ROOT, ".venv", "bin", "python");
 const EXPORT_MLX_SFT_SCRIPT_PATH = path.join(
   PROJECT_ROOT,
@@ -48,15 +47,27 @@ const BUILD_MLX_DPO_SCRIPT_PATH = path.join(
   "scripts",
   "build-mlx-dpo-dataset.mjs",
 );
-const TRAIN_MLX_DPO_SCRIPT_PATH = path.join(
+const TRAIN_PEFT_DPO_SCRIPT_PATH = path.join(
   PROJECT_ROOT,
   "backend",
   "scripts",
-  "train-mlx-dpo.py",
+  "train-peft-dpo.py",
+);
+const TRAIN_PEFT_SFT_SCRIPT_PATH = path.join(
+  PROJECT_ROOT,
+  "backend",
+  "scripts",
+  "train-peft-sft.py",
+);
+const DERIVE_MLX_RUNTIME_SCRIPT_PATH = path.join(
+  PROJECT_ROOT,
+  "backend",
+  "scripts",
+  "derive-mlx-runtime-from-peft.py",
 );
 
 const TRAINING_BASE_MODEL =
-  process.env.LOCAL_TRAINING_MODEL || appConfig.localReply.mlxModel;
+  process.env.CANONICAL_TRAINING_BASE_MODEL || "Qwen/Qwen2.5-7B-Instruct";
 const SFT_TRAINING_ARGS = {
   batchSize: Number(process.env.LOCAL_TRAINING_SFT_BATCH_SIZE || "1"),
   iters: Number(process.env.LOCAL_TRAINING_SFT_ITERS || "40"),
@@ -98,7 +109,11 @@ interface TrainingRunSpec {
   parentRunUid: string | null;
   baseModel: string;
   datasetDir: string;
+  outputRootDir: string;
   adapterPath: string;
+  runtimeArtifactPath: string;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
+  trainingResultPath: string;
   logPath: string;
   commands: {
     build: {
@@ -106,6 +121,10 @@ interface TrainingRunSpec {
       args: string[];
     };
     train: {
+      command: string;
+      args: string[];
+    };
+    derive: {
       command: string;
       args: string[];
     };
@@ -118,8 +137,13 @@ type TrainingArtifactSpec = {
   kind: ReviewTrainingKind;
   sourceDatasetVersion: string | null;
   sourceFingerprint: string;
+  baseModel: string;
   datasetDir: string;
   adapterPath: string;
+  runtimeArtifactPath: string;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
+  outputRootDir: string;
+  trainingResultPath: string;
 };
 
 function trainingRunId(spec: TrainingArtifactSpec) {
@@ -131,8 +155,12 @@ function trainingArtifactMetadata(spec: TrainingArtifactSpec, artifactPhase: str
     runId: trainingRunId(spec),
     kind: spec.kind,
     artifactPhase,
+    baseModel: spec.baseModel,
     sourceDatasetVersion: spec.sourceDatasetVersion,
     sourceFingerprint: spec.sourceFingerprint,
+    canonicalAdapterPath: spec.adapterPath,
+    runtimeArtifactPath: spec.runtimeArtifactPath,
+    runtimeArtifactKind: spec.runtimeArtifactKind,
   };
 }
 
@@ -162,6 +190,32 @@ async function registerDatasetArtifacts(spec: TrainingArtifactSpec) {
   });
 }
 
+async function registerTrainingOutputArtifacts(spec: TrainingArtifactSpec) {
+  const metadata = trainingArtifactMetadata(spec, "training_output");
+
+  await registerTrainingArtifactInDb({
+    runUid: spec.runUid,
+    artifactKind: "canonical_adapter_output",
+    filePath: spec.adapterPath,
+    metadata: {
+      ...metadata,
+      adapterVersion: trainingRunId(spec),
+    },
+  });
+  await registerTrainingArtifactInDb({
+    runUid: spec.runUid,
+    artifactKind: "runtime_artifact_output",
+    filePath: spec.runtimeArtifactPath,
+    metadata: metadata,
+  });
+  await registerTrainingArtifactInDb({
+    runUid: spec.runUid,
+    artifactKind: "training_result_manifest",
+    filePath: spec.trainingResultPath,
+    metadata: trainingArtifactMetadata(spec, "training_result_manifest"),
+  });
+}
+
 async function pathExists(targetPath: string) {
   try {
     await fsp.access(targetPath);
@@ -169,6 +223,38 @@ async function pathExists(targetPath: string) {
   } catch {
     return false;
   }
+}
+
+async function hasVenvModule(moduleName: string) {
+  const libRoot = path.join(PROJECT_ROOT, ".venv", "lib");
+  let pythonDirs: string[] = [];
+  try {
+    pythonDirs = await fsp.readdir(libRoot);
+  } catch {
+    return false;
+  }
+
+  for (const pythonDir of pythonDirs) {
+    const sitePackages = path.join(libRoot, pythonDir, "site-packages");
+    if (
+      (await pathExists(path.join(sitePackages, moduleName))) ||
+      (await pathExists(path.join(sitePackages, `${moduleName}.py`)))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function collectMissingPythonModules(moduleNames: string[]) {
+  const checks = await Promise.all(
+    moduleNames.map(async (moduleName) => ({
+      moduleName,
+      installed: await hasVenvModule(moduleName),
+    })),
+  );
+  return checks.filter((entry) => !entry.installed).map((entry) => entry.moduleName);
 }
 
 function fingerprintSpec(value: unknown) {
@@ -257,11 +343,29 @@ async function buildSftPreflight(): Promise<ReviewTrainingPreflightView> {
     rowCount: dataset?.rowCount ?? null,
   };
 
-  if (!(await pathExists(MLX_LORA_BINARY_PATH))) {
-    blockingIssues.push("`.venv/bin/mlx_lm.lora`가 없어 새로운 SFT Base를 생성할 수 없습니다.");
+  if (!(await pathExists(PYTHON_BINARY_PATH))) {
+    blockingIssues.push("`.venv/bin/python`이 없어 PEFT SFT 학습을 실행할 수 없습니다.");
   }
   if (!(await pathExists(TSX_BINARY_PATH)) || !(await pathExists(WORKER_SCRIPT_PATH))) {
     blockingIssues.push("training worker 실행 파일이 없어 SFT 학습을 시작할 수 없습니다.");
+  }
+  if (!(await pathExists(TRAIN_PEFT_SFT_SCRIPT_PATH))) {
+    blockingIssues.push("PEFT SFT trainer 스크립트가 없습니다.");
+  }
+  if (!(await pathExists(DERIVE_MLX_RUNTIME_SCRIPT_PATH))) {
+    blockingIssues.push("MLX runtime 파생 스크립트가 없습니다.");
+  }
+  const missingModules = await collectMissingPythonModules([
+    "torch",
+    "transformers",
+    "peft",
+    "datasets",
+    "mlx_lm",
+  ]);
+  if (missingModules.length > 0) {
+    blockingIssues.push(
+      `PEFT/MLX 학습 의존성이 없습니다: ${missingModules.join(", ")}. \`.venv/bin/pip install -r backend/requirements-peft.txt\`가 필요합니다.`,
+    );
   }
 
   if (!dataset || !dataset.rowCount) {
@@ -322,8 +426,24 @@ async function buildDpoPreflight(
   if (!(await pathExists(TSX_BINARY_PATH)) || !(await pathExists(WORKER_SCRIPT_PATH))) {
     blockingIssues.push("training worker 실행 파일이 없어 DPO 학습을 시작할 수 없습니다.");
   }
-  if (!(await pathExists(TRAIN_MLX_DPO_SCRIPT_PATH))) {
-    blockingIssues.push("DPO trainer 스크립트가 없습니다.");
+  if (!(await pathExists(TRAIN_PEFT_DPO_SCRIPT_PATH))) {
+    blockingIssues.push("PEFT DPO trainer 스크립트가 없습니다.");
+  }
+  if (!(await pathExists(DERIVE_MLX_RUNTIME_SCRIPT_PATH))) {
+    blockingIssues.push("MLX runtime 파생 스크립트가 없습니다.");
+  }
+  const missingModules = await collectMissingPythonModules([
+    "torch",
+    "transformers",
+    "peft",
+    "trl",
+    "datasets",
+    "mlx_lm",
+  ]);
+  if (missingModules.length > 0) {
+    blockingIssues.push(
+      `PEFT/MLX 학습 의존성이 없습니다: ${missingModules.join(", ")}. \`.venv/bin/pip install -r backend/requirements-peft.txt\`가 필요합니다.`,
+    );
   }
 
   if (!dataset || !dataset.rowCount) {
@@ -395,7 +515,11 @@ async function buildRunSpec(params: {
   }
   const runUid = `${new Date().toISOString().replace(/[:.]/g, "-")}_${params.kind}`;
   const datasetDir = path.join(TRAIN_RUNS_DIR, runUid, "dataset");
-  const adapterPath = path.join(TRAIN_OUTPUTS_DIR, runUid);
+  const outputRootDir = path.join(TRAIN_OUTPUTS_DIR, runUid);
+  const adapterPath = path.join(outputRootDir, "canonical");
+  const runtimeArtifactPath = path.join(outputRootDir, "runtime");
+  const runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind = "mlx_fused_model";
+  const trainingResultPath = path.join(outputRootDir, "training-result.json");
   const logPath = path.join(TRAIN_RUNS_DIR, runUid, "worker.log");
   const sourceFingerprint = params.preflight.dataset.fingerprint!;
 
@@ -437,14 +561,14 @@ async function buildRunSpec(params: {
   const trainCommand =
     params.kind === "sft"
       ? {
-          command: MLX_LORA_BINARY_PATH,
+          command: PYTHON_BINARY_PATH,
           args: [
+            TRAIN_PEFT_SFT_SCRIPT_PATH,
             "--model",
             TRAINING_BASE_MODEL,
-            "--train",
-            "--data",
+            "--data-dir",
             datasetDir,
-            "--adapter-path",
+            "--output-dir",
             adapterPath,
             "--iters",
             String(SFT_TRAINING_ARGS.iters),
@@ -452,31 +576,21 @@ async function buildRunSpec(params: {
             String(SFT_TRAINING_ARGS.batchSize),
             "--learning-rate",
             SFT_TRAINING_ARGS.learningRate,
-            "--num-layers",
-            String(SFT_TRAINING_ARGS.numLayers),
-            "--steps-per-report",
-            String(SFT_TRAINING_ARGS.stepsPerReport),
-            "--steps-per-eval",
-            String(SFT_TRAINING_ARGS.stepsPerEval),
-            "--save-every",
-            String(SFT_TRAINING_ARGS.saveEvery),
             "--max-seq-length",
             String(SFT_TRAINING_ARGS.maxSeqLength),
-            "--mask-prompt",
-            "--grad-checkpoint",
           ],
         }
       : {
           command: PYTHON_BINARY_PATH,
           args: [
-            TRAIN_MLX_DPO_SCRIPT_PATH,
+            TRAIN_PEFT_DPO_SCRIPT_PATH,
             "--model",
             TRAINING_BASE_MODEL,
             "--data-dir",
             datasetDir,
-            "--reference-adapter-path",
+            "--reference-adapter-dir",
             params.preflight.adapterPath!,
-            "--adapter-path",
+            "--output-dir",
             adapterPath,
             "--iters",
             String(DPO_TRAINING_ARGS.iters),
@@ -499,6 +613,23 @@ async function buildRunSpec(params: {
           ],
         };
 
+  const deriveCommand = {
+    command: PYTHON_BINARY_PATH,
+    args: [
+      DERIVE_MLX_RUNTIME_SCRIPT_PATH,
+      "--model",
+      TRAINING_BASE_MODEL,
+      "--adapter-dir",
+      adapterPath,
+      "--output-dir",
+      runtimeArtifactPath,
+      "--runtime-kind",
+      runtimeArtifactKind,
+      "--manifest-path",
+      trainingResultPath,
+    ],
+  };
+
   return {
     runUid,
     kind: params.kind,
@@ -509,11 +640,16 @@ async function buildRunSpec(params: {
     parentRunUid: params.preflight.parentRunId,
     baseModel: TRAINING_BASE_MODEL,
     datasetDir,
+    outputRootDir,
     adapterPath,
+    runtimeArtifactPath,
+    runtimeArtifactKind,
+    trainingResultPath,
     logPath,
     commands: {
       build: buildCommand,
       train: trainCommand,
+      derive: deriveCommand,
     },
   };
 }
@@ -535,7 +671,7 @@ export async function runReviewTraining(payload: {
   const spec = await buildRunSpec({ kind: payload.kind, preflight });
 
   await fsp.mkdir(path.dirname(spec.logPath), { recursive: true });
-  await fsp.mkdir(TRAIN_OUTPUTS_DIR, { recursive: true });
+  await fsp.mkdir(spec.outputRootDir, { recursive: true });
   await fsp.writeFile(
     spec.logPath,
     [
@@ -543,6 +679,7 @@ export async function runReviewTraining(payload: {
       `kind=${spec.kind}`,
       `build=${commandToString(spec.commands.build.command, spec.commands.build.args)}`,
       `train=${commandToString(spec.commands.train.command, spec.commands.train.args)}`,
+      `derive=${commandToString(spec.commands.derive.command, spec.commands.derive.args)}`,
       "",
     ].join("\n"),
     "utf8",
@@ -562,6 +699,8 @@ export async function runReviewTraining(payload: {
     baseModel: spec.baseModel,
     datasetDir: spec.datasetDir,
     adapterPath: spec.adapterPath,
+    runtimeArtifactPath: spec.runtimeArtifactPath,
+    runtimeArtifactKind: spec.runtimeArtifactKind,
     logPath: spec.logPath,
     fingerprint: spec.fingerprint,
     commands: spec.commands,
@@ -714,6 +853,29 @@ export async function runReviewTrainingWorker(runUid: string) {
       ...spec.commands.train,
       logPath: spec.logPath,
     });
+    await appendTrainingRunEventInDb({
+      runUid,
+      level: "info",
+      eventType: "runtime_derivation_started",
+      step: "derive_runtime",
+      message: "MLX runtime artifact 생성 시작",
+    });
+    await updateTrainingRunStateInDb({
+      runUid,
+      state: "running",
+      currentStep: "derive_runtime",
+      message: "MLX runtime artifact 생성 중",
+      durations: {
+        buildMs,
+        trainMs,
+        totalMs: null,
+      },
+    });
+    await runLoggedCommand({
+      runUid,
+      ...spec.commands.derive,
+      logPath: spec.logPath,
+    });
     const finishedAt = new Date().toISOString();
 
     await updateTrainingRunStateInDb({
@@ -724,6 +886,8 @@ export async function runReviewTrainingWorker(runUid: string) {
       finishedAt,
       adapterPath: spec.adapterPath,
       adapterVersion: trainingRunId(spec),
+      runtimeArtifactPath: spec.runtimeArtifactPath,
+      runtimeArtifactKind: spec.runtimeArtifactKind,
       durations: {
         buildMs,
         trainMs,
@@ -744,15 +908,7 @@ export async function runReviewTrainingWorker(runUid: string) {
       filePath: spec.logPath,
       metadata: trainingArtifactMetadata(spec, "worker_log"),
     });
-    await registerTrainingArtifactInDb({
-      runUid,
-      artifactKind: "adapter_output",
-      filePath: spec.adapterPath,
-      metadata: {
-        ...trainingArtifactMetadata(spec, "training_output"),
-        adapterVersion: trainingRunId(spec),
-      },
-    });
+    await registerTrainingOutputArtifacts(spec);
   } catch (error) {
     const failedAt = new Date().toISOString();
     const message =

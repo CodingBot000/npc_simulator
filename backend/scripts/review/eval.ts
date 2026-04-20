@@ -89,6 +89,8 @@ interface TrainingRunRow {
   run_kind: string | null;
   state: string | null;
   output_adapter_path: string | null;
+  runtime_artifact_path: string | null;
+  runtime_artifact_kind: string | null;
   dataset_work_dir: string | null;
   eval_state: string | null;
 }
@@ -177,7 +179,7 @@ async function pathExists(targetPath: string | null | undefined) {
 
 async function readTrainingRun(runId: string) {
   const result = await dbQuery<TrainingRunRow>(
-    `SELECT id, run_uid, run_kind, state, output_adapter_path, dataset_work_dir, eval_state
+    `SELECT id, run_uid, run_kind, state, output_adapter_path, runtime_artifact_path, runtime_artifact_kind, dataset_work_dir, eval_state
        FROM npc_training_run
       WHERE run_uid = $1
       ORDER BY id DESC
@@ -185,6 +187,19 @@ async function readTrainingRun(runId: string) {
     [runId],
   );
   return result.rows[0] ?? null;
+}
+
+async function resolveRuntimeArtifactKind(
+  artifactPath: string,
+  artifactKind: string | null,
+) {
+  if (artifactKind) {
+    return artifactKind;
+  }
+  if (await pathExists(path.join(artifactPath, "adapters.safetensors"))) {
+    return "legacy_mlx_adapter";
+  }
+  return "mlx_fused_model";
 }
 
 async function updateTrainingRunEvaluation(params: {
@@ -383,21 +398,34 @@ function buildRawJsonPrompt(evalCase: GoldenEvalCase) {
 async function runGenerate(params: {
   npcId: string;
   prompt: string;
-  adapterPath: string | null;
+  artifactPath: string | null;
+  artifactKind?: string | null;
 }) {
-  const args = [
-    "--model",
-    appConfig.localReply.mlxModel,
-    "--system-prompt",
-    resolveSystemPrompt(params.npcId),
-    "--prompt",
-    params.prompt,
-    "--max-tokens",
-    String(appConfig.localReply.maxTokens),
-  ];
+  const args =
+    params.artifactPath && params.artifactKind === "mlx_fused_model"
+      ? [
+          "--model",
+          params.artifactPath,
+          "--system-prompt",
+          resolveSystemPrompt(params.npcId),
+          "--prompt",
+          params.prompt,
+          "--max-tokens",
+          String(appConfig.localReply.maxTokens),
+        ]
+      : [
+          "--model",
+          appConfig.localReply.mlxModel,
+          "--system-prompt",
+          resolveSystemPrompt(params.npcId),
+          "--prompt",
+          params.prompt,
+          "--max-tokens",
+          String(appConfig.localReply.maxTokens),
+        ];
 
-  if (params.adapterPath) {
-    args.splice(2, 0, "--adapter-path", params.adapterPath);
+  if (params.artifactPath && params.artifactKind !== "mlx_fused_model") {
+    args.splice(2, 0, "--adapter-path", params.artifactPath);
   }
 
   return new Promise<string>((resolve, reject) => {
@@ -640,19 +668,28 @@ function buildReport(summary: Record<string, unknown>) {
 
 export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
   const run = await readTrainingRun(args.runId);
-  if (!run?.run_uid || !run.output_adapter_path) {
-    throw new Error(`training run not found or adapter missing: ${args.runId}`);
+  const candidateRuntimePath =
+    run?.runtime_artifact_path ?? run?.output_adapter_path ?? null;
+  if (!run?.run_uid || !candidateRuntimePath) {
+    throw new Error(`training run not found or runtime artifact missing: ${args.runId}`);
   }
   if (!(await pathExists(LOCAL_MLX_BINARY))) {
     throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
   }
-  if (!(await pathExists(run.output_adapter_path))) {
-    throw new Error(`candidate adapter path not found: ${run.output_adapter_path}`);
+  if (!(await pathExists(candidateRuntimePath))) {
+    throw new Error(`candidate runtime artifact not found: ${candidateRuntimePath}`);
   }
+  const candidateRuntimeKind = await resolveRuntimeArtifactKind(
+    candidateRuntimePath,
+    run.runtime_artifact_kind,
+  );
   const baselineAdapterPath =
     args.baselineAdapterPath && (await pathExists(args.baselineAdapterPath))
       ? args.baselineAdapterPath
       : null;
+  const baselineRuntimeKind = baselineAdapterPath
+    ? await resolveRuntimeArtifactKind(baselineAdapterPath, null)
+    : null;
 
   const startedAt = new Date().toISOString();
   await updateTrainingRunEvaluation({
@@ -685,12 +722,14 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
         runGenerate({
           npcId,
           prompt,
-          adapterPath: baselineAdapterPath,
+          artifactPath: baselineAdapterPath,
+          artifactKind: baselineRuntimeKind,
         }),
         runGenerate({
           npcId,
           prompt,
-          adapterPath: run.output_adapter_path,
+          artifactPath: candidateRuntimePath,
+          artifactKind: candidateRuntimeKind,
         }),
       ]);
 

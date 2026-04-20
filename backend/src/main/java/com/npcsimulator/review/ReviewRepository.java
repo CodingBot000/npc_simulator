@@ -348,6 +348,8 @@ public class ReviewRepository {
         String baseModel,
         String datasetDir,
         String adapterPath,
+        String runtimeArtifactPath,
+        String runtimeArtifactKind,
         String logPath,
         String fingerprint,
         Object commands
@@ -378,6 +380,8 @@ public class ReviewRepository {
                 parent_run_id,
                 base_model,
                 output_adapter_path,
+                runtime_artifact_path,
+                runtime_artifact_kind,
                 dataset_work_dir,
                 params_json,
                 metrics_json,
@@ -387,7 +391,7 @@ public class ReviewRepository {
                 started_at,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, 'review_training', ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, 'review_training', ?, ?, ?)
             """,
             runUid,
             kind,
@@ -398,6 +402,8 @@ public class ReviewRepository {
             parentRunId,
             baseModel,
             adapterPath,
+            runtimeArtifactPath,
+            runtimeArtifactKind,
             datasetDir,
             writeJson(params),
             writeJson(metrics),
@@ -459,6 +465,8 @@ public class ReviewRepository {
         String finishedAt,
         String adapterPath,
         String adapterVersion,
+        String runtimeArtifactPath,
+        String runtimeArtifactKind,
         TrainingDurations durations
     ) {
         TrainingRunRow current = findTrainingRunByUid(runUid)
@@ -492,6 +500,8 @@ public class ReviewRepository {
                    message = ?,
                    output_adapter_path = COALESCE(?, output_adapter_path),
                    output_adapter_version = COALESCE(?, output_adapter_version),
+                   runtime_artifact_path = COALESCE(?, runtime_artifact_path),
+                   runtime_artifact_kind = COALESCE(?, runtime_artifact_kind),
                    metrics_json = CAST(? AS JSON),
                    finished_at = ?,
                    updated_at = ?
@@ -502,6 +512,8 @@ public class ReviewRepository {
             message,
             adapterPath,
             adapterVersion,
+            runtimeArtifactPath,
+            runtimeArtifactKind,
             writeJson(nextMetrics),
             toTimestamp(finishedAt == null ? current.finishedAt() : finishedAt),
             now,
@@ -777,6 +789,8 @@ public class ReviewRepository {
             rs.getString("base_model"),
             rs.getString("output_adapter_path"),
             rs.getString("output_adapter_version"),
+            rs.getString("runtime_artifact_path"),
+            rs.getString("runtime_artifact_kind"),
             rs.getString("dataset_work_dir"),
             rs.getString("run_fingerprint"),
             rs.getString("source_fingerprint"),
@@ -1024,6 +1038,8 @@ public class ReviewRepository {
         String baseModel,
         String outputAdapterPath,
         String outputAdapterVersion,
+        String runtimeArtifactPath,
+        String runtimeArtifactKind,
         String datasetWorkDir,
         String runFingerprint,
         String sourceFingerprint,

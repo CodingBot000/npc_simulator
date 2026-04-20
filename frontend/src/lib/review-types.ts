@@ -188,6 +188,11 @@ export interface ReviewTrainingPreflightView {
   dataset: ReviewTrainingDatasetView;
 }
 
+export type ReviewTrainingRuntimeArtifactKind =
+  | "mlx_adapter"
+  | "mlx_fused_model"
+  | "legacy_mlx_adapter";
+
 export interface ReviewTrainingDurationsView {
   buildMs: number | null;
   trainMs: number | null;
@@ -237,7 +242,7 @@ export interface ReviewTrainingRunView {
   runId: string;
   kind: ReviewTrainingKind;
   state: "running" | "succeeded" | "failed";
-  currentStep: "build_dataset" | "train_sft" | "train_dpo" | null;
+  currentStep: "build_dataset" | "train_sft" | "train_dpo" | "derive_runtime" | null;
   message: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -246,8 +251,11 @@ export interface ReviewTrainingRunView {
   sourceFingerprint: string | null;
   sourceDatasetVersion: string | null;
   parentRunId: string | null;
+  baseModelId: string | null;
   datasetDir: string | null;
   adapterPath: string | null;
+  runtimeArtifactPath: string | null;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
   logPath: string | null;
   durations: ReviewTrainingDurationsView;
   evaluation: ReviewTrainingEvaluationView;

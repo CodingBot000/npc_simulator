@@ -89,13 +89,19 @@ class ReviewTrainingSmokeIntegrationTests {
 
         TrainingRunRow row = jdbcTemplate.queryForObject(
             """
-            SELECT output_adapter_path, output_adapter_version, dataset_work_dir
+            SELECT output_adapter_path,
+                   output_adapter_version,
+                   runtime_artifact_path,
+                   runtime_artifact_kind,
+                   dataset_work_dir
               FROM npc_training_run
              WHERE run_uid = ?
             """,
             (rs, rowNum) -> new TrainingRunRow(
                 rs.getString("output_adapter_path"),
                 rs.getString("output_adapter_version"),
+                rs.getString("runtime_artifact_path"),
+                rs.getString("runtime_artifact_kind"),
                 rs.getString("dataset_work_dir")
             ),
             runId
@@ -104,7 +110,11 @@ class ReviewTrainingSmokeIntegrationTests {
         assertThat(row).isNotNull();
         assertThat(row.adapterVersion()).isEqualTo(runId);
         assertThat(Files.exists(Path.of(row.datasetDir(), "manifest.json"))).isTrue();
-        assertThat(Files.exists(Path.of(row.adapterPath(), "training-result.json"))).isTrue();
+        assertThat(row.runtimeArtifactKind()).isEqualTo("mlx_fused_model");
+        assertThat(Files.exists(Path.of(row.adapterPath(), "adapter_config.json"))).isTrue();
+        assertThat(Files.exists(Path.of(row.adapterPath(), "adapter_model.safetensors"))).isTrue();
+        assertThat(Files.exists(Path.of(row.runtimeArtifactPath(), "config.json"))).isTrue();
+        assertThat(Files.exists(Path.of(row.adapterPath()).getParent().resolve("training-result.json"))).isTrue();
 
         Integer artifactCount = jdbcTemplate.queryForObject(
             """
@@ -573,7 +583,13 @@ class ReviewTrainingSmokeIntegrationTests {
         return LocalDateTime.ofInstant(Instant.parse(isoString), ZoneOffset.UTC);
     }
 
-    private record TrainingRunRow(String adapterPath, String adapterVersion, String datasetDir) {}
+    private record TrainingRunRow(
+        String adapterPath,
+        String adapterVersion,
+        String runtimeArtifactPath,
+        String runtimeArtifactKind,
+        String datasetDir
+    ) {}
 
     private record PromotionRow(
         String evalState,

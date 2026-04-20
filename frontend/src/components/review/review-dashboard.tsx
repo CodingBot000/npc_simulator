@@ -692,7 +692,9 @@ function TrainingRunDetailCard({
                 {describeTrainingRunStage(run)}
               </p>
               <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                dataset {run.sourceDatasetVersion ?? "-"} · adapter {basenameFromPath(run.adapterPath)}
+                dataset {run.sourceDatasetVersion ?? "-"} · canonical{" "}
+                {basenameFromPath(run.adapterPath)} · runtime{" "}
+                {basenameFromPath(run.runtimeArtifactPath)}
               </p>
               <p className="mt-2 break-all font-mono text-[11px] text-[var(--ink-muted)]">
                 runId {run.runId}
@@ -725,9 +727,12 @@ function TrainingRunDetailCard({
           <p>finishedAt: {formatTimestamp(run.finishedAt ?? null)}</p>
           <p>updatedAt: {formatTimestamp(run.updatedAt ?? null)}</p>
           <p>source dataset version: {run.sourceDatasetVersion ?? "-"}</p>
+          <p>base model: {run.baseModelId ?? "-"}</p>
           <p>fingerprint: {run.fingerprint ?? "-"}</p>
           <p>source fingerprint: {run.sourceFingerprint ?? "-"}</p>
           <p>parent run: {run.parentRunId ?? "-"}</p>
+          <p>runtime artifact: {run.runtimeArtifactPath ?? "-"}</p>
+          <p>runtime kind: {run.runtimeArtifactKind ?? "-"}</p>
           <p>
             소요: build {formatDuration(run.durations.buildMs ?? null)} / train{" "}
             {formatDuration(run.durations.trainMs ?? null)} / 전체{" "}

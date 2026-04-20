@@ -11,6 +11,7 @@ import type {
   ReviewTrainingDurationsView,
   ReviewTrainingKind,
   ReviewTrainingPreflightView,
+  ReviewTrainingRuntimeArtifactKind,
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
   SftReviewDecision,
@@ -173,6 +174,8 @@ interface TrainingRunRow {
   base_model: string | null;
   output_adapter_path: string | null;
   output_adapter_version: string | null;
+  runtime_artifact_path: string | null;
+  runtime_artifact_kind: string | null;
   dataset_work_dir: string | null;
   params_json: unknown;
   metrics_json: unknown;
@@ -1462,6 +1465,8 @@ async function insertTrainingRunRow(
         base_model,
         output_adapter_path,
         output_adapter_version,
+        runtime_artifact_path,
+        runtime_artifact_kind,
         dataset_work_dir,
         params_json,
         metrics_json,
@@ -1474,9 +1479,9 @@ async function insertTrainingRunRow(
         created_at,
         updated_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-        COALESCE($20, CURRENT_TIMESTAMP),
-        COALESCE($21, CURRENT_TIMESTAMP)
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+        COALESCE($22, CURRENT_TIMESTAMP),
+        COALESCE($23, CURRENT_TIMESTAMP)
       )
       RETURNING id`,
     [
@@ -1490,6 +1495,8 @@ async function insertTrainingRunRow(
       row.base_model ?? null,
       row.output_adapter_path ?? null,
       row.output_adapter_version ?? null,
+      row.runtime_artifact_path ?? null,
+      row.runtime_artifact_kind ?? null,
       row.dataset_work_dir ?? null,
       jsonParam(row.params_json ?? null),
       jsonParam(row.metrics_json ?? null),
@@ -1566,6 +1573,12 @@ async function seedLegacyTrainingRuns() {
           parent_run_id: null,
           base_model: asString(spec.baseModel),
           output_adapter_path: asString(status.adapterPath) ?? asString(spec.adapterPath),
+          runtime_artifact_path:
+            asString(status.runtimeArtifactPath) ??
+            asString(status.adapterPath) ??
+            asString(spec.adapterPath),
+          runtime_artifact_kind:
+            asString(status.runtimeArtifactKind) ?? "legacy_mlx_adapter",
           dataset_work_dir: asString(status.datasetDir) ?? asString(spec.datasetDir),
           params_json: {
             sourceDatasetVersion: asString(spec.sourceDatasetVersion),
@@ -1627,8 +1640,12 @@ function mapTrainingRunToView(row: TrainingRunRow): ReviewTrainingRunView {
     sourceFingerprint: row.source_fingerprint,
     sourceDatasetVersion: asString(params.sourceDatasetVersion),
     parentRunId: asString(params.parentRunUid),
+    baseModelId: row.base_model,
     datasetDir: row.dataset_work_dir,
     adapterPath: row.output_adapter_path,
+    runtimeArtifactPath: row.runtime_artifact_path,
+    runtimeArtifactKind:
+      (row.runtime_artifact_kind as ReviewTrainingRuntimeArtifactKind | null) ?? null,
     logPath: asString(params.logPath),
     durations: buildRunDurations(row.metrics_json),
     evaluation: {
@@ -1855,6 +1872,8 @@ export interface TrainingRunSpecRecord {
   baseModel: string;
   datasetDir: string;
   adapterPath: string;
+  runtimeArtifactPath: string;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
   logPath: string;
   commands: {
     build: {
@@ -1862,6 +1881,10 @@ export interface TrainingRunSpecRecord {
       args: string[];
     };
     train: {
+      command: string;
+      args: string[];
+    };
+    derive: {
       command: string;
       args: string[];
     };
@@ -1881,6 +1904,8 @@ export async function createTrainingRunInDb(params: {
   baseModel: string;
   datasetDir: string;
   adapterPath: string;
+  runtimeArtifactPath: string;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
   logPath: string;
   fingerprint: string;
   commands: TrainingRunSpecRecord["commands"];
@@ -1899,6 +1924,8 @@ export async function createTrainingRunInDb(params: {
       parent_run_id: parentRunId,
       base_model: params.baseModel,
       output_adapter_path: params.adapterPath,
+      runtime_artifact_path: params.runtimeArtifactPath,
+      runtime_artifact_kind: params.runtimeArtifactKind,
       dataset_work_dir: params.datasetDir,
       params_json: {
         sourceDatasetVersion: params.sourceDatasetVersion,
@@ -1953,6 +1980,10 @@ export async function getTrainingRunSpecFromDb(
     baseModel: row.base_model ?? "",
     datasetDir: row.dataset_work_dir ?? "",
     adapterPath: row.output_adapter_path ?? "",
+    runtimeArtifactPath: row.runtime_artifact_path ?? "",
+    runtimeArtifactKind:
+      (row.runtime_artifact_kind as ReviewTrainingRuntimeArtifactKind | null) ??
+      "legacy_mlx_adapter",
     logPath: asString(params.logPath) ?? "",
     commands: {
       build: {
@@ -1965,6 +1996,12 @@ export async function getTrainingRunSpecFromDb(
         command: asString(asObject(commands.train).command) ?? "",
         args: Array.isArray(asObject(commands.train).args)
           ? (asObject(commands.train).args as string[])
+          : [],
+      },
+      derive: {
+        command: asString(asObject(commands.derive).command) ?? "",
+        args: Array.isArray(asObject(commands.derive).args)
+          ? (asObject(commands.derive).args as string[])
           : [],
       },
     },
@@ -1980,6 +2017,8 @@ export async function updateTrainingRunStateInDb(params: {
   finishedAt?: string | null;
   adapterPath?: string | null;
   adapterVersion?: string | null;
+  runtimeArtifactPath?: string | null;
+  runtimeArtifactKind?: ReviewTrainingRuntimeArtifactKind | null;
 }) {
   const result = await dbQuery<TrainingRunRow>(
     "SELECT * FROM npc_training_run WHERE run_uid = $1 ORDER BY id DESC LIMIT 1",
@@ -1999,8 +2038,10 @@ export async function updateTrainingRunStateInDb(params: {
             message = $4,
             output_adapter_path = COALESCE($5, output_adapter_path),
             output_adapter_version = COALESCE($6, output_adapter_version),
-            metrics_json = $7,
-            finished_at = $8,
+            runtime_artifact_path = COALESCE($7, runtime_artifact_path),
+            runtime_artifact_kind = COALESCE($8, runtime_artifact_kind),
+            metrics_json = $9,
+            finished_at = $10,
             updated_at = CURRENT_TIMESTAMP
       WHERE run_uid = $1`,
     [
@@ -2010,6 +2051,8 @@ export async function updateTrainingRunStateInDb(params: {
       params.message,
       params.adapterPath ?? null,
       params.adapterVersion ?? null,
+      params.runtimeArtifactPath ?? null,
+      params.runtimeArtifactKind ?? null,
       jsonParam({
         durations: nextDurations,
       }),
