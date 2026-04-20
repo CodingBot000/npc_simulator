@@ -6,6 +6,7 @@ import path from "node:path";
 import type {
   ReviewTrainingKind,
   ReviewTrainingPreflightView,
+  ReviewTrainingBackend,
   ReviewTrainingRuntimeArtifactKind,
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
@@ -24,6 +25,15 @@ import {
   registerTrainingArtifactInDb,
   updateTrainingRunStateInDb,
 } from "@server/db/review-db";
+import {
+  createTogetherFineTuneJob,
+  extractTogetherOutputName,
+  isTogetherFileProcessed,
+  listTogetherFineTuneEvents,
+  retrieveTogetherFile,
+  retrieveTogetherFineTuneJob,
+  uploadTogetherFile,
+} from "@server/together-client";
 
 const TRAIN_RUNS_DIR = path.join(PROJECT_ROOT, "data", "train", "runs");
 const TRAIN_OUTPUTS_DIR = path.join(PROJECT_ROOT, "outputs", "training");
@@ -40,6 +50,12 @@ const EXPORT_MLX_SFT_SCRIPT_PATH = path.join(
   "backend",
   "scripts",
   "export-mlx-sft-dataset.mjs",
+);
+const EXPORT_TOGETHER_SFT_SCRIPT_PATH = path.join(
+  PROJECT_ROOT,
+  "backend",
+  "scripts",
+  "export-together-sft-dataset.mjs",
 );
 const BUILD_MLX_DPO_SCRIPT_PATH = path.join(
   PROJECT_ROOT,
@@ -66,8 +82,27 @@ const DERIVE_MLX_RUNTIME_SCRIPT_PATH = path.join(
   "derive-mlx-runtime-from-peft.py",
 );
 
+const DEFAULT_LOCAL_TRAINING_BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct";
+const DEFAULT_TOGETHER_TRAINING_BASE_MODEL =
+  "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
+const TOGETHER_REMOTE_PROVIDER = "together";
+const TRAINING_EXECUTION_MODE: ReviewTrainingBackend =
+  process.env.TRAINING_EXECUTION_MODE === "together_serverless_lora"
+    ? "together_serverless_lora"
+    : process.env.TRAINING_EXECUTION_MODE === "smoke" ||
+        process.env.LOCAL_TRAINING_EXECUTION_MODE === "smoke"
+      ? "smoke"
+      : "local_peft";
 const TRAINING_BASE_MODEL =
-  process.env.CANONICAL_TRAINING_BASE_MODEL || "Qwen/Qwen2.5-7B-Instruct";
+  process.env.CANONICAL_TRAINING_BASE_MODEL ||
+  (TRAINING_EXECUTION_MODE === "together_serverless_lora"
+    ? DEFAULT_TOGETHER_TRAINING_BASE_MODEL
+    : DEFAULT_LOCAL_TRAINING_BASE_MODEL);
+const TOGETHER_POLL_INTERVAL_MS = Number(process.env.TOGETHER_POLL_INTERVAL_MS || "10000");
+const TOGETHER_TRAINING_SUFFIX_PREFIX =
+  process.env.TOGETHER_TRAINING_SUFFIX_PREFIX || "npc-sim";
+const TOGETHER_TRAINING_N_EVALS = Number(process.env.TOGETHER_TRAINING_N_EVALS || "8");
+const TOGETHER_TRAINING_EPOCHS = Number(process.env.TOGETHER_TRAINING_EPOCHS || "3");
 const SFT_TRAINING_ARGS = {
   batchSize: Number(process.env.LOCAL_TRAINING_SFT_BATCH_SIZE || "1"),
   iters: Number(process.env.LOCAL_TRAINING_SFT_ITERS || "40"),
@@ -102,6 +137,7 @@ interface SnapshotSummary {
 interface TrainingRunSpec {
   runUid: string;
   kind: ReviewTrainingKind;
+  trainingBackend: ReviewTrainingBackend;
   fingerprint: string;
   sourceFingerprint: string;
   sourceSnapshotId: number | null;
@@ -110,9 +146,10 @@ interface TrainingRunSpec {
   baseModel: string;
   datasetDir: string;
   outputRootDir: string;
-  adapterPath: string;
-  runtimeArtifactPath: string;
-  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
+  adapterPath: string | null;
+  runtimeArtifactPath: string | null;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
+  remoteProvider: string | null;
   trainingResultPath: string;
   logPath: string;
   commands: {
@@ -127,7 +164,7 @@ interface TrainingRunSpec {
     derive: {
       command: string;
       args: string[];
-    };
+    } | null;
   };
 }
 
@@ -135,13 +172,16 @@ type TrainingArtifactSpec = {
   runUid?: string;
   runId?: string;
   kind: ReviewTrainingKind;
+  trainingBackend?: ReviewTrainingBackend | null;
   sourceDatasetVersion: string | null;
   sourceFingerprint: string;
   baseModel: string;
   datasetDir: string;
-  adapterPath: string;
-  runtimeArtifactPath: string;
-  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
+  adapterPath: string | null;
+  runtimeArtifactPath: string | null;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
+  remoteProvider?: string | null;
+  remoteModelName?: string | null;
   outputRootDir: string;
   trainingResultPath: string;
 };
@@ -154,6 +194,7 @@ function trainingArtifactMetadata(spec: TrainingArtifactSpec, artifactPhase: str
   return {
     runId: trainingRunId(spec),
     kind: spec.kind,
+    trainingBackend: spec.trainingBackend ?? null,
     artifactPhase,
     baseModel: spec.baseModel,
     sourceDatasetVersion: spec.sourceDatasetVersion,
@@ -161,6 +202,8 @@ function trainingArtifactMetadata(spec: TrainingArtifactSpec, artifactPhase: str
     canonicalAdapterPath: spec.adapterPath,
     runtimeArtifactPath: spec.runtimeArtifactPath,
     runtimeArtifactKind: spec.runtimeArtifactKind,
+    remoteProvider: spec.remoteProvider ?? null,
+    remoteModelName: spec.remoteModelName ?? null,
   };
 }
 
@@ -193,21 +236,25 @@ async function registerDatasetArtifacts(spec: TrainingArtifactSpec) {
 async function registerTrainingOutputArtifacts(spec: TrainingArtifactSpec) {
   const metadata = trainingArtifactMetadata(spec, "training_output");
 
-  await registerTrainingArtifactInDb({
-    runUid: spec.runUid,
-    artifactKind: "canonical_adapter_output",
-    filePath: spec.adapterPath,
-    metadata: {
-      ...metadata,
-      adapterVersion: trainingRunId(spec),
-    },
-  });
-  await registerTrainingArtifactInDb({
-    runUid: spec.runUid,
-    artifactKind: "runtime_artifact_output",
-    filePath: spec.runtimeArtifactPath,
-    metadata: metadata,
-  });
+  if (spec.adapterPath) {
+    await registerTrainingArtifactInDb({
+      runUid: spec.runUid,
+      artifactKind: "canonical_adapter_output",
+      filePath: spec.adapterPath,
+      metadata: {
+        ...metadata,
+        adapterVersion: trainingRunId(spec),
+      },
+    });
+  }
+  if (spec.runtimeArtifactPath) {
+    await registerTrainingArtifactInDb({
+      runUid: spec.runUid,
+      artifactKind: "runtime_artifact_output",
+      filePath: spec.runtimeArtifactPath,
+      metadata: metadata,
+    });
+  }
   await registerTrainingArtifactInDb({
     runUid: spec.runUid,
     artifactKind: "training_result_manifest",
@@ -257,13 +304,68 @@ async function collectMissingPythonModules(moduleNames: string[]) {
   return checks.filter((entry) => !entry.installed).map((entry) => entry.moduleName);
 }
 
+function sanitizeTogetherSuffix(value: string) {
+  const sanitized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return sanitized || "training-run";
+}
+
+async function waitForTogetherFileProcessed(fileId: string) {
+  for (;;) {
+    const file = await retrieveTogetherFile(fileId);
+    if (isTogetherFileProcessed(file)) {
+      return file;
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, TOGETHER_POLL_INTERVAL_MS);
+    });
+  }
+}
+
+async function countJsonlRows(filePath: string) {
+  const raw = await fsp.readFile(filePath, "utf8");
+  return raw
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+}
+
+async function validateTogetherSftDataset(datasetDir: string) {
+  const trainPath = path.join(datasetDir, "train.jsonl");
+  const validPath = path.join(datasetDir, "valid.jsonl");
+  const [trainCount, validCount] = await Promise.all([
+    countJsonlRows(trainPath),
+    countJsonlRows(validPath),
+  ]);
+
+  if (trainCount <= 0) {
+    throw new Error("Together SFT train.jsonl is empty.");
+  }
+  if (validCount <= 0) {
+    throw new Error("Together SFT valid.jsonl is empty.");
+  }
+
+  return {
+    trainPath,
+    validPath,
+    trainCount,
+    validCount,
+  };
+}
+
 function fingerprintSpec(value: unknown) {
   return createHash("sha256")
     .update(JSON.stringify(value))
     .digest("hex");
 }
 
-function commandToString(command: string, args: string[]) {
+function commandToString(command: string | null, args: string[] = []) {
+  if (!command) {
+    return "-";
+  }
   return [command, ...args]
     .map((entry) => (/\s/u.test(entry) ? JSON.stringify(entry) : entry))
     .join(" ");
@@ -277,6 +379,9 @@ function buildEmptyPreflight(kind: ReviewTrainingKind): ReviewTrainingPreflightV
     duplicateRunId: null,
     parentRunId: null,
     adapterPath: null,
+    sftFingerprintRelation: null,
+    executionMode: null,
+    trainingBackend: null,
     blockingIssues: [],
     dataset: {
       exists: false,
@@ -334,6 +439,8 @@ async function buildSftPreflight(): Promise<ReviewTrainingPreflightView> {
   const preflight = buildEmptyPreflight("sft");
   const blockingIssues = await getFinalizeBlockingIssues();
   const dataset = await getSnapshot("sft");
+  preflight.executionMode = TRAINING_EXECUTION_MODE;
+  preflight.trainingBackend = TRAINING_EXECUTION_MODE;
 
   preflight.dataset = {
     exists: Boolean(dataset),
@@ -343,29 +450,35 @@ async function buildSftPreflight(): Promise<ReviewTrainingPreflightView> {
     rowCount: dataset?.rowCount ?? null,
   };
 
-  if (!(await pathExists(PYTHON_BINARY_PATH))) {
-    blockingIssues.push("`.venv/bin/python`이 없어 PEFT SFT 학습을 실행할 수 없습니다.");
-  }
   if (!(await pathExists(TSX_BINARY_PATH)) || !(await pathExists(WORKER_SCRIPT_PATH))) {
     blockingIssues.push("training worker 실행 파일이 없어 SFT 학습을 시작할 수 없습니다.");
   }
-  if (!(await pathExists(TRAIN_PEFT_SFT_SCRIPT_PATH))) {
-    blockingIssues.push("PEFT SFT trainer 스크립트가 없습니다.");
-  }
-  if (!(await pathExists(DERIVE_MLX_RUNTIME_SCRIPT_PATH))) {
-    blockingIssues.push("MLX runtime 파생 스크립트가 없습니다.");
-  }
-  const missingModules = await collectMissingPythonModules([
-    "torch",
-    "transformers",
-    "peft",
-    "datasets",
-    "mlx_lm",
-  ]);
-  if (missingModules.length > 0) {
-    blockingIssues.push(
-      `PEFT/MLX 학습 의존성이 없습니다: ${missingModules.join(", ")}. \`.venv/bin/pip install -r backend/requirements-peft.txt\`가 필요합니다.`,
-    );
+  if (TRAINING_EXECUTION_MODE === "together_serverless_lora") {
+    if (!(await pathExists(EXPORT_TOGETHER_SFT_SCRIPT_PATH))) {
+      blockingIssues.push("Together SFT dataset exporter 스크립트가 없습니다.");
+    }
+  } else {
+    if (!(await pathExists(PYTHON_BINARY_PATH))) {
+      blockingIssues.push("`.venv/bin/python`이 없어 PEFT SFT 학습을 실행할 수 없습니다.");
+    }
+    if (!(await pathExists(TRAIN_PEFT_SFT_SCRIPT_PATH))) {
+      blockingIssues.push("PEFT SFT trainer 스크립트가 없습니다.");
+    }
+    if (!(await pathExists(DERIVE_MLX_RUNTIME_SCRIPT_PATH))) {
+      blockingIssues.push("MLX runtime 파생 스크립트가 없습니다.");
+    }
+    const missingModules = await collectMissingPythonModules([
+      "torch",
+      "transformers",
+      "peft",
+      "datasets",
+      "mlx_lm",
+    ]);
+    if (missingModules.length > 0) {
+      blockingIssues.push(
+        `PEFT/MLX 학습 의존성이 없습니다: ${missingModules.join(", ")}. \`.venv/bin/pip install -r backend/requirements-peft.txt\`가 필요합니다.`,
+      );
+    }
   }
 
   if (!dataset || !dataset.rowCount) {
@@ -411,6 +524,7 @@ async function buildDpoPreflight(
   const preflight = buildEmptyPreflight("dpo");
   const blockingIssues = await getFinalizeBlockingIssues();
   const dataset = await getSnapshot("preference");
+  preflight.trainingBackend = TRAINING_EXECUTION_MODE;
 
   preflight.dataset = {
     exists: Boolean(dataset),
@@ -419,6 +533,16 @@ async function buildDpoPreflight(
     fingerprint: dataset?.fingerprint ?? null,
     rowCount: dataset?.rowCount ?? null,
   };
+
+  if (TRAINING_EXECUTION_MODE === "together_serverless_lora") {
+    preflight.executionMode = "unsupported";
+    preflight.blockingIssues = [
+      ...blockingIssues,
+      "Together serverless LoRA 전환 1차에서는 DPO를 지원하지 않습니다.",
+    ];
+    preflight.canStart = false;
+    return preflight;
+  }
 
   if (!(await pathExists(PYTHON_BINARY_PATH))) {
     blockingIssues.push("`.venv/bin/python`이 없어 DPO 학습을 실행할 수 없습니다.");
@@ -463,7 +587,10 @@ async function buildDpoPreflight(
     sftPreflight.dataset.fingerprint &&
     latestSftRun.source_fingerprint !== sftPreflight.dataset.fingerprint
   ) {
+    preflight.sftFingerprintRelation = "mismatch";
     blockingIssues.push("현재 finalized SFT 데이터로 먼저 새 SFT 학습을 완료해야 DPO를 실행할 수 있습니다.");
+  } else if (latestSftRun && sftPreflight.dataset.fingerprint) {
+    preflight.sftFingerprintRelation = "match";
   }
 
   const fingerprint =
@@ -483,6 +610,9 @@ async function buildDpoPreflight(
     : null;
 
   preflight.alreadyTrained = Boolean(duplicate?.state === "succeeded");
+  preflight.executionMode = latestSftRun && preflight.sftFingerprintRelation !== "mismatch"
+    ? "reuse_existing_sft"
+    : "needs_new_sft";
   preflight.duplicateRunId = duplicate?.run_uid ?? null;
   preflight.blockingIssues = duplicate
     ? [
@@ -516,9 +646,10 @@ async function buildRunSpec(params: {
   const runUid = `${new Date().toISOString().replace(/[:.]/g, "-")}_${params.kind}`;
   const datasetDir = path.join(TRAIN_RUNS_DIR, runUid, "dataset");
   const outputRootDir = path.join(TRAIN_OUTPUTS_DIR, runUid);
-  const adapterPath = path.join(outputRootDir, "canonical");
-  const runtimeArtifactPath = path.join(outputRootDir, "runtime");
-  const runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind = "mlx_fused_model";
+  let adapterPath: string | null = path.join(outputRootDir, "canonical");
+  let runtimeArtifactPath: string | null = path.join(outputRootDir, "runtime");
+  let runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null = "mlx_fused_model";
+  let remoteProvider: string | null = null;
   const trainingResultPath = path.join(outputRootDir, "training-result.json");
   const logPath = path.join(TRAIN_RUNS_DIR, runUid, "worker.log");
   const sourceFingerprint = params.preflight.dataset.fingerprint!;
@@ -536,7 +667,9 @@ async function buildRunSpec(params: {
       ? {
           command: process.execPath,
           args: [
-            EXPORT_MLX_SFT_SCRIPT_PATH,
+            TRAINING_EXECUTION_MODE === "together_serverless_lora"
+              ? EXPORT_TOGETHER_SFT_SCRIPT_PATH
+              : EXPORT_MLX_SFT_SCRIPT_PATH,
             "--snapshot-id",
             String(snapshot.snapshotId),
             "--output-dir",
@@ -559,80 +692,96 @@ async function buildRunSpec(params: {
         };
 
   const trainCommand =
-    params.kind === "sft"
+    TRAINING_EXECUTION_MODE === "together_serverless_lora"
       ? {
-          command: PYTHON_BINARY_PATH,
-          args: [
-            TRAIN_PEFT_SFT_SCRIPT_PATH,
-            "--model",
-            TRAINING_BASE_MODEL,
-            "--data-dir",
-            datasetDir,
-            "--output-dir",
-            adapterPath,
-            "--iters",
-            String(SFT_TRAINING_ARGS.iters),
-            "--batch-size",
-            String(SFT_TRAINING_ARGS.batchSize),
-            "--learning-rate",
-            SFT_TRAINING_ARGS.learningRate,
-            "--max-seq-length",
-            String(SFT_TRAINING_ARGS.maxSeqLength),
-          ],
+          command: process.execPath,
+          args: [WORKER_SCRIPT_PATH, "--run-id", runUid, "--remote-backend", TOGETHER_REMOTE_PROVIDER],
         }
+      : params.kind === "sft"
+        ? {
+            command: PYTHON_BINARY_PATH,
+            args: [
+              TRAIN_PEFT_SFT_SCRIPT_PATH,
+              "--model",
+              TRAINING_BASE_MODEL,
+              "--data-dir",
+              datasetDir,
+              "--output-dir",
+              adapterPath!,
+              "--iters",
+              String(SFT_TRAINING_ARGS.iters),
+              "--batch-size",
+              String(SFT_TRAINING_ARGS.batchSize),
+              "--learning-rate",
+              SFT_TRAINING_ARGS.learningRate,
+              "--max-seq-length",
+              String(SFT_TRAINING_ARGS.maxSeqLength),
+            ],
+          }
+        : {
+            command: PYTHON_BINARY_PATH,
+            args: [
+              TRAIN_PEFT_DPO_SCRIPT_PATH,
+              "--model",
+              TRAINING_BASE_MODEL,
+              "--data-dir",
+              datasetDir,
+              "--reference-adapter-dir",
+              params.preflight.adapterPath!,
+              "--output-dir",
+              adapterPath!,
+              "--iters",
+              String(DPO_TRAINING_ARGS.iters),
+              "--batch-size",
+              String(DPO_TRAINING_ARGS.batchSize),
+              "--learning-rate",
+              DPO_TRAINING_ARGS.learningRate,
+              "--num-layers",
+              String(DPO_TRAINING_ARGS.numLayers),
+              "--steps-per-report",
+              String(DPO_TRAINING_ARGS.stepsPerReport),
+              "--steps-per-eval",
+              String(DPO_TRAINING_ARGS.stepsPerEval),
+              "--save-every",
+              String(DPO_TRAINING_ARGS.saveEvery),
+              "--beta",
+              DPO_TRAINING_ARGS.beta,
+              "--max-seq-length",
+              String(DPO_TRAINING_ARGS.maxSeqLength),
+            ],
+          };
+
+  const deriveCommand =
+    TRAINING_EXECUTION_MODE === "together_serverless_lora"
+      ? null
       : {
           command: PYTHON_BINARY_PATH,
           args: [
-            TRAIN_PEFT_DPO_SCRIPT_PATH,
+            DERIVE_MLX_RUNTIME_SCRIPT_PATH,
             "--model",
             TRAINING_BASE_MODEL,
-            "--data-dir",
-            datasetDir,
-            "--reference-adapter-dir",
-            params.preflight.adapterPath!,
+            "--adapter-dir",
+            adapterPath!,
             "--output-dir",
-            adapterPath,
-            "--iters",
-            String(DPO_TRAINING_ARGS.iters),
-            "--batch-size",
-            String(DPO_TRAINING_ARGS.batchSize),
-            "--learning-rate",
-            DPO_TRAINING_ARGS.learningRate,
-            "--num-layers",
-            String(DPO_TRAINING_ARGS.numLayers),
-            "--steps-per-report",
-            String(DPO_TRAINING_ARGS.stepsPerReport),
-            "--steps-per-eval",
-            String(DPO_TRAINING_ARGS.stepsPerEval),
-            "--save-every",
-            String(DPO_TRAINING_ARGS.saveEvery),
-            "--beta",
-            DPO_TRAINING_ARGS.beta,
-            "--max-seq-length",
-            String(DPO_TRAINING_ARGS.maxSeqLength),
+            runtimeArtifactPath!,
+            "--runtime-kind",
+            runtimeArtifactKind!,
+            "--manifest-path",
+            trainingResultPath,
           ],
         };
 
-  const deriveCommand = {
-    command: PYTHON_BINARY_PATH,
-    args: [
-      DERIVE_MLX_RUNTIME_SCRIPT_PATH,
-      "--model",
-      TRAINING_BASE_MODEL,
-      "--adapter-dir",
-      adapterPath,
-      "--output-dir",
-      runtimeArtifactPath,
-      "--runtime-kind",
-      runtimeArtifactKind,
-      "--manifest-path",
-      trainingResultPath,
-    ],
-  };
+  if (TRAINING_EXECUTION_MODE === "together_serverless_lora") {
+    adapterPath = null;
+    runtimeArtifactPath = null;
+    runtimeArtifactKind = null;
+    remoteProvider = TOGETHER_REMOTE_PROVIDER;
+  }
 
   return {
     runUid,
     kind: params.kind,
+    trainingBackend: TRAINING_EXECUTION_MODE,
     fingerprint,
     sourceFingerprint,
     sourceSnapshotId: snapshot?.snapshotId ?? null,
@@ -644,6 +793,7 @@ async function buildRunSpec(params: {
     adapterPath,
     runtimeArtifactPath,
     runtimeArtifactKind,
+    remoteProvider,
     trainingResultPath,
     logPath,
     commands: {
@@ -677,9 +827,10 @@ export async function runReviewTraining(payload: {
     [
       `runId=${spec.runUid}`,
       `kind=${spec.kind}`,
+      `trainingBackend=${spec.trainingBackend}`,
       `build=${commandToString(spec.commands.build.command, spec.commands.build.args)}`,
       `train=${commandToString(spec.commands.train.command, spec.commands.train.args)}`,
-      `derive=${commandToString(spec.commands.derive.command, spec.commands.derive.args)}`,
+      `derive=${commandToString(spec.commands.derive?.command ?? null, spec.commands.derive?.args ?? [])}`,
       "",
     ].join("\n"),
     "utf8",
@@ -688,6 +839,7 @@ export async function runReviewTraining(payload: {
   await createTrainingRunInDb({
     runUid: spec.runUid,
     kind: spec.kind,
+    trainingBackend: spec.trainingBackend,
     state: "running",
     currentStep: "build_dataset",
     message:
@@ -701,7 +853,9 @@ export async function runReviewTraining(payload: {
     adapterPath: spec.adapterPath,
     runtimeArtifactPath: spec.runtimeArtifactPath,
     runtimeArtifactKind: spec.runtimeArtifactKind,
+    remoteProvider: spec.remoteProvider,
     logPath: spec.logPath,
+    trainingResultPath: spec.trainingResultPath,
     fingerprint: spec.fingerprint,
     commands: spec.commands,
   });
@@ -803,6 +957,288 @@ async function runLoggedCommand(params: {
   });
 }
 
+function togetherEventKey(event: {
+  created_at?: string | null;
+  message?: string | null;
+  type?: string | null;
+  hash?: string | null;
+}) {
+  return [
+    event.hash ?? "",
+    event.type ?? "",
+    event.created_at ?? "",
+    event.message ?? "",
+  ].join(":");
+}
+
+function isTogetherJobFailed(status: string) {
+  return ["error", "failed", "cancelled", "canceled"].includes(status);
+}
+
+function isTogetherJobSucceeded(status: string, outputName: string | null) {
+  return Boolean(outputName) && ["completed", "succeeded", "success"].includes(status);
+}
+
+async function writeTrainingResultManifest(filePath: string, payload: unknown) {
+  await fsp.mkdir(path.dirname(filePath), { recursive: true });
+  await fsp.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+async function runTogetherTrainingWorker(
+  spec: NonNullable<Awaited<ReturnType<typeof getTrainingRunSpecFromDb>>>,
+  startedAtMs: number,
+  buildMs: number,
+) {
+  const dataset = await validateTogetherSftDataset(spec.datasetDir);
+  const trainStartedAtMs = Date.now();
+
+  await appendTrainingRunEventInDb({
+    runUid: spec.runId,
+    level: "info",
+    eventType: "remote_dataset_validated",
+    step: "upload_remote_files",
+    message: `Together 학습 데이터 검증 완료 (train=${dataset.trainCount}, valid=${dataset.validCount})`,
+  });
+  await updateTrainingRunStateInDb({
+    runUid: spec.runId,
+    state: "running",
+    currentStep: "upload_remote_files",
+    message: "Together 학습 파일 업로드 중",
+    trainingBackend: spec.trainingBackend,
+    remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+    durations: {
+      buildMs,
+      trainMs: null,
+      totalMs: null,
+    },
+  });
+  await appendLog(spec.logPath, `[info] uploading Together training files`);
+
+  const [trainingFile, validationFile] = await Promise.all([
+    uploadTogetherFile({ filePath: dataset.trainPath }),
+    uploadTogetherFile({ filePath: dataset.validPath }),
+  ]);
+
+  await updateTrainingRunStateInDb({
+    runUid: spec.runId,
+    state: "running",
+    currentStep: "upload_remote_files",
+    message: "Together 학습 파일 처리 대기 중",
+    trainingBackend: spec.trainingBackend,
+    remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+    remoteTrainingFileId: trainingFile.id,
+    remoteValidationFileId: validationFile.id,
+    durations: {
+      buildMs,
+      trainMs: null,
+      totalMs: null,
+    },
+  });
+  await appendTrainingRunEventInDb({
+    runUid: spec.runId,
+    level: "info",
+    eventType: "remote_files_uploaded",
+    step: "upload_remote_files",
+    message: "Together 학습 파일 업로드 완료",
+    payload: {
+      trainingFileId: trainingFile.id,
+      validationFileId: validationFile.id,
+    },
+  });
+
+  await Promise.all([
+    waitForTogetherFileProcessed(trainingFile.id),
+    waitForTogetherFileProcessed(validationFile.id),
+  ]);
+
+  const suffix = sanitizeTogetherSuffix(
+    `${TOGETHER_TRAINING_SUFFIX_PREFIX}-${spec.kind}-${spec.runId}`,
+  );
+  const job = await createTogetherFineTuneJob({
+    model: spec.baseModel,
+    trainingFileId: trainingFile.id,
+    validationFileId: validationFile.id,
+    suffix,
+    lora: true,
+    nEpochs: TOGETHER_TRAINING_EPOCHS,
+    nEvals: TOGETHER_TRAINING_N_EVALS,
+  });
+
+  await updateTrainingRunStateInDb({
+    runUid: spec.runId,
+    state: "running",
+    currentStep: "wait_remote_training",
+    message: "Together LoRA fine-tuning 실행 중",
+    trainingBackend: spec.trainingBackend,
+    remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+    remoteTrainingFileId: trainingFile.id,
+    remoteValidationFileId: validationFile.id,
+    remoteJobId: job.id,
+    durations: {
+      buildMs,
+      trainMs: null,
+      totalMs: null,
+    },
+  });
+  await appendTrainingRunEventInDb({
+    runUid: spec.runId,
+    level: "info",
+    eventType: "remote_job_created",
+    step: "wait_remote_training",
+    message: "Together LoRA fine-tuning job 생성 완료",
+    payload: {
+      remoteJobId: job.id,
+      suffix,
+      baseModel: spec.baseModel,
+    },
+  });
+
+  const seenEvents = new Set<string>();
+  let currentJob = job;
+  for (;;) {
+    currentJob = await retrieveTogetherFineTuneJob(job.id);
+    const events = await listTogetherFineTuneEvents(job.id);
+    for (const event of events) {
+      const key = togetherEventKey(event);
+      if (seenEvents.has(key)) {
+        continue;
+      }
+      seenEvents.add(key);
+      await appendTrainingRunEventInDb({
+        runUid: spec.runId,
+        level: event.level ?? "info",
+        eventType: event.type ?? "together_job_event",
+        step: "wait_remote_training",
+        message: event.message ?? "Together fine-tune event",
+        payload: {
+          createdAt: event.created_at ?? null,
+        },
+      });
+    }
+
+    const status = String(currentJob.status ?? "unknown").toLowerCase();
+    const outputName = extractTogetherOutputName(currentJob);
+    await updateTrainingRunStateInDb({
+      runUid: spec.runId,
+      state: "running",
+      currentStep: "wait_remote_training",
+      message: `Together LoRA fine-tuning 상태: ${status}`,
+      trainingBackend: spec.trainingBackend,
+      remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+      remoteTrainingFileId: trainingFile.id,
+      remoteValidationFileId: validationFile.id,
+      remoteJobId: job.id,
+      remoteModelName: outputName,
+      durations: {
+        buildMs,
+        trainMs: Date.now() - trainStartedAtMs,
+        totalMs: null,
+      },
+    });
+
+    if (isTogetherJobSucceeded(status, outputName)) {
+      const finishedAt = new Date().toISOString();
+      const trainingResult = {
+        generatedAt: finishedAt,
+        runId: spec.runId,
+        trainingBackend: spec.trainingBackend,
+        provider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+        baseModel: spec.baseModel,
+        remoteJobId: job.id,
+        remoteTrainingFileId: trainingFile.id,
+        remoteValidationFileId: validationFile.id,
+        remoteModelName: outputName,
+        status,
+        dataset: {
+          trainRows: dataset.trainCount,
+          validRows: dataset.validCount,
+        },
+      };
+      await writeTrainingResultManifest(spec.trainingResultPath ?? path.join(spec.datasetDir, "..", "training-result.json"), trainingResult);
+      await updateTrainingRunStateInDb({
+        runUid: spec.runId,
+        state: "succeeded",
+        currentStep: null,
+        message: "Together LoRA fine-tuning 완료",
+        finishedAt,
+        trainingBackend: spec.trainingBackend,
+        remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+        remoteTrainingFileId: trainingFile.id,
+        remoteValidationFileId: validationFile.id,
+        remoteJobId: job.id,
+        remoteModelName: outputName,
+        durations: {
+          buildMs,
+          trainMs: Date.now() - trainStartedAtMs,
+          totalMs: Date.parse(finishedAt) - startedAtMs,
+        },
+      });
+      await appendTrainingRunEventInDb({
+        runUid: spec.runId,
+        level: "info",
+        eventType: "trainer_finished",
+        step: null,
+        message: "Together LoRA fine-tuning 완료",
+        payload: {
+          remoteJobId: job.id,
+          remoteModelName: outputName,
+        },
+      });
+      await registerTrainingArtifactInDb({
+        runUid: spec.runId,
+        artifactKind: "log_file",
+        filePath: spec.logPath,
+        metadata: trainingArtifactMetadata(
+          {
+            ...spec,
+            outputRootDir: spec.trainingResultPath
+              ? path.dirname(spec.trainingResultPath)
+              : path.dirname(spec.logPath),
+            sourceDatasetVersion: spec.sourceDatasetVersion,
+            sourceFingerprint: spec.sourceFingerprint,
+            baseModel: spec.baseModel,
+            datasetDir: spec.datasetDir,
+            adapterPath: spec.adapterPath,
+            runtimeArtifactPath: spec.runtimeArtifactPath,
+            runtimeArtifactKind: spec.runtimeArtifactKind,
+            trainingBackend: spec.trainingBackend,
+            remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+            remoteModelName: outputName,
+            trainingResultPath: spec.trainingResultPath ?? path.join(spec.datasetDir, "..", "training-result.json"),
+          },
+          "worker_log",
+        ),
+      });
+      await registerTrainingOutputArtifacts({
+        ...spec,
+        outputRootDir: spec.trainingResultPath
+          ? path.dirname(spec.trainingResultPath)
+          : path.dirname(spec.logPath),
+        sourceDatasetVersion: spec.sourceDatasetVersion,
+        sourceFingerprint: spec.sourceFingerprint,
+        baseModel: spec.baseModel,
+        datasetDir: spec.datasetDir,
+        adapterPath: spec.adapterPath,
+        runtimeArtifactPath: spec.runtimeArtifactPath,
+        runtimeArtifactKind: spec.runtimeArtifactKind,
+        trainingBackend: spec.trainingBackend,
+        remoteProvider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
+        remoteModelName: outputName,
+        trainingResultPath: spec.trainingResultPath ?? path.join(spec.datasetDir, "..", "training-result.json"),
+      });
+      return;
+    }
+
+    if (isTogetherJobFailed(status)) {
+      throw new Error(`Together fine-tune job failed: ${status}`);
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, TOGETHER_POLL_INTERVAL_MS);
+    });
+  }
+}
+
 export async function runReviewTrainingWorker(runUid: string) {
   const spec = await getTrainingRunSpecFromDb(runUid);
 
@@ -840,6 +1276,8 @@ export async function runReviewTrainingWorker(runUid: string) {
       state: "running",
       currentStep: spec.kind === "sft" ? "train_sft" : "train_dpo",
       message: spec.kind === "sft" ? "새로운 SFT Base 생성 중" : "DPO 학습 실행 중",
+      trainingBackend: spec.trainingBackend,
+      remoteProvider: spec.remoteProvider,
       durations: {
         buildMs,
         trainMs: null,
@@ -847,6 +1285,11 @@ export async function runReviewTrainingWorker(runUid: string) {
       },
     });
     await registerDatasetArtifacts(spec);
+
+    if (spec.trainingBackend === "together_serverless_lora") {
+      await runTogetherTrainingWorker(spec, startedAtMs, buildMs);
+      return;
+    }
 
     const trainMs = await runLoggedCommand({
       runUid,
@@ -865,6 +1308,7 @@ export async function runReviewTrainingWorker(runUid: string) {
       state: "running",
       currentStep: "derive_runtime",
       message: "MLX runtime artifact 생성 중",
+      trainingBackend: spec.trainingBackend,
       durations: {
         buildMs,
         trainMs,
@@ -884,10 +1328,12 @@ export async function runReviewTrainingWorker(runUid: string) {
       currentStep: null,
       message: spec.kind === "sft" ? "SFT 학습 완료" : "DPO 학습 완료",
       finishedAt,
+      trainingBackend: spec.trainingBackend,
       adapterPath: spec.adapterPath,
       adapterVersion: trainingRunId(spec),
       runtimeArtifactPath: spec.runtimeArtifactPath,
       runtimeArtifactKind: spec.runtimeArtifactKind,
+      remoteProvider: spec.remoteProvider,
       durations: {
         buildMs,
         trainMs,
@@ -928,6 +1374,8 @@ export async function runReviewTrainingWorker(runUid: string) {
       currentStep: null,
       message,
       finishedAt: failedAt,
+      trainingBackend: spec.trainingBackend,
+      remoteProvider: spec.remoteProvider,
     });
     await registerTrainingArtifactInDb({
       runUid,

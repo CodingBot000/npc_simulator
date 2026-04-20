@@ -29,6 +29,8 @@ async function main() {
     bindingKey: readRequiredOption("--binding-key"),
     baselineLabel: readRequiredOption("--baseline-label"),
     baselineAdapterPath: readOptionalOption("--baseline-adapter-path"),
+    baselineRemoteProvider: readOptionalOption("--baseline-remote-provider"),
+    baselineRemoteModel: readOptionalOption("--baseline-remote-model"),
     casesPath: readRequiredOption("--cases"),
     provider: readRequiredOption("--provider"),
     judgeModel: readOptionalOption("--judge-model"),

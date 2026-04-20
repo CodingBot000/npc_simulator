@@ -589,6 +589,14 @@ function basenameFromPath(path: string | null) {
 }
 
 function describeTrainingRunOrigin(run: ReviewTrainingRunView) {
+  if (run.trainingBackend === "together_serverless_lora") {
+    return "Together serverless LoRA run";
+  }
+
+  if (run.trainingBackend === "smoke") {
+    return "smoke run";
+  }
+
   if (
     run.runId.startsWith("real-eval-import-") ||
     run.message?.toLowerCase().includes("imported")
@@ -647,6 +655,14 @@ function dpoExecutionModeLabel(
       return "새 SFT Base 필요";
     case "reuse_existing_sft":
       return "기존 성공 SFT Base 재사용";
+    case "unsupported":
+      return "현재 미지원";
+    case "together_serverless_lora":
+      return "Together serverless LoRA";
+    case "local_peft":
+      return "로컬 PEFT";
+    case "smoke":
+      return "smoke";
     default:
       return "판단 불가";
   }
@@ -693,8 +709,13 @@ function TrainingRunDetailCard({
               </p>
               <p className="mt-1 text-sm text-[var(--ink-muted)]">
                 dataset {run.sourceDatasetVersion ?? "-"} · canonical{" "}
-                {basenameFromPath(run.adapterPath)} · runtime{" "}
-                {basenameFromPath(run.runtimeArtifactPath)}
+                {run.remoteModelName
+                  ? run.remoteModelName
+                  : basenameFromPath(run.adapterPath)}{" "}
+                · runtime{" "}
+                {run.remoteModelName
+                  ? run.remoteModelName
+                  : basenameFromPath(run.runtimeArtifactPath)}
               </p>
               <p className="mt-2 break-all font-mono text-[11px] text-[var(--ink-muted)]">
                 runId {run.runId}
@@ -717,6 +738,7 @@ function TrainingRunDetailCard({
         <div className="mt-4 space-y-2 text-sm text-[var(--ink-muted)]">
           <p>runId: {run.runId}</p>
           <p>kind: {run.kind}</p>
+          <p>training backend: {run.trainingBackend ?? "-"}</p>
           <p>state: {run.state}</p>
           <p>step: {run.currentStep ?? "-"}</p>
           <p>message: {messageOverride ?? run.message ?? "-"}</p>
@@ -733,6 +755,11 @@ function TrainingRunDetailCard({
           <p>parent run: {run.parentRunId ?? "-"}</p>
           <p>runtime artifact: {run.runtimeArtifactPath ?? "-"}</p>
           <p>runtime kind: {run.runtimeArtifactKind ?? "-"}</p>
+          <p>remote provider: {run.remoteProvider ?? "-"}</p>
+          <p>remote job: {run.remoteJobId ?? "-"}</p>
+          <p>remote training file: {run.remoteTrainingFileId ?? "-"}</p>
+          <p>remote validation file: {run.remoteValidationFileId ?? "-"}</p>
+          <p>remote model: {run.remoteModelName ?? "-"}</p>
           <p>
             소요: build {formatDuration(run.durations.buildMs ?? null)} / train{" "}
             {formatDuration(run.durations.trainMs ?? null)} / 전체{" "}

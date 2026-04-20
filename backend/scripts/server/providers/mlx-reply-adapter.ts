@@ -5,6 +5,10 @@ import type { GenerateInteractionInput } from "@/lib/types";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { dbQuery } from "@server/db/postgres";
 import { getCurrentScenario } from "@server/scenario";
+import {
+  createTogetherChatCompletion,
+  extractTogetherChatText,
+} from "@server/together-client";
 
 // MLX runtime entrypoint for inference-time LoRA adapter routing and reply rewriting.
 const LOCAL_MLX_BINARY = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.generate");
@@ -37,22 +41,37 @@ const NPC_DISPLAY_LABELS: Record<string, string> = {
 type PromptFormat = "raw_json" | "situation_card" | "direct_scene";
 type ScenePromptFormat = PromptFormat | "scene_state_min";
 type RuntimeArtifactKind = "mlx_adapter" | "mlx_fused_model" | "legacy_mlx_adapter";
+type LocalAdapterConfig = {
+  backend: "local";
+  path: string;
+  promptFormat: ScenePromptFormat;
+  runtimeKind: RuntimeArtifactKind;
+};
 
-const ADAPTER_CONFIGS: Record<
-  string,
-  { path: string; promptFormat: ScenePromptFormat; runtimeKind: RuntimeArtifactKind }
-> = {
+type TogetherAdapterConfig = {
+  backend: "together";
+  model: string;
+  provider: string | null;
+  promptFormat: ScenePromptFormat;
+};
+
+type ResolvedAdapterConfig = LocalAdapterConfig | TogetherAdapterConfig;
+
+const ADAPTER_CONFIGS: Record<string, LocalAdapterConfig> = {
   doctor: {
+    backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-doctor-role-v2"),
     promptFormat: "raw_json",
     runtimeKind: "legacy_mlx_adapter",
   },
   supervisor: {
+    backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-supervisor-role-v3"),
     promptFormat: "raw_json",
     runtimeKind: "legacy_mlx_adapter",
   },
   default: {
+    backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-aug26-v3"),
     promptFormat: "raw_json",
     runtimeKind: "legacy_mlx_adapter",
@@ -123,16 +142,25 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
 
   try {
     const result = await dbQuery<{
+      training_backend: string | null;
       output_adapter_path: string | null;
       runtime_artifact_path: string | null;
       runtime_artifact_kind: string | null;
+      remote_provider: string | null;
+      remote_model_name: string | null;
       promoted_binding_key: string | null;
     }>(
-      `SELECT output_adapter_path, runtime_artifact_path, runtime_artifact_kind, promoted_binding_key
+      `SELECT training_backend,
+              output_adapter_path,
+              runtime_artifact_path,
+              runtime_artifact_kind,
+              remote_provider,
+              remote_model_name,
+              promoted_binding_key
          FROM npc_training_run
         WHERE state = 'succeeded'
           AND promoted_at IS NOT NULL
-          AND COALESCE(runtime_artifact_path, output_adapter_path) IS NOT NULL
+          AND (COALESCE(runtime_artifact_path, output_adapter_path) IS NOT NULL OR remote_model_name IS NOT NULL)
           AND promoted_binding_key = ANY($1::text[])
         ORDER BY CASE WHEN promoted_binding_key = $2 THEN 0 ELSE 1 END,
                  promoted_at DESC,
@@ -142,18 +170,27 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
     );
 
     const row = result.rows[0];
+    const promptBinding = row.promoted_binding_key ?? npcId;
+    const baseConfig = ADAPTER_CONFIGS[promptBinding] ?? ADAPTER_CONFIGS.default;
+    if (
+      row?.training_backend === "together_serverless_lora" &&
+      row.remote_model_name
+    ) {
+      return {
+        backend: "together",
+        model: row.remote_model_name,
+        provider: row.remote_provider,
+        promptFormat: baseConfig.promptFormat,
+      } as const;
+    }
+
     const runtimePath = row?.runtime_artifact_path ?? row?.output_adapter_path ?? null;
     if (!runtimePath) {
       return null;
     }
-
-    const promptBinding = row.promoted_binding_key ?? npcId;
-    const baseConfig = ADAPTER_CONFIGS[promptBinding] ?? ADAPTER_CONFIGS.default;
-    const runtimeKind = await resolveRuntimeArtifactKind(
-      runtimePath,
-      row.runtime_artifact_kind,
-    );
+    const runtimeKind = await resolveRuntimeArtifactKind(runtimePath, row.runtime_artifact_kind);
     return {
+      backend: "local",
       path: runtimePath,
       promptFormat: baseConfig.promptFormat,
       runtimeKind,
@@ -496,6 +533,30 @@ async function runMlxGenerate(args: string[]) {
   });
 }
 
+async function runTogetherGenerate(params: {
+  model: string;
+  npcId: string;
+  promptFormat: ScenePromptFormat;
+  prompt: string;
+}) {
+  const response = await createTogetherChatCompletion({
+    model: params.model,
+    messages: [
+      {
+        role: "system",
+        content: resolveSystemPrompt(params.npcId, params.promptFormat),
+      },
+      {
+        role: "user",
+        content: params.prompt,
+      },
+    ],
+    maxTokens: appConfig.localReply.maxTokens,
+    temperature: 0.7,
+  });
+  return extractTogetherChatText(response) ?? "";
+}
+
 export async function maybeGenerateReplyWithLocalAdapter(
   input: GenerateInteractionInput,
 ) {
@@ -509,52 +570,67 @@ export async function maybeGenerateReplyWithLocalAdapter(
     return null;
   }
 
-  const binaryAvailable = await hasMlxBinary();
-  if (!binaryAvailable) {
-    if (mode === "on") {
-      throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
-    }
-    return null;
-  }
-
   const adapterConfig = await resolveAdapterConfigForNpc(input.npc.persona.id);
-  const adapterPath = adapterConfig.path;
-  const adapterAvailable = await hasRuntimeArtifact(
-    adapterPath,
-    adapterConfig.runtimeKind,
-  );
-  if (!adapterAvailable) {
-    if (mode === "on") {
-      throw new Error(`Runtime artifact not found: ${adapterPath}`);
-    }
-    return null;
-  }
+  const prompt = buildPrompt(input, adapterConfig.promptFormat);
+  let text: string;
+  let sourceRef: string;
 
-  const text = await runMlxGenerate(
-    adapterConfig.runtimeKind === "mlx_fused_model"
-      ? [
-          "--model",
-          adapterPath,
-          "--system-prompt",
-          resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
-          "--prompt",
-          buildPrompt(input, adapterConfig.promptFormat),
-          "--max-tokens",
-          String(appConfig.localReply.maxTokens),
-        ]
-      : [
-          "--model",
-          appConfig.localReply.mlxModel,
-          "--adapter-path",
-          adapterPath,
-          "--system-prompt",
-          resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
-          "--prompt",
-          buildPrompt(input, adapterConfig.promptFormat),
-          "--max-tokens",
-          String(appConfig.localReply.maxTokens),
-        ],
-  );
+  if (adapterConfig.backend === "together") {
+    text = await runTogetherGenerate({
+      model: adapterConfig.model,
+      npcId: input.npc.persona.id,
+      promptFormat: adapterConfig.promptFormat,
+      prompt,
+    });
+    sourceRef = adapterConfig.model;
+  } else {
+    const binaryAvailable = await hasMlxBinary();
+    if (!binaryAvailable) {
+      if (mode === "on") {
+        throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
+      }
+      return null;
+    }
+
+    const adapterPath = adapterConfig.path;
+    const adapterAvailable = await hasRuntimeArtifact(
+      adapterPath,
+      adapterConfig.runtimeKind,
+    );
+    if (!adapterAvailable) {
+      if (mode === "on") {
+        throw new Error(`Runtime artifact not found: ${adapterPath}`);
+      }
+      return null;
+    }
+
+    text = await runMlxGenerate(
+      adapterConfig.runtimeKind === "mlx_fused_model"
+        ? [
+            "--model",
+            adapterPath,
+            "--system-prompt",
+            resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+            "--prompt",
+            prompt,
+            "--max-tokens",
+            String(appConfig.localReply.maxTokens),
+          ]
+        : [
+            "--model",
+            appConfig.localReply.mlxModel,
+            "--adapter-path",
+            adapterPath,
+            "--system-prompt",
+            resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+            "--prompt",
+            prompt,
+            "--max-tokens",
+            String(appConfig.localReply.maxTokens),
+          ],
+    );
+    sourceRef = adapterPath;
+  }
 
   const normalized = text.trim();
   const cleaned = normalizeReplyText(normalized);
@@ -564,6 +640,6 @@ export async function maybeGenerateReplyWithLocalAdapter(
 
   return {
     text: cleaned,
-    adapterPath,
+    adapterPath: sourceRef,
   };
 }

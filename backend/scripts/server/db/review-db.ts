@@ -7,6 +7,7 @@ import type {
   PairReviewItemView,
   ReviewFinalizeStatusView,
   ReviewKind,
+  ReviewTrainingBackend,
   ReviewTrainingBindingKey,
   ReviewTrainingDurationsView,
   ReviewTrainingKind,
@@ -172,10 +173,16 @@ interface TrainingRunRow {
   source_snapshot_id: number | null;
   parent_run_id: number | null;
   base_model: string | null;
+  training_backend: string | null;
   output_adapter_path: string | null;
   output_adapter_version: string | null;
   runtime_artifact_path: string | null;
   runtime_artifact_kind: string | null;
+  remote_provider: string | null;
+  remote_job_id: string | null;
+  remote_training_file_id: string | null;
+  remote_validation_file_id: string | null;
+  remote_model_name: string | null;
   dataset_work_dir: string | null;
   params_json: unknown;
   metrics_json: unknown;
@@ -1463,10 +1470,16 @@ async function insertTrainingRunRow(
         source_snapshot_id,
         parent_run_id,
         base_model,
+        training_backend,
         output_adapter_path,
         output_adapter_version,
         runtime_artifact_path,
         runtime_artifact_kind,
+        remote_provider,
+        remote_job_id,
+        remote_training_file_id,
+        remote_validation_file_id,
+        remote_model_name,
         dataset_work_dir,
         params_json,
         metrics_json,
@@ -1480,8 +1493,9 @@ async function insertTrainingRunRow(
         updated_at
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-        COALESCE($22, CURRENT_TIMESTAMP),
-        COALESCE($23, CURRENT_TIMESTAMP)
+        $22,$23,$24,$25,$26,$27,
+        COALESCE($28, CURRENT_TIMESTAMP),
+        COALESCE($29, CURRENT_TIMESTAMP)
       )
       RETURNING id`,
     [
@@ -1493,10 +1507,16 @@ async function insertTrainingRunRow(
       row.source_snapshot_id ?? null,
       row.parent_run_id ?? null,
       row.base_model ?? null,
+      row.training_backend ?? null,
       row.output_adapter_path ?? null,
       row.output_adapter_version ?? null,
       row.runtime_artifact_path ?? null,
       row.runtime_artifact_kind ?? null,
+      row.remote_provider ?? null,
+      row.remote_job_id ?? null,
+      row.remote_training_file_id ?? null,
+      row.remote_validation_file_id ?? null,
+      row.remote_model_name ?? null,
       row.dataset_work_dir ?? null,
       jsonParam(row.params_json ?? null),
       jsonParam(row.metrics_json ?? null),
@@ -1572,6 +1592,7 @@ async function seedLegacyTrainingRuns() {
           source_snapshot_id: null,
           parent_run_id: null,
           base_model: asString(spec.baseModel),
+          training_backend: "local_peft",
           output_adapter_path: asString(status.adapterPath) ?? asString(spec.adapterPath),
           runtime_artifact_path:
             asString(status.runtimeArtifactPath) ??
@@ -1579,6 +1600,11 @@ async function seedLegacyTrainingRuns() {
             asString(spec.adapterPath),
           runtime_artifact_kind:
             asString(status.runtimeArtifactKind) ?? "legacy_mlx_adapter",
+          remote_provider: null,
+          remote_job_id: null,
+          remote_training_file_id: null,
+          remote_validation_file_id: null,
+          remote_model_name: null,
           dataset_work_dir: asString(status.datasetDir) ?? asString(spec.datasetDir),
           params_json: {
             sourceDatasetVersion: asString(spec.sourceDatasetVersion),
@@ -1630,6 +1656,8 @@ function mapTrainingRunToView(row: TrainingRunRow): ReviewTrainingRunView {
   return {
     runId: row.run_uid ?? "",
     kind: (row.run_kind as ReviewTrainingKind) ?? "sft",
+    trainingBackend:
+      (row.training_backend as ReviewTrainingBackend | null) ?? null,
     state: (row.state as ReviewTrainingRunView["state"]) ?? "failed",
     currentStep: (row.current_step as ReviewTrainingRunView["currentStep"]) ?? null,
     message: row.message,
@@ -1646,6 +1674,11 @@ function mapTrainingRunToView(row: TrainingRunRow): ReviewTrainingRunView {
     runtimeArtifactPath: row.runtime_artifact_path,
     runtimeArtifactKind:
       (row.runtime_artifact_kind as ReviewTrainingRuntimeArtifactKind | null) ?? null,
+    remoteProvider: row.remote_provider,
+    remoteJobId: row.remote_job_id,
+    remoteTrainingFileId: row.remote_training_file_id,
+    remoteValidationFileId: row.remote_validation_file_id,
+    remoteModelName: row.remote_model_name,
     logPath: asString(params.logPath),
     durations: buildRunDurations(row.metrics_json),
     evaluation: {
@@ -1864,6 +1897,7 @@ export async function getReviewFinalizeStatusFromDb(): Promise<ReviewFinalizeSta
 export interface TrainingRunSpecRecord {
   runId: string;
   kind: ReviewTrainingKind;
+  trainingBackend: ReviewTrainingBackend;
   fingerprint: string;
   sourceFingerprint: string;
   sourceDatasetVersion: string | null;
@@ -1871,10 +1905,16 @@ export interface TrainingRunSpecRecord {
   sourceSnapshotId: number | null;
   baseModel: string;
   datasetDir: string;
-  adapterPath: string;
-  runtimeArtifactPath: string;
-  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
+  adapterPath: string | null;
+  runtimeArtifactPath: string | null;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
+  remoteProvider: string | null;
+  remoteJobId: string | null;
+  remoteTrainingFileId: string | null;
+  remoteValidationFileId: string | null;
+  remoteModelName: string | null;
   logPath: string;
+  trainingResultPath: string | null;
   commands: {
     build: {
       command: string;
@@ -1887,13 +1927,14 @@ export interface TrainingRunSpecRecord {
     derive: {
       command: string;
       args: string[];
-    };
+    } | null;
   };
 }
 
 export async function createTrainingRunInDb(params: {
   runUid: string;
   kind: ReviewTrainingKind;
+  trainingBackend: ReviewTrainingBackend;
   state: "running";
   currentStep: ReviewTrainingRunView["currentStep"];
   message: string;
@@ -1903,10 +1944,16 @@ export async function createTrainingRunInDb(params: {
   parentRunUid: string | null;
   baseModel: string;
   datasetDir: string;
-  adapterPath: string;
-  runtimeArtifactPath: string;
-  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind;
+  adapterPath: string | null;
+  runtimeArtifactPath: string | null;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
+  remoteProvider?: string | null;
+  remoteJobId?: string | null;
+  remoteTrainingFileId?: string | null;
+  remoteValidationFileId?: string | null;
+  remoteModelName?: string | null;
   logPath: string;
+  trainingResultPath?: string | null;
   fingerprint: string;
   commands: TrainingRunSpecRecord["commands"];
 }) {
@@ -1923,14 +1970,21 @@ export async function createTrainingRunInDb(params: {
       source_snapshot_id: params.sourceSnapshotId,
       parent_run_id: parentRunId,
       base_model: params.baseModel,
+      training_backend: params.trainingBackend,
       output_adapter_path: params.adapterPath,
       runtime_artifact_path: params.runtimeArtifactPath,
       runtime_artifact_kind: params.runtimeArtifactKind,
+      remote_provider: params.remoteProvider ?? null,
+      remote_job_id: params.remoteJobId ?? null,
+      remote_training_file_id: params.remoteTrainingFileId ?? null,
+      remote_validation_file_id: params.remoteValidationFileId ?? null,
+      remote_model_name: params.remoteModelName ?? null,
       dataset_work_dir: params.datasetDir,
       params_json: {
         sourceDatasetVersion: params.sourceDatasetVersion,
         parentRunUid: params.parentRunUid,
         logPath: params.logPath,
+        trainingResultPath: params.trainingResultPath ?? null,
         commands: params.commands,
       },
       metrics_json: {
@@ -1972,6 +2026,8 @@ export async function getTrainingRunSpecFromDb(
   return {
     runId: row.run_uid ?? runUid,
     kind: (row.run_kind as ReviewTrainingKind) ?? "sft",
+    trainingBackend:
+      (row.training_backend as ReviewTrainingBackend | null) ?? "local_peft",
     fingerprint: row.run_fingerprint ?? "",
     sourceFingerprint: row.source_fingerprint ?? "",
     sourceDatasetVersion: asString(params.sourceDatasetVersion),
@@ -1979,12 +2035,17 @@ export async function getTrainingRunSpecFromDb(
     sourceSnapshotId: row.source_snapshot_id,
     baseModel: row.base_model ?? "",
     datasetDir: row.dataset_work_dir ?? "",
-    adapterPath: row.output_adapter_path ?? "",
-    runtimeArtifactPath: row.runtime_artifact_path ?? "",
+    adapterPath: row.output_adapter_path ?? null,
+    runtimeArtifactPath: row.runtime_artifact_path ?? null,
     runtimeArtifactKind:
-      (row.runtime_artifact_kind as ReviewTrainingRuntimeArtifactKind | null) ??
-      "legacy_mlx_adapter",
+      (row.runtime_artifact_kind as ReviewTrainingRuntimeArtifactKind | null) ?? null,
+    remoteProvider: row.remote_provider,
+    remoteJobId: row.remote_job_id,
+    remoteTrainingFileId: row.remote_training_file_id,
+    remoteValidationFileId: row.remote_validation_file_id,
+    remoteModelName: row.remote_model_name,
     logPath: asString(params.logPath) ?? "",
+    trainingResultPath: asString(params.trainingResultPath),
     commands: {
       build: {
         command: asString(asObject(commands.build).command) ?? "",
@@ -1998,12 +2059,15 @@ export async function getTrainingRunSpecFromDb(
           ? (asObject(commands.train).args as string[])
           : [],
       },
-      derive: {
-        command: asString(asObject(commands.derive).command) ?? "",
-        args: Array.isArray(asObject(commands.derive).args)
-          ? (asObject(commands.derive).args as string[])
-          : [],
-      },
+      derive:
+        Object.keys(asObject(commands.derive)).length > 0
+          ? {
+              command: asString(asObject(commands.derive).command) ?? "",
+              args: Array.isArray(asObject(commands.derive).args)
+                ? (asObject(commands.derive).args as string[])
+                : [],
+            }
+          : null,
     },
   };
 }
@@ -2015,10 +2079,16 @@ export async function updateTrainingRunStateInDb(params: {
   message: string | null;
   durations?: ReviewTrainingDurationsView;
   finishedAt?: string | null;
+  trainingBackend?: ReviewTrainingBackend | null;
   adapterPath?: string | null;
   adapterVersion?: string | null;
   runtimeArtifactPath?: string | null;
   runtimeArtifactKind?: ReviewTrainingRuntimeArtifactKind | null;
+  remoteProvider?: string | null;
+  remoteJobId?: string | null;
+  remoteTrainingFileId?: string | null;
+  remoteValidationFileId?: string | null;
+  remoteModelName?: string | null;
 }) {
   const result = await dbQuery<TrainingRunRow>(
     "SELECT * FROM npc_training_run WHERE run_uid = $1 ORDER BY id DESC LIMIT 1",
@@ -2036,12 +2106,18 @@ export async function updateTrainingRunStateInDb(params: {
         SET state = $2,
             current_step = $3,
             message = $4,
-            output_adapter_path = COALESCE($5, output_adapter_path),
-            output_adapter_version = COALESCE($6, output_adapter_version),
-            runtime_artifact_path = COALESCE($7, runtime_artifact_path),
-            runtime_artifact_kind = COALESCE($8, runtime_artifact_kind),
-            metrics_json = $9,
-            finished_at = $10,
+            training_backend = COALESCE($5, training_backend),
+            output_adapter_path = COALESCE($6, output_adapter_path),
+            output_adapter_version = COALESCE($7, output_adapter_version),
+            runtime_artifact_path = COALESCE($8, runtime_artifact_path),
+            runtime_artifact_kind = COALESCE($9, runtime_artifact_kind),
+            remote_provider = COALESCE($10, remote_provider),
+            remote_job_id = COALESCE($11, remote_job_id),
+            remote_training_file_id = COALESCE($12, remote_training_file_id),
+            remote_validation_file_id = COALESCE($13, remote_validation_file_id),
+            remote_model_name = COALESCE($14, remote_model_name),
+            metrics_json = $15,
+            finished_at = $16,
             updated_at = CURRENT_TIMESTAMP
       WHERE run_uid = $1`,
     [
@@ -2049,10 +2125,16 @@ export async function updateTrainingRunStateInDb(params: {
       params.state,
       params.currentStep,
       params.message,
+      params.trainingBackend ?? null,
       params.adapterPath ?? null,
       params.adapterVersion ?? null,
       params.runtimeArtifactPath ?? null,
       params.runtimeArtifactKind ?? null,
+      params.remoteProvider ?? null,
+      params.remoteJobId ?? null,
+      params.remoteTrainingFileId ?? null,
+      params.remoteValidationFileId ?? null,
+      params.remoteModelName ?? null,
       jsonParam({
         durations: nextDurations,
       }),
