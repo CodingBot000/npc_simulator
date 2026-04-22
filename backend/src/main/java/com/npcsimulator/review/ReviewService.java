@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -40,18 +42,30 @@ public class ReviewService {
     private static final String PREPARE_HUMAN_REVIEW_SCRIPT = "backend/scripts/prepare-human-review.mjs";
     private static final String LLM_FIRST_PASS_REVIEW_QUEUE_SCRIPT = "backend/scripts/llm-first-pass-review-queue.mjs";
     private static final String EXPORT_MLX_SFT_SCRIPT = "backend/scripts/export-mlx-sft-dataset.mjs";
+    private static final String EXPORT_TOGETHER_SFT_SCRIPT = "backend/scripts/export-together-sft-dataset.mjs";
     private static final String BUILD_MLX_DPO_SCRIPT = "backend/scripts/build-mlx-dpo-dataset.mjs";
-    private static final String TRAIN_MLX_DPO_SCRIPT = "backend/scripts/train-mlx-dpo.py";
+    private static final String TRAIN_PEFT_SFT_SCRIPT = "backend/scripts/train-peft-sft.py";
+    private static final String TRAIN_PEFT_DPO_SCRIPT = "backend/scripts/train-peft-dpo.py";
+    private static final String DERIVE_MLX_RUNTIME_SCRIPT = "backend/scripts/derive-mlx-runtime-from-peft.py";
     private static final String MOCK_TRAINING_SCRIPT = "backend/scripts/mock-training-run.mjs";
     private static final String TRAIN_RUNS_DIR = "data/train/runs";
     private static final String TRAIN_OUTPUTS_DIR = "outputs/training";
     private static final String JUDGE_REVIEW_SUMMARY_PATH = "data/evals/judged/judge-summary.json";
     private static final String HUMAN_REVIEW_SUMMARY_PATH = "data/review/live/human_review_summary.json";
     private static final String LLM_FIRST_PASS_SUMMARY_PATH = "data/review/live/llm_first_pass_summary.json";
+    private static final String EPISODE_EXPORT_DIR = "data/datasets/episodes";
     private static final String FINALIZE_SFT_KEEP_INPUT = "data/evals/filtered-live/keep_sft.jsonl";
     private static final String FINALIZE_SFT_OUTPUT_DIR = "data/train/sft/live";
     private static final String FINALIZE_PREFERENCE_INPUT = "data/evals/preference/candidate_pairs_live_gap1.jsonl";
     private static final String FINALIZE_PREFERENCE_OUTPUT_DIR = "data/train/preference/live";
+    private static final int SHADOW_INVALID_CASE_LIMIT = 8;
+    private static final String DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
+        "unsloth/Meta-Llama-3.1-8B-Instruct";
+    private static final String DEFAULT_LOCAL_REPLY_MLX_MODEL =
+        "mlx-community/Llama-3.1-8B-Instruct-4bit";
+    private static final String DEFAULT_REMOTE_TRAINING_BASE_MODEL =
+        "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
+    private static final String TOGETHER_REMOTE_PROVIDER = "together";
 
     private final ReviewRepository reviewRepository;
     private final ObjectMapper objectMapper;
@@ -62,6 +76,9 @@ public class ReviewService {
     private final String datasourcePassword;
     private final String trainingExecutionMode;
     private final String trainingEvalMode;
+    private final String localTrainingBaseModel;
+    private final String localReplyMlxModel;
+    private final String remoteTrainingBaseModel;
     private final String trainingBaseModel;
     private final String trainingEvalCasesPath;
     private final String trainingEvalProvider;
@@ -92,9 +109,13 @@ public class ReviewService {
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${spring.datasource.username:}") String datasourceUsername,
         @Value("${spring.datasource.password:}") String datasourcePassword,
-        @Value("${LOCAL_TRAINING_EXECUTION_MODE:real}") String trainingExecutionMode,
+        @Value("${TRAINING_EXECUTION_MODE:}") String trainingExecutionMode,
+        @Value("${LOCAL_TRAINING_EXECUTION_MODE:}") String legacyTrainingExecutionMode,
         @Value("${LOCAL_TRAINING_EVAL_MODE:golden}") String trainingEvalMode,
-        @Value("${LOCAL_TRAINING_MODEL:${LOCAL_REPLY_MLX_MODEL:mlx-community/Qwen2.5-7B-Instruct-4bit}}") String trainingBaseModel,
+        @Value("${LOCAL_CANONICAL_TRAINING_BASE_MODEL:}") String localTrainingBaseModel,
+        @Value("${CANONICAL_TRAINING_BASE_MODEL:}") String legacyTrainingBaseModel,
+        @Value("${LOCAL_REPLY_MLX_MODEL:}") String localReplyMlxModel,
+        @Value("${REMOTE_TRAINING_BASE_MODEL:}") String remoteTrainingBaseModel,
         @Value("${LOCAL_TRAINING_EVAL_CASES:backend/scripts/eval-cases/reply-golden-v1.json}") String trainingEvalCasesPath,
         @Value("${LOCAL_TRAINING_EVAL_PROVIDER:codex}") String trainingEvalProvider,
         @Value("${LOCAL_TRAINING_EVAL_JUDGE_MODEL:}") String trainingEvalJudgeModel,
@@ -123,9 +144,18 @@ public class ReviewService {
         this.datasourceUrl = datasourceUrl;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
-        this.trainingExecutionMode = trainingExecutionMode == null ? "real" : trainingExecutionMode.trim().toLowerCase();
+        this.trainingExecutionMode = normalizeTrainingExecutionMode(
+            firstNonBlank(trainingExecutionMode, legacyTrainingExecutionMode)
+        );
         this.trainingEvalMode = trainingEvalMode == null ? "golden" : trainingEvalMode.trim().toLowerCase();
-        this.trainingBaseModel = trainingBaseModel;
+        this.localTrainingBaseModel = resolveLocalTrainingBaseModel(localTrainingBaseModel, legacyTrainingBaseModel);
+        this.localReplyMlxModel = resolveLocalReplyMlxModel(localReplyMlxModel);
+        this.remoteTrainingBaseModel = resolveRemoteTrainingBaseModel(remoteTrainingBaseModel, legacyTrainingBaseModel);
+        this.trainingBaseModel = resolveTrainingBaseModel(
+            this.localTrainingBaseModel,
+            this.remoteTrainingBaseModel,
+            this.trainingExecutionMode
+        );
         this.trainingEvalCasesPath = trainingEvalCasesPath;
         this.trainingEvalProvider = trainingEvalProvider;
         this.trainingEvalJudgeModel = trainingEvalJudgeModel;
@@ -222,6 +252,7 @@ public class ReviewService {
         ObjectNode response = objectMapper.createObjectNode();
         response.set("humanRequired", datasetView(humanSftItems, humanPairItems));
         response.set("llmCompleted", datasetView(completedSftItems, completedPairItems));
+        response.set("shadowInvalidJson", buildShadowInvalidJsonSummary());
         return response;
     }
 
@@ -575,6 +606,7 @@ public class ReviewService {
             reviewRepository.createTrainingRun(
                 spec.runUid(),
                 spec.kind(),
+                spec.trainingBackend(),
                 "running",
                 "build_dataset",
                 "sft".equals(spec.kind()) ? "SFT 학습 데이터셋 준비 중" : "DPO 학습 데이터셋 준비 중",
@@ -585,7 +617,15 @@ public class ReviewService {
                 spec.baseModel(),
                 spec.datasetDir(),
                 spec.adapterPath(),
+                spec.runtimeArtifactPath(),
+                spec.runtimeArtifactKind(),
+                spec.remoteProvider(),
+                null,
+                null,
+                null,
+                null,
                 spec.logPath(),
+                spec.trainingResultPath(),
                 spec.fingerprint(),
                 spec.commands()
             );
@@ -629,6 +669,14 @@ public class ReviewService {
                     null,
                     message,
                     Instant.now().toString(),
+                    spec.trainingBackend(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null
@@ -681,8 +729,8 @@ public class ReviewService {
         if (!"succeeded".equals(run.state())) {
             throw new ReviewApiException(HttpStatus.CONFLICT, "성공한 학습 run만 평가할 수 있습니다. runId=" + run.runUid());
         }
-        if (blank(run.outputAdapterPath())) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "adapter 산출물이 없는 학습 run은 평가할 수 없습니다.");
+        if (blank(firstNonBlank(run.runtimeArtifactPath(), run.outputAdapterPath())) && blank(run.remoteModelName())) {
+            throw new ReviewApiException(HttpStatus.CONFLICT, "평가 가능한 runtime artifact 또는 remote model이 없는 학습 run입니다.");
         }
         if ("running".equals(run.evalState())) {
             throw new ReviewApiException(HttpStatus.CONFLICT, "이미 Golden-set Evaluation이 실행 중입니다. runId=" + run.runUid());
@@ -734,6 +782,19 @@ public class ReviewService {
                 if (baseline.adapterPath() != null) {
                     command.add("--baseline-adapter-path");
                     command.add(baseline.adapterPath());
+                }
+                if (baseline.remoteProvider() != null) {
+                    command.add("--baseline-remote-provider");
+                    command.add(baseline.remoteProvider());
+                }
+                if (baseline.remoteModelName() != null) {
+                    command.add("--baseline-remote-model");
+                    command.add(baseline.remoteModelName());
+                } else if ("together_serverless_lora".equals(run.trainingBackend()) && !blank(run.baseModel())) {
+                    command.add("--baseline-remote-provider");
+                    command.add(TOGETHER_REMOTE_PROVIDER);
+                    command.add("--baseline-remote-model");
+                    command.add(run.baseModel());
                 }
                 if (!blank(trainingEvalJudgeModel)) {
                     command.add("--judge-model");
@@ -836,8 +897,11 @@ public class ReviewService {
         if (!"accepted".equals(run.reviewDecision())) {
             throw new ReviewApiException(HttpStatus.CONFLICT, "채택된 학습 run만 Model Promotion 할 수 있습니다.");
         }
-        if (blank(run.outputAdapterPath()) || !pathExists(Path.of(run.outputAdapterPath()))) {
-            throw new ReviewApiException(HttpStatus.CONFLICT, "Model Promotion 할 adapter 산출물을 찾지 못했습니다.");
+        boolean hasLocalArtifact =
+            !blank(run.outputAdapterPath()) && pathExists(Path.of(run.outputAdapterPath()));
+        boolean hasRemoteModel = !blank(run.remoteModelName());
+        if (!hasLocalArtifact && !hasRemoteModel) {
+            throw new ReviewApiException(HttpStatus.CONFLICT, "Model Promotion 할 산출물을 찾지 못했습니다.");
         }
 
         String promotedAt = Instant.now().toString();
@@ -851,6 +915,7 @@ public class ReviewService {
             objectMapper.createObjectNode()
                 .put("bindingKey", bindingKey)
                 .put("adapterPath", run.outputAdapterPath())
+                .put("remoteModelName", run.remoteModelName())
         );
         return getTrainingStatus(headers);
     }
@@ -859,6 +924,8 @@ public class ReviewService {
         ObjectNode preflight = emptyPreflight("sft");
         ArrayNode blockingIssues = objectMapper.createArrayNode();
         blockingIssues.addAll(getFinalizeBlockingIssues());
+        preflight.put("executionMode", currentTrainingBackend());
+        preflight.put("trainingBackend", currentTrainingBackend());
 
         Optional<SnapshotSummary> dataset = getActiveSnapshotSummary("sft");
         preflight.set("dataset", datasetNode(dataset));
@@ -870,8 +937,26 @@ public class ReviewService {
             if (!pathExists(resolveProjectPath(MOCK_TRAINING_SCRIPT))) {
                 blockingIssues.add("training smoke script가 없어 SFT 학습 smoke 실행을 시작할 수 없습니다.");
             }
-        } else if (!pathExists(resolveProjectPath(".venv/bin/mlx_lm.lora"))) {
-            blockingIssues.add("`.venv/bin/mlx_lm.lora`가 없어 새로운 SFT Base를 생성할 수 없습니다.");
+        } else if (isTogetherTrainingMode()) {
+            if (!pathExists(resolveProjectPath(EXPORT_TOGETHER_SFT_SCRIPT))) {
+                blockingIssues.add("Together SFT dataset exporter 스크립트가 없습니다.");
+            }
+        } else {
+            if (!pathExists(resolveProjectPath(".venv/bin/python"))) {
+                blockingIssues.add("`.venv/bin/python`이 없어 PEFT SFT 학습을 실행할 수 없습니다.");
+            }
+            if (!pathExists(resolveProjectPath(TRAIN_PEFT_SFT_SCRIPT))) {
+                blockingIssues.add("PEFT SFT trainer 스크립트가 없습니다.");
+            }
+            if (!pathExists(resolveProjectPath(DERIVE_MLX_RUNTIME_SCRIPT))) {
+                blockingIssues.add("MLX runtime 파생 스크립트가 없습니다.");
+            }
+            List<String> missingModules = Stream.of("torch", "transformers", "peft", "datasets", "mlx_lm")
+                .filter(module -> !hasVenvModule(module))
+                .toList();
+            if (!missingModules.isEmpty()) {
+                blockingIssues.add(missingModuleMessage(missingModules));
+            }
         }
         if (dataset.isEmpty() || dataset.get().rowCount() <= 0) {
             blockingIssues.add("최종 SFT 데이터셋이 없거나 비어 있습니다.");
@@ -900,9 +985,18 @@ public class ReviewService {
         ObjectNode preflight = emptyPreflight("dpo");
         ArrayNode blockingIssues = objectMapper.createArrayNode();
         blockingIssues.addAll(getFinalizeBlockingIssues());
+        preflight.put("trainingBackend", currentTrainingBackend());
 
         Optional<SnapshotSummary> dataset = getActiveSnapshotSummary("preference");
         preflight.set("dataset", datasetNode(dataset));
+
+        if (isTogetherTrainingMode()) {
+            preflight.put("executionMode", "unsupported");
+            blockingIssues.add("Together serverless LoRA 전환 1차에서는 DPO를 지원하지 않습니다.");
+            preflight.set("blockingIssues", blockingIssues);
+            preflight.put("canStart", false);
+            return preflight;
+        }
 
         if (!pathExists(resolveProjectPath("node_modules/.bin/tsx")) || !pathExists(resolveProjectPath("backend/scripts/review-training-worker.ts"))) {
             blockingIssues.add("training worker 실행 파일이 없어 DPO 학습을 시작할 수 없습니다.");
@@ -915,8 +1009,17 @@ public class ReviewService {
             if (!pathExists(resolveProjectPath(".venv/bin/python"))) {
                 blockingIssues.add("`.venv/bin/python`이 없어 DPO 학습을 실행할 수 없습니다.");
             }
-            if (!pathExists(resolveProjectPath("backend/scripts/train-mlx-dpo.py"))) {
-                blockingIssues.add("DPO trainer 스크립트가 없습니다.");
+            if (!pathExists(resolveProjectPath(TRAIN_PEFT_DPO_SCRIPT))) {
+                blockingIssues.add("PEFT DPO trainer 스크립트가 없습니다.");
+            }
+            if (!pathExists(resolveProjectPath(DERIVE_MLX_RUNTIME_SCRIPT))) {
+                blockingIssues.add("MLX runtime 파생 스크립트가 없습니다.");
+            }
+            List<String> missingModules = Stream.of("torch", "transformers", "peft", "trl", "datasets", "mlx_lm")
+                .filter(module -> !hasVenvModule(module))
+                .toList();
+            if (!missingModules.isEmpty()) {
+                blockingIssues.add(missingModuleMessage(missingModules));
             }
         }
         if (dataset.isEmpty() || dataset.get().rowCount() <= 0) {
@@ -1050,6 +1153,7 @@ public class ReviewService {
         ObjectNode response = objectMapper.createObjectNode();
         response.put("runId", defaultText(row.runUid(), ""));
         response.put("kind", defaultText(row.runKind(), "sft"));
+        response.set("trainingBackend", nullableTextNode(row.trainingBackend()));
         response.put("state", defaultText(row.state(), "failed"));
         response.set("currentStep", nullableTextNode(row.currentStep()));
         response.set("message", nullableTextNode(row.message()));
@@ -1060,8 +1164,16 @@ public class ReviewService {
         response.set("sourceFingerprint", nullableTextNode(row.sourceFingerprint()));
         response.set("sourceDatasetVersion", nullableTextNode(extractText(params, "sourceDatasetVersion")));
         response.set("parentRunId", nullableTextNode(extractText(params, "parentRunUid")));
+        response.set("baseModelId", nullableTextNode(row.baseModel()));
         response.set("datasetDir", nullableTextNode(row.datasetWorkDir()));
         response.set("adapterPath", nullableTextNode(row.outputAdapterPath()));
+        response.set("runtimeArtifactPath", nullableTextNode(row.runtimeArtifactPath()));
+        response.set("runtimeArtifactKind", nullableTextNode(row.runtimeArtifactKind()));
+        response.set("remoteProvider", nullableTextNode(row.remoteProvider()));
+        response.set("remoteJobId", nullableTextNode(row.remoteJobId()));
+        response.set("remoteTrainingFileId", nullableTextNode(row.remoteTrainingFileId()));
+        response.set("remoteValidationFileId", nullableTextNode(row.remoteValidationFileId()));
+        response.set("remoteModelName", nullableTextNode(row.remoteModelName()));
         response.set("logPath", nullableTextNode(extractText(params, "logPath")));
         response.set("durations", buildRunDurations(row.metricsJson()));
         ObjectNode evaluation = objectMapper.createObjectNode();
@@ -1388,6 +1500,96 @@ public class ReviewService {
         return response;
     }
 
+    private ObjectNode buildShadowInvalidJsonSummary() {
+        ObjectNode response = objectMapper.createObjectNode();
+        ArrayNode cases = objectMapper.createArrayNode();
+        int total = 0;
+        String latestExportedAt = null;
+        Path episodeDir = resolveProjectPath(EPISODE_EXPORT_DIR);
+
+        if (episodeDir == null || !Files.isDirectory(episodeDir)) {
+            response.put("total", 0);
+            response.set("latestExportedAt", NullNode.instance);
+            response.set("cases", cases);
+            return response;
+        }
+
+        try (Stream<Path> files = Files.list(episodeDir)) {
+            List<Path> episodeFiles = files
+                .filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().endsWith(".json"))
+                .sorted((left, right) -> right.getFileName().toString().compareTo(left.getFileName().toString()))
+                .toList();
+
+            for (Path file : episodeFiles) {
+                ObjectNode root = object(loadJsonFile(file));
+                ObjectNode episode = object(root.get("episode"));
+                JsonNode turns = root.get("turns");
+                if (turns == null || !turns.isArray()) {
+                    continue;
+                }
+
+                String exportedAt = extractText(episode, "exportedAt");
+                if (latestExportedAt == null && exportedAt != null) {
+                    latestExportedAt = exportedAt;
+                }
+
+                for (JsonNode turnNode : turns) {
+                    ObjectNode turn = object(turnNode);
+                    ObjectNode shadow = object(turn.get("shadowComparison"));
+                    if (!"invalid_json".equals(extractText(shadow, "status"))) {
+                        continue;
+                    }
+
+                    total += 1;
+                    if (cases.size() >= SHADOW_INVALID_CASE_LIMIT) {
+                        continue;
+                    }
+
+                    ObjectNode caseNode = objectMapper.createObjectNode();
+                    caseNode.set("episodeId", nullableTextNode(extractText(episode, "episodeId")));
+                    caseNode.put("scenarioId", defaultText(extractText(episode, "scenarioId"), "unknown-scenario"));
+                    caseNode.set("turnIndex", nullableNumberNode(extractNumber(turn, "turnIndex")));
+                    caseNode.put("npcId", defaultText(extractText(turn, "npcId"), "unknown"));
+                    caseNode.set("targetNpcId", nullableTextNode(extractText(turn, "targetNpcId")));
+                    caseNode.put(
+                        "playerText",
+                        defaultText(
+                            firstNonBlank(
+                                extractText(turn, "rawPlayerText"),
+                                extractText(turn, "normalizedInputSummary")
+                            ),
+                            ""
+                        )
+                    );
+                    caseNode.put("activeReplyText", defaultText(extractText(turn, "modelReplyText"), ""));
+                    caseNode.set("shadowLabel", nullableTextNode(extractText(shadow, "label")));
+                    caseNode.set("durationMs", nullableNumberNode(extractNumber(shadow, "durationMs")));
+                    caseNode.set("sourceRef", nullableTextNode(extractText(shadow, "sourceRef")));
+                    caseNode.set("error", nullableTextNode(extractText(shadow, "error")));
+                    caseNode.set("rawOutput", nullableTextNode(extractText(shadow, "rawOutput")));
+                    caseNode.set(
+                        "exportPath",
+                        nullableTextNode(requiredRepoRoot().relativize(file.toAbsolutePath().normalize()).toString())
+                    );
+                    caseNode.set("exportedAt", nullableTextNode(exportedAt));
+                    cases.add(caseNode);
+                }
+            }
+        } catch (IOException error) {
+            throw new ReviewApiException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Failed to scan episode exports for shadow invalid JSON cases.",
+                error
+            );
+        }
+
+        response.put("total", total);
+        response.set("latestExportedAt", nullableTextNode(latestExportedAt));
+        response.set("cases", cases);
+        return response;
+    }
+
     private ObjectNode pendingNode(ReviewRepository.PendingCounts pending) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("sft", pending.sft());
@@ -1406,6 +1608,7 @@ public class ReviewService {
         preflight.set("adapterPath", NullNode.instance);
         preflight.set("sftFingerprintRelation", NullNode.instance);
         preflight.set("executionMode", NullNode.instance);
+        preflight.set("trainingBackend", NullNode.instance);
         preflight.set("blockingIssues", objectMapper.createArrayNode());
         preflight.set("dataset", datasetNode(Optional.empty()));
         return preflight;
@@ -1497,10 +1700,16 @@ public class ReviewService {
         }
 
         String runUid = Instant.now().toString().replaceAll("[:.]", "-") + "_" + kind;
+        String trainingBackend = currentTrainingBackend();
         Path datasetDir = resolveRequiredProjectPath(TRAIN_RUNS_DIR).resolve(runUid).resolve("dataset");
-        Path adapterPath = resolveRequiredProjectPath(TRAIN_OUTPUTS_DIR).resolve(runUid);
+        Path outputRootDir = resolveRequiredProjectPath(TRAIN_OUTPUTS_DIR).resolve(runUid);
+        Path adapterPath = outputRootDir.resolve("canonical");
+        Path runtimeArtifactPath = outputRootDir.resolve("runtime");
+        String runtimeArtifactKind = "mlx_fused_model";
+        Path trainingResultPath = outputRootDir.resolve("training-result.json");
         Path logPath = resolveRequiredProjectPath(TRAIN_RUNS_DIR).resolve(runUid).resolve("worker.log");
         String sourceFingerprint = snapshot.get().fingerprint();
+        String remoteProvider = null;
 
         String parentRunUid = null;
         String fingerprint;
@@ -1516,6 +1725,7 @@ public class ReviewService {
 
         CommandSpec buildCommand;
         CommandSpec trainCommand;
+        CommandSpec deriveCommand = null;
         if (isSmokeTrainingMode()) {
             Path mockScriptPath = resolveRequiredProjectPath(MOCK_TRAINING_SCRIPT);
             buildCommand = new CommandSpec(
@@ -1536,6 +1746,12 @@ public class ReviewService {
                 "sft".equals(kind) ? "train_sft" : "train_dpo",
                 "--adapter-path",
                 adapterPath.toString(),
+                "--runtime-artifact-path",
+                runtimeArtifactPath.toString(),
+                "--runtime-artifact-kind",
+                runtimeArtifactKind,
+                "--manifest-path",
+                trainingResultPath.toString(),
                 "--dataset-dir",
                 datasetDir.toString(),
                 "--run-id",
@@ -1546,6 +1762,56 @@ public class ReviewService {
                 smokeTrainArgs.add(latestSftRun.outputAdapterPath());
             }
             trainCommand = new CommandSpec(tsxBinary().toString(), smokeTrainArgs);
+            deriveCommand = new CommandSpec(
+                tsxBinary().toString(),
+                List.of(
+                    mockScriptPath.toString(),
+                    "--mode",
+                    "derive_runtime",
+                    "--adapter-path",
+                    adapterPath.toString(),
+                    "--runtime-artifact-path",
+                    runtimeArtifactPath.toString(),
+                    "--runtime-artifact-kind",
+                    runtimeArtifactKind,
+                    "--manifest-path",
+                    trainingResultPath.toString(),
+                    "--run-id",
+                    runUid
+                )
+            );
+        } else if (isTogetherTrainingMode()) {
+            if (!"sft".equals(kind)) {
+                throw new ReviewApiException(HttpStatus.CONFLICT, "Together serverless LoRA 전환 1차에서는 DPO를 지원하지 않습니다.");
+            }
+            buildCommand = new CommandSpec(
+                tsxBinary().toString(),
+                List.of(
+                    resolveRequiredProjectPath(EXPORT_TOGETHER_SFT_SCRIPT).toString(),
+                    "--snapshot-id",
+                    String.valueOf(snapshot.get().snapshotId()),
+                    "--output-dir",
+                    datasetDir.toString(),
+                    "--input-format",
+                    "compact",
+                    "--assistant-format",
+                    "reply_text"
+                )
+            );
+            trainCommand = new CommandSpec(
+                tsxBinary().toString(),
+                List.of(
+                    resolveRequiredProjectPath(TRAINING_WORKER_SCRIPT).toString(),
+                    "--run-id",
+                    runUid,
+                    "--remote-backend",
+                    TOGETHER_REMOTE_PROVIDER
+                )
+            );
+            remoteProvider = TOGETHER_REMOTE_PROVIDER;
+            adapterPath = null;
+            runtimeArtifactPath = null;
+            runtimeArtifactKind = null;
         } else {
             buildCommand = "sft".equals(kind)
                 ? new CommandSpec(
@@ -1575,14 +1841,14 @@ public class ReviewService {
 
             trainCommand = "sft".equals(kind)
                 ? new CommandSpec(
-                    resolveRequiredProjectPath(".venv/bin/mlx_lm.lora").toString(),
+                    resolveRequiredProjectPath(".venv/bin/python").toString(),
                     List.of(
+                        resolveRequiredProjectPath(TRAIN_PEFT_SFT_SCRIPT).toString(),
                         "--model",
                         trainingBaseModel,
-                        "--train",
-                        "--data",
+                        "--data-dir",
                         datasetDir.toString(),
-                        "--adapter-path",
+                        "--output-dir",
                         adapterPath.toString(),
                         "--iters",
                         String.valueOf(sftIters),
@@ -1590,31 +1856,21 @@ public class ReviewService {
                         String.valueOf(sftBatchSize),
                         "--learning-rate",
                         sftLearningRate,
-                        "--num-layers",
-                        String.valueOf(sftNumLayers),
-                        "--steps-per-report",
-                        String.valueOf(sftStepsPerReport),
-                        "--steps-per-eval",
-                        String.valueOf(sftStepsPerEval),
-                        "--save-every",
-                        String.valueOf(sftSaveEvery),
                         "--max-seq-length",
-                        String.valueOf(sftMaxSeqLength),
-                        "--mask-prompt",
-                        "--grad-checkpoint"
+                        String.valueOf(sftMaxSeqLength)
                     )
                 )
                 : new CommandSpec(
                     resolveRequiredProjectPath(".venv/bin/python").toString(),
                     List.of(
-                        resolveRequiredProjectPath(TRAIN_MLX_DPO_SCRIPT).toString(),
+                        resolveRequiredProjectPath(TRAIN_PEFT_DPO_SCRIPT).toString(),
                         "--model",
                         trainingBaseModel,
                         "--data-dir",
                         datasetDir.toString(),
-                        "--reference-adapter-path",
+                        "--reference-adapter-dir",
                         latestSftRun.outputAdapterPath(),
-                        "--adapter-path",
+                        "--output-dir",
                         adapterPath.toString(),
                         "--iters",
                         String.valueOf(dpoIters),
@@ -1636,11 +1892,30 @@ public class ReviewService {
                         String.valueOf(dpoMaxSeqLength)
                     )
                 );
+            deriveCommand = new CommandSpec(
+                resolveRequiredProjectPath(".venv/bin/python").toString(),
+                List.of(
+                    resolveRequiredProjectPath(DERIVE_MLX_RUNTIME_SCRIPT).toString(),
+                    "--model",
+                    trainingBaseModel,
+                    "--runtime-base-model",
+                    localReplyMlxModel,
+                    "--adapter-dir",
+                    adapterPath.toString(),
+                    "--output-dir",
+                    runtimeArtifactPath.toString(),
+                    "--runtime-kind",
+                    runtimeArtifactKind,
+                    "--manifest-path",
+                    trainingResultPath.toString()
+                )
+            );
         }
 
         return new TrainingRunSpec(
             runUid,
             kind,
+            trainingBackend,
             fingerprint,
             sourceFingerprint,
             snapshot.get().datasetVersion(),
@@ -1648,9 +1923,14 @@ public class ReviewService {
             snapshot.get().snapshotId(),
             trainingBaseModel,
             datasetDir.toString(),
-            adapterPath.toString(),
+            outputRootDir.toString(),
+            adapterPath == null ? null : adapterPath.toString(),
+            runtimeArtifactPath == null ? null : runtimeArtifactPath.toString(),
+            runtimeArtifactKind,
+            remoteProvider,
+            trainingResultPath.toString(),
             logPath.toString(),
-            new CommandBundle(buildCommand, trainCommand)
+            new CommandBundle(buildCommand, trainCommand, deriveCommand)
         );
     }
 
@@ -1658,8 +1938,73 @@ public class ReviewService {
         return "smoke".equals(trainingExecutionMode);
     }
 
+    private boolean isTogetherTrainingMode() {
+        return "together_serverless_lora".equals(trainingExecutionMode);
+    }
+
+    private String currentTrainingBackend() {
+        if (isSmokeTrainingMode()) {
+            return "smoke";
+        }
+        if (isTogetherTrainingMode()) {
+            return "together_serverless_lora";
+        }
+        return "local_peft";
+    }
+
     private String existingPathString(Path path) {
         return Files.exists(path) ? path.toString() : null;
+    }
+
+    private static String normalizeTrainingExecutionMode(String rawMode) {
+        if (rawMode == null || rawMode.isBlank()) {
+            return "local_peft";
+        }
+        String normalized = rawMode.trim().toLowerCase();
+        if ("smoke".equals(normalized)) {
+            return "smoke";
+        }
+        if ("together_serverless_lora".equals(normalized)) {
+            return "together_serverless_lora";
+        }
+        return "local_peft";
+    }
+
+    private static String resolveLocalTrainingBaseModel(String configuredLocalBaseModel, String legacyBaseModel) {
+        String configuredBaseModel = configuredLocalBaseModel;
+        if (configuredBaseModel == null || configuredBaseModel.isBlank()) {
+            configuredBaseModel = legacyBaseModel;
+        }
+        if (configuredBaseModel != null && !configuredBaseModel.isBlank()) {
+            return configuredBaseModel.trim();
+        }
+        return DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL;
+    }
+
+    private static String resolveLocalReplyMlxModel(String configuredRuntimeBaseModel) {
+        if (configuredRuntimeBaseModel != null && !configuredRuntimeBaseModel.isBlank()) {
+            return configuredRuntimeBaseModel.trim();
+        }
+        return DEFAULT_LOCAL_REPLY_MLX_MODEL;
+    }
+
+    private static String resolveRemoteTrainingBaseModel(String configuredRemoteBaseModel, String legacyBaseModel) {
+        String configuredBaseModel = configuredRemoteBaseModel;
+        if (configuredBaseModel == null || configuredBaseModel.isBlank()) {
+            configuredBaseModel = legacyBaseModel;
+        }
+        if (configuredBaseModel != null && !configuredBaseModel.isBlank()) {
+            return configuredBaseModel.trim();
+        }
+        return DEFAULT_REMOTE_TRAINING_BASE_MODEL;
+    }
+
+    private static String resolveTrainingBaseModel(
+        String localBaseModel,
+        String remoteBaseModel,
+        String executionMode
+    ) {
+        return "together_serverless_lora".equals(executionMode) ? remoteBaseModel : localBaseModel;
     }
 
     private void registerFinalizeArtifacts(String runUid) {
@@ -1768,24 +2113,38 @@ public class ReviewService {
 
     private PromotedBaseline resolvePromotedBaseline(String bindingKey) {
         Optional<ReviewRepository.TrainingRunRow> exact = reviewRepository.findLatestPromotedTrainingRun(bindingKey)
-            .filter(row -> !blank(row.outputAdapterPath()) && pathExists(Path.of(row.outputAdapterPath())));
+            .filter(this::hasUsablePromotedRuntime);
         if (exact.isPresent()) {
+            String runtimePath = firstNonBlank(exact.get().runtimeArtifactPath(), exact.get().outputAdapterPath());
             return new PromotedBaseline(
                 "promoted:" + exact.get().runUid(),
-                exact.get().outputAdapterPath()
+                runtimePath != null && pathExists(Path.of(runtimePath)) ? runtimePath : null,
+                blank(exact.get().remoteProvider()) ? null : exact.get().remoteProvider(),
+                blank(exact.get().remoteModelName()) ? null : exact.get().remoteModelName()
             );
         }
         if (!"default".equals(bindingKey)) {
             Optional<ReviewRepository.TrainingRunRow> fallback = reviewRepository.findLatestPromotedTrainingRun("default")
-                .filter(row -> !blank(row.outputAdapterPath()) && pathExists(Path.of(row.outputAdapterPath())));
+                .filter(this::hasUsablePromotedRuntime);
             if (fallback.isPresent()) {
+                String runtimePath = firstNonBlank(fallback.get().runtimeArtifactPath(), fallback.get().outputAdapterPath());
                 return new PromotedBaseline(
                     "promoted:default:" + fallback.get().runUid(),
-                    fallback.get().outputAdapterPath()
+                    runtimePath != null && pathExists(Path.of(runtimePath)) ? runtimePath : null,
+                    blank(fallback.get().remoteProvider()) ? null : fallback.get().remoteProvider(),
+                    blank(fallback.get().remoteModelName()) ? null : fallback.get().remoteModelName()
                 );
             }
         }
-        return new PromotedBaseline("base_model", null);
+        return new PromotedBaseline("base_model", null, null, null);
+    }
+
+    private boolean hasUsablePromotedRuntime(ReviewRepository.TrainingRunRow row) {
+        if (!blank(row.remoteModelName())) {
+            return true;
+        }
+        String runtimePath = firstNonBlank(row.runtimeArtifactPath(), row.outputAdapterPath());
+        return runtimePath != null && pathExists(Path.of(runtimePath));
     }
 
     private void runInlineTrainingEvaluation(
@@ -1986,6 +2345,14 @@ public class ReviewService {
                 "sft".equals(spec.kind()) ? "train_sft" : "train_dpo",
                 "sft".equals(spec.kind()) ? "새로운 SFT Base 생성 중" : "DPO 학습 실행 중",
                 null,
+                spec.trainingBackend(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 new ReviewRepository.TrainingDurations(
@@ -1997,6 +2364,37 @@ public class ReviewService {
             registerTrainingDatasetArtifacts(spec);
 
             ProcessResult trainResult = runLoggedCommand(spec.runUid(), spec.commands().train(), spec.logPath());
+            reviewRepository.appendTrainingRunEvent(
+                spec.runUid(),
+                "info",
+                "runtime_derivation_started",
+                "derive_runtime",
+                "MLX runtime artifact 생성 시작",
+                null
+            );
+            reviewRepository.updateTrainingRunState(
+                spec.runUid(),
+                "running",
+                "derive_runtime",
+                "MLX runtime artifact 생성 중",
+                null,
+                spec.trainingBackend(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new ReviewRepository.TrainingDurations(
+                    buildResult.durationMs(),
+                    trainResult.durationMs(),
+                    null
+                )
+            );
+            runLoggedCommand(spec.runUid(), spec.commands().derive(), spec.logPath());
             String finishedAt = Instant.now().toString();
             reviewRepository.updateTrainingRunState(
                 spec.runUid(),
@@ -2004,8 +2402,16 @@ public class ReviewService {
                 null,
                 "sft".equals(spec.kind()) ? "SFT 학습 완료" : "DPO 학습 완료",
                 finishedAt,
+                spec.trainingBackend(),
                 spec.adapterPath(),
                 spec.runUid(),
+                spec.runtimeArtifactPath(),
+                spec.runtimeArtifactKind(),
+                spec.remoteProvider(),
+                null,
+                null,
+                null,
+                null,
                 new ReviewRepository.TrainingDurations(
                     buildResult.durationMs(),
                     trainResult.durationMs(),
@@ -2028,13 +2434,24 @@ public class ReviewService {
                 Path.of(spec.logPath()),
                 trainingArtifactMetadata(spec, "worker_log")
             );
-            ObjectNode adapterMetadata = trainingArtifactMetadata(spec, "training_output");
-            adapterMetadata.put("adapterVersion", spec.runUid());
             registerTrainingArtifact(
                 spec.runUid(),
-                "adapter_output",
+                "canonical_adapter_output",
                 Path.of(spec.adapterPath()),
-                adapterMetadata
+                trainingArtifactMetadata(spec, "training_output")
+                    .put("adapterVersion", spec.runUid())
+            );
+            registerTrainingArtifact(
+                spec.runUid(),
+                "runtime_artifact_output",
+                Path.of(spec.runtimeArtifactPath()),
+                trainingArtifactMetadata(spec, "training_output")
+            );
+            registerTrainingArtifact(
+                spec.runUid(),
+                "training_result_manifest",
+                Path.of(spec.trainingResultPath()),
+                trainingArtifactMetadata(spec, "training_result_manifest")
             );
         } catch (RuntimeException error) {
             String message = error instanceof ReviewApiException reviewApiException
@@ -2055,6 +2472,14 @@ public class ReviewService {
                 null,
                 message,
                 Instant.now().toString(),
+                spec.trainingBackend(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null
@@ -2110,8 +2535,30 @@ public class ReviewService {
         metadata.put("runId", spec.runUid());
         metadata.put("kind", spec.kind());
         metadata.put("artifactPhase", artifactPhase);
+        metadata.put("baseModel", spec.baseModel());
+        metadata.put("trainingBackend", spec.trainingBackend());
         metadata.put("sourceDatasetVersion", spec.sourceDatasetVersion());
         metadata.put("sourceFingerprint", spec.sourceFingerprint());
+        if (spec.adapterPath() == null) {
+            metadata.putNull("canonicalAdapterPath");
+        } else {
+            metadata.put("canonicalAdapterPath", spec.adapterPath());
+        }
+        if (spec.runtimeArtifactPath() == null) {
+            metadata.putNull("runtimeArtifactPath");
+        } else {
+            metadata.put("runtimeArtifactPath", spec.runtimeArtifactPath());
+        }
+        if (spec.runtimeArtifactKind() == null) {
+            metadata.putNull("runtimeArtifactKind");
+        } else {
+            metadata.put("runtimeArtifactKind", spec.runtimeArtifactKind());
+        }
+        if (spec.remoteProvider() == null) {
+            metadata.putNull("remoteProvider");
+        } else {
+            metadata.put("remoteProvider", spec.remoteProvider());
+        }
         return metadata;
     }
 
@@ -2150,13 +2597,15 @@ public class ReviewService {
         try {
             Path logPath = Path.of(spec.logPath());
             Files.createDirectories(logPath.getParent());
-            Files.createDirectories(resolveRequiredProjectPath(TRAIN_OUTPUTS_DIR));
+            Files.createDirectories(Path.of(spec.outputRootDir()));
             String content = String.join(
                 "\n",
                 "runId=" + spec.runUid(),
                 "kind=" + spec.kind(),
+                "trainingBackend=" + spec.trainingBackend(),
                 "build=" + commandToString(spec.commands().build()),
                 "train=" + commandToString(spec.commands().train()),
+                "derive=" + commandToString(spec.commands().derive()),
                 ""
             );
             Files.writeString(
@@ -2172,6 +2621,9 @@ public class ReviewService {
     }
 
     private String commandToString(CommandSpec command) {
+        if (command == null) {
+            return "-";
+        }
         List<String> parts = new ArrayList<>();
         parts.add(command.command());
         parts.addAll(command.args());
@@ -2330,6 +2782,29 @@ public class ReviewService {
 
     private boolean pathExists(Path path) {
         return path != null && Files.exists(path);
+    }
+
+    private boolean hasVenvModule(String moduleName) {
+        Path libRoot = resolveProjectPath(".venv/lib");
+        if (!pathExists(libRoot)) {
+            return false;
+        }
+        try (var children = Files.list(libRoot)) {
+            return children
+                .filter(Files::isDirectory)
+                .map(path -> path.resolve("site-packages"))
+                .anyMatch(sitePackages ->
+                    pathExists(sitePackages.resolve(moduleName)) ||
+                        pathExists(sitePackages.resolve(moduleName + ".py"))
+                );
+        } catch (IOException ignored) {
+            return false;
+        }
+    }
+
+    private String missingModuleMessage(List<String> modules) {
+        return "PEFT/MLX 학습 의존성이 없습니다: " + String.join(", ", modules) +
+            ". `.venv/bin/pip install -r backend/requirements-peft.txt`가 필요합니다.";
     }
 
     private ObjectNode buildPipelineSummary(String stage, String relativeSummaryPath) {
@@ -2675,11 +3150,12 @@ public class ReviewService {
 
     private record CommandSpec(String command, List<String> args) {}
 
-    private record CommandBundle(CommandSpec build, CommandSpec train) {}
+    private record CommandBundle(CommandSpec build, CommandSpec train, CommandSpec derive) {}
 
     private record TrainingRunSpec(
         String runUid,
         String kind,
+        String trainingBackend,
         String fingerprint,
         String sourceFingerprint,
         String sourceDatasetVersion,
@@ -2687,12 +3163,22 @@ public class ReviewService {
         Long sourceSnapshotId,
         String baseModel,
         String datasetDir,
+        String outputRootDir,
         String adapterPath,
+        String runtimeArtifactPath,
+        String runtimeArtifactKind,
+        String remoteProvider,
+        String trainingResultPath,
         String logPath,
         CommandBundle commands
     ) {}
 
-    private record PromotedBaseline(String label, String adapterPath) {}
+    private record PromotedBaseline(
+        String label,
+        String adapterPath,
+        String remoteProvider,
+        String remoteModelName
+    ) {}
 
     private record ProcessResult(String stdout, String stderr, long durationMs) {}
 }

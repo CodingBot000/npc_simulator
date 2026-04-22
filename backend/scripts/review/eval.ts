@@ -5,6 +5,15 @@ import path from "node:path";
 import { runStructuredLlmJudge } from "../_quality-judge-helpers.mjs";
 import { appConfig, PROJECT_ROOT } from "@server/config";
 import { closeDbPool, dbQuery } from "@server/db/postgres";
+import {
+  createRunpodVllmRunSync,
+  extractRunpodVllmText,
+} from "@server/runpod-client";
+import { parseRemoteProviderRef } from "@server/remote-provider";
+import {
+  createTogetherChatCompletion,
+  extractTogetherChatText,
+} from "@server/together-client";
 
 const LOCAL_MLX_BINARY = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.generate");
 const ROLE_SYSTEM_PROMPTS: Record<string, string> = {
@@ -88,7 +97,13 @@ interface TrainingRunRow {
   run_uid: string | null;
   run_kind: string | null;
   state: string | null;
+  base_model: string | null;
+  training_backend: string | null;
   output_adapter_path: string | null;
+  runtime_artifact_path: string | null;
+  runtime_artifact_kind: string | null;
+  remote_provider: string | null;
+  remote_model_name: string | null;
   dataset_work_dir: string | null;
   eval_state: string | null;
 }
@@ -124,10 +139,30 @@ type WorkerArgs = {
   bindingKey: string;
   baselineLabel: string;
   baselineAdapterPath: string | null;
+  baselineRemoteProvider: string | null;
+  baselineRemoteModel: string | null;
   casesPath: string;
   provider: string;
   judgeModel: string | null;
 };
+
+type RuntimeTarget =
+  | {
+      kind: "local";
+      artifactPath: string | null;
+      artifactKind: string | null;
+    }
+  | {
+      kind: "together";
+      model: string;
+      provider: string | null;
+    }
+  | {
+      kind: "runpod";
+      endpointId: string;
+      model: string;
+      provider: string | null;
+    };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -177,7 +212,19 @@ async function pathExists(targetPath: string | null | undefined) {
 
 async function readTrainingRun(runId: string) {
   const result = await dbQuery<TrainingRunRow>(
-    `SELECT id, run_uid, run_kind, state, output_adapter_path, dataset_work_dir, eval_state
+    `SELECT id,
+            run_uid,
+            run_kind,
+            state,
+            base_model,
+            training_backend,
+            output_adapter_path,
+            runtime_artifact_path,
+            runtime_artifact_kind,
+            remote_provider,
+            remote_model_name,
+            dataset_work_dir,
+            eval_state
        FROM npc_training_run
       WHERE run_uid = $1
       ORDER BY id DESC
@@ -185,6 +232,19 @@ async function readTrainingRun(runId: string) {
     [runId],
   );
   return result.rows[0] ?? null;
+}
+
+async function resolveRuntimeArtifactKind(
+  artifactPath: string,
+  artifactKind: string | null,
+) {
+  if (artifactKind) {
+    return artifactKind;
+  }
+  if (await pathExists(path.join(artifactPath, "adapters.safetensors"))) {
+    return "legacy_mlx_adapter";
+  }
+  return "mlx_fused_model";
 }
 
 async function updateTrainingRunEvaluation(params: {
@@ -383,21 +443,79 @@ function buildRawJsonPrompt(evalCase: GoldenEvalCase) {
 async function runGenerate(params: {
   npcId: string;
   prompt: string;
-  adapterPath: string | null;
+  target: RuntimeTarget;
 }) {
-  const args = [
-    "--model",
-    appConfig.localReply.mlxModel,
-    "--system-prompt",
-    resolveSystemPrompt(params.npcId),
-    "--prompt",
-    params.prompt,
-    "--max-tokens",
-    String(appConfig.localReply.maxTokens),
-  ];
+  if (params.target.kind === "together") {
+    const response = await createTogetherChatCompletion({
+      model: params.target.model,
+      messages: [
+        {
+          role: "system",
+          content: resolveSystemPrompt(params.npcId),
+        },
+        {
+          role: "user",
+          content: params.prompt,
+        },
+      ],
+      maxTokens: appConfig.localReply.maxTokens,
+      temperature: 0.7,
+    });
+    const text = normalizeReplyText(extractTogetherChatText(response) ?? "");
+    if (!text) {
+      throw new Error("empty Together reply");
+    }
+    return text;
+  }
 
-  if (params.adapterPath) {
-    args.splice(2, 0, "--adapter-path", params.adapterPath);
+  if (params.target.kind === "runpod") {
+    const response = await createRunpodVllmRunSync({
+      endpointId: params.target.endpointId,
+      messages: [
+        {
+          role: "system",
+          content: resolveSystemPrompt(params.npcId),
+        },
+        {
+          role: "user",
+          content: params.prompt,
+        },
+      ],
+      maxTokens: appConfig.localReply.maxTokens,
+      temperature: 0.7,
+    });
+    const text = normalizeReplyText(extractRunpodVllmText(response) ?? "");
+    if (!text) {
+      throw new Error("empty Runpod reply");
+    }
+    return text;
+  }
+
+  const args =
+    params.target.artifactPath && params.target.artifactKind === "mlx_fused_model"
+      ? [
+          "--model",
+          params.target.artifactPath,
+          "--system-prompt",
+          resolveSystemPrompt(params.npcId),
+          "--prompt",
+          params.prompt,
+          "--max-tokens",
+          String(appConfig.localReply.maxTokens),
+        ]
+      : [
+          "--model",
+          appConfig.localReply.mlxModel,
+          "--system-prompt",
+          resolveSystemPrompt(params.npcId),
+          "--prompt",
+          params.prompt,
+          "--max-tokens",
+          String(appConfig.localReply.maxTokens),
+        ];
+
+  if (params.target.artifactPath && params.target.artifactKind !== "mlx_fused_model") {
+    args.splice(2, 0, "--adapter-path", params.target.artifactPath);
   }
 
   return new Promise<string>((resolve, reject) => {
@@ -638,21 +756,102 @@ function buildReport(summary: Record<string, unknown>) {
   ].join("\n");
 }
 
+function resolveRemoteRuntimeTarget(params: {
+  remoteProvider: string | null;
+  remoteModelName: string | null;
+  trainingBackend?: string | null;
+}): RuntimeTarget | null {
+  if (!params.remoteModelName) {
+    return null;
+  }
+
+  const parsedProvider = parseRemoteProviderRef(params.remoteProvider);
+  if (parsedProvider?.kind === "runpod") {
+    return {
+      kind: "runpod",
+      endpointId: parsedProvider.endpointId,
+      model: params.remoteModelName,
+      provider: params.remoteProvider,
+    };
+  }
+
+  if (
+    parsedProvider?.kind === "together" ||
+    params.trainingBackend === "together_serverless_lora" ||
+    !params.remoteProvider
+  ) {
+    return {
+      kind: "together",
+      model: params.remoteModelName,
+      provider: params.remoteProvider,
+    };
+  }
+
+  throw new Error(`unsupported remote provider for eval target: ${params.remoteProvider}`);
+}
+
 export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
   const run = await readTrainingRun(args.runId);
-  if (!run?.run_uid || !run.output_adapter_path) {
-    throw new Error(`training run not found or adapter missing: ${args.runId}`);
+  const candidateRuntimePath =
+    run?.runtime_artifact_path ?? run?.output_adapter_path ?? null;
+  if (!run?.run_uid) {
+    throw new Error(`training run not found: ${args.runId}`);
   }
-  if (!(await pathExists(LOCAL_MLX_BINARY))) {
-    throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
+
+  let candidateTarget: RuntimeTarget;
+  const candidateRemoteTarget = resolveRemoteRuntimeTarget({
+    remoteProvider: run.remote_provider,
+    remoteModelName: run.remote_model_name,
+    trainingBackend: run.training_backend,
+  });
+  if (candidateRemoteTarget) {
+    candidateTarget = candidateRemoteTarget;
+  } else if (candidateRuntimePath) {
+    if (!(await pathExists(LOCAL_MLX_BINARY))) {
+      throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
+    }
+    if (!(await pathExists(candidateRuntimePath))) {
+      throw new Error(`candidate runtime artifact not found: ${candidateRuntimePath}`);
+    }
+    candidateTarget = {
+      kind: "local",
+      artifactPath: candidateRuntimePath,
+      artifactKind: await resolveRuntimeArtifactKind(
+        candidateRuntimePath,
+        run.runtime_artifact_kind,
+      ),
+    };
+  } else {
+    throw new Error(`training run candidate target missing: ${args.runId}`);
   }
-  if (!(await pathExists(run.output_adapter_path))) {
-    throw new Error(`candidate adapter path not found: ${run.output_adapter_path}`);
-  }
+
   const baselineAdapterPath =
     args.baselineAdapterPath && (await pathExists(args.baselineAdapterPath))
       ? args.baselineAdapterPath
       : null;
+  let baselineTarget: RuntimeTarget;
+  const baselineRemoteTarget = resolveRemoteRuntimeTarget({
+    remoteProvider: args.baselineRemoteProvider,
+    remoteModelName: args.baselineRemoteModel,
+  });
+  if (baselineRemoteTarget) {
+    baselineTarget = baselineRemoteTarget;
+  } else if (baselineAdapterPath) {
+    if (!(await pathExists(LOCAL_MLX_BINARY))) {
+      throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
+    }
+    baselineTarget = {
+      kind: "local",
+      artifactPath: baselineAdapterPath,
+      artifactKind: await resolveRuntimeArtifactKind(baselineAdapterPath, null),
+    };
+  } else {
+    baselineTarget = {
+      kind: "local",
+      artifactPath: null,
+      artifactKind: null,
+    };
+  }
 
   const startedAt = new Date().toISOString();
   await updateTrainingRunEvaluation({
@@ -685,12 +884,12 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
         runGenerate({
           npcId,
           prompt,
-          adapterPath: baselineAdapterPath,
+          target: baselineTarget,
         }),
         runGenerate({
           npcId,
           prompt,
-          adapterPath: run.output_adapter_path,
+          target: candidateTarget,
         }),
       ]);
 

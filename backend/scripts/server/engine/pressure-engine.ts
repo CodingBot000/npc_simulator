@@ -248,7 +248,7 @@ function roundResolutionSummary(candidateLabel: string, mode: ResolutionState["r
   }
 
   if (mode === "threshold") {
-    return `${candidateLabel}에게 희생 압력이 임계치를 넘겼다.`;
+    return `${candidateLabel}가 2위와의 희생 압력 격차를 임계치 이상 벌렸다.`;
   }
 
   return `${candidateLabel}가 마지막까지 가장 고립된 사람으로 남았다.`;
@@ -374,6 +374,7 @@ export function resolveIfNeeded(params: {
 }) {
   const scenario = getCurrentScenario();
   const leader = params.consensusBoard[0] ?? null;
+  const runnerUp = params.consensusBoard[1] ?? null;
 
   if (!leader) {
     return {
@@ -396,7 +397,11 @@ export function resolveIfNeeded(params: {
       } satisfies ResolutionState;
     }
 
-    if (leader.totalPressure >= scenario.scoring.pressureThreshold) {
+    const leadGap = runnerUp
+      ? leader.totalPressure - runnerUp.totalPressure
+      : 0;
+
+    if (leadGap >= scenario.scoring.leadGapThreshold) {
       return {
         resolved: true,
         sacrificedNpcId: leader.candidateId,

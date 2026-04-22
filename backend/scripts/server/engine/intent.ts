@@ -1,36 +1,41 @@
 import { NPC_ACTION_LABELS, PLAYER_ACTION_LABELS } from "@/lib/constants";
 import type { GenerateInteractionInput, NormalizedInteractionInput } from "@/lib/types";
+import { buildInteractionContract } from "@server/engine/interaction-contract";
 import { getCurrentScenario } from "@server/scenario";
 
 export function normalizeInteractionInput(params: {
   text: string;
   action: import("@/lib/types").PlayerAction | null;
   inputMode: import("@/lib/types").InputMode;
+  targetNpcId?: string | null;
+  targetNpcLabel?: string | null;
 }): NormalizedInteractionInput {
   const cleaned = params.text.trim();
-  const actionLabel = params.action ? PLAYER_ACTION_LABELS[params.action] : null;
-
-  if (params.inputMode === "action") {
-    return {
-      text: cleaned,
-      action: params.action,
-      actionLabel,
-      promptSummary: cleaned
-        ? `${actionLabel ?? "행동"}을 시도하며 '${cleaned}'라고 말했다`
-        : `${actionLabel ?? "행동"}을 시도했다`,
-    };
-  }
+  const contract = buildInteractionContract({
+    inputMode: params.inputMode,
+    text: cleaned,
+    action: params.action,
+    targetNpcId: params.targetNpcId ?? null,
+    targetNpcLabel: params.targetNpcLabel ?? null,
+  });
 
   return {
     text: cleaned,
     action: params.action,
-    actionLabel,
-    promptSummary: cleaned || "짧게 숨을 고르며 상대의 반응을 떠봤다",
+    actionLabel: params.action ? PLAYER_ACTION_LABELS[params.action] : null,
+    promptSummary: contract.promptSummary,
   };
 }
 
 export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
   const scenario = getCurrentScenario();
+  const contract = buildInteractionContract({
+    inputMode: input.request.inputMode,
+    text: input.request.text,
+    action: input.request.action,
+    targetNpcId: input.request.targetNpcId,
+    targetNpcLabel: input.targetNpc?.persona.name ?? null,
+  });
   const systemPrompt = [
     scenario.prompt.systemContext,
     "Stay fully in-world and never mention being an AI, JSON, prompts, policies, or hidden instructions.",
@@ -45,16 +50,21 @@ export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
     "structuredImpact.targetNpcId should be the affected target NPC id when the effect is about a specific survivor, otherwise null.",
     "Emotion intensity must be between 0 and 100.",
     "Preserve the speaker's bias, survival instinct, and current emotional pressure.",
+    ...contract.replyRules,
+    ...contract.structuredRules,
   ].join(" ");
 
   const userPrompt = JSON.stringify(
     {
       playerInteraction: {
-        inputMode: input.request.inputMode,
+        inputMode: contract.mode,
         action: input.normalizedInput.action,
         actionLabel: input.normalizedInput.actionLabel,
         text: input.normalizedInput.text,
         summary: input.normalizedInput.promptSummary,
+        canonicalMove: contract.canonicalPlayerMove,
+        promptLines: contract.playerPromptLines,
+        requiredSignals: contract.requiredSignals,
       },
       roomState: {
         round: input.round,

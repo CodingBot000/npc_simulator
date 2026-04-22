@@ -163,6 +163,7 @@ function turnToReviewRow(params: {
       relationshipDelta: params.turn.relationshipDelta,
       pressureChanges: params.turn.pressureChanges,
       resolutionAfter: params.turn.resolutionAfter ?? null,
+      shadowComparison: params.turn.shadowComparison ?? null,
     },
   };
 }
@@ -262,6 +263,7 @@ export async function exportEpisodeDataset(params: {
         reason: turn.selectedActionReason ?? "",
       },
       structuredImpact: turn.structuredImpact ?? null,
+      shadowComparison: turn.shadowComparison ?? null,
       relationshipDelta: turn.relationshipDelta,
       pressureChanges: turn.pressureChanges,
       leaderBefore: turn.leaderBefore ?? null,

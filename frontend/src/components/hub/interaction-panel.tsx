@@ -31,47 +31,10 @@ interface InteractionPanelProps {
   onDraftChange: (value: string) => void;
   onTargetChange: (value: string | null) => void;
   onSubmit: () => void;
-  onAction: (action: PlayerAction) => void;
+  onAction: (action: PlayerAction, inputMode: "action" | "combined") => void;
 }
 
 type PlayInputMode = "intent_only" | "free_text" | "combined";
-
-const ACTION_UI_COPY: Record<
-  PlayerAction,
-  {
-    label: string;
-    effect: string;
-  }
-> = {
-  make_case: {
-    label: "책임 묻기",
-    effect: "대상이 왜 남아야 하는지 논리부터 세운다.",
-  },
-  expose: {
-    label: "사실 확인",
-    effect: "숨은 기록과 책임을 꺼내 위험을 올린다.",
-  },
-  appeal: {
-    label: "양심 흔들기",
-    effect: "죄책감과 연민을 건드려 말을 바꾸게 만든다.",
-  },
-  ally: {
-    label: "편들기",
-    effect: "지금 인물과 한편이 되어 다른 사람을 고립시킨다.",
-  },
-  deflect: {
-    label: "화살 돌리기",
-    effect: "당신에게 온 책임과 시선을 다른 쪽으로 보낸다.",
-  },
-  stall: {
-    label: "시간 끌기",
-    effect: "판단을 늦추고 다음 턴을 벌어 둔다.",
-  },
-  confess: {
-    label: "작게 인정하기",
-    effect: "작은 잘못을 먼저 인정해 더 큰 불신을 막는다.",
-  },
-};
 
 function roundStatus(round: RoundState) {
   if (round.currentRound === 0) {
@@ -222,6 +185,7 @@ export function InteractionPanel({
   const [draftConfirmed, setDraftConfirmed] = useState(false);
   const [localWarning, setLocalWarning] = useState<string | null>(null);
   const [loadingDotCount, setLoadingDotCount] = useState(1);
+  const [waitingElapsedSeconds, setWaitingElapsedSeconds] = useState(0);
   const conversationViewportRef = useRef<HTMLDivElement | null>(null);
   const selectedTargetLabel =
     targetOptions.find((option) => option.id === selectedTargetId)?.label ?? null;
@@ -255,6 +219,24 @@ export function InteractionPanel({
     const intervalId = window.setInterval(() => {
       setLoadingDotCount((current) => (current >= 5 ? 1 : current + 1));
     }, 420);
+
+    return () => window.clearInterval(intervalId);
+  }, [waitingForReply]);
+
+  useEffect(() => {
+    if (!waitingForReply) {
+      setWaitingElapsedSeconds(0);
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    setWaitingElapsedSeconds(0);
+
+    const intervalId = window.setInterval(() => {
+      setWaitingElapsedSeconds(
+        Math.floor((Date.now() - startedAt) / 1000),
+      );
+    }, 250);
 
     return () => window.clearInterval(intervalId);
   }, [waitingForReply]);
@@ -296,7 +278,7 @@ export function InteractionPanel({
     }
 
     setLocalWarning(null);
-    onAction(action);
+    onAction(action, playInputMode === "combined" ? "combined" : "action");
   }
 
   function handleSubmitClick() {
@@ -313,6 +295,18 @@ export function InteractionPanel({
 
     setLocalWarning(null);
     onSubmit();
+  }
+
+  function actionBadgeLabel(action: AvailableActionDefinition) {
+    if (action.requiresTarget) {
+      return "타겟 필수";
+    }
+
+    if (action.id === "appeal") {
+      return "타겟유무선택";
+    }
+
+    return null;
   }
 
   return (
@@ -437,10 +431,17 @@ export function InteractionPanel({
                       }`}
                     >
                       <p className="text-sm leading-7">{message.text}</p>
-                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
-                        {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
-                        {formatConversationTimestamp(message.timestamp)}
-                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
+                          {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
+                          {formatConversationTimestamp(message.timestamp)}
+                        </p>
+                        {message.speaker === "npc" && message.fallbackUsed ? (
+                          <span className="ml-auto rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
+                            fallback
+                          </span>
+                        ) : null}
+                      </div>
                     </article>
                   ))}
                   {waitingForReply ? (
@@ -449,7 +450,12 @@ export function InteractionPanel({
                       aria-atomic="true"
                       className="max-w-[85%] rounded-[22px] bg-[var(--panel-strong)] px-4 py-3 text-foreground"
                     >
-                      <p className="text-sm leading-7">{loadingLabel}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm leading-7">{loadingLabel}</p>
+                        <p className="ml-auto text-right text-[11px] font-semibold tabular-nums opacity-65">
+                          {waitingElapsedSeconds}초
+                        </p>
+                      </div>
                     </article>
                   ) : null}
                 </>
@@ -562,8 +568,7 @@ export function InteractionPanel({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {availableActions.map((action) => {
-                    const uiCopy = ACTION_UI_COPY[action.id];
-
+                    const badgeLabel = actionBadgeLabel(action);
                     return (
                       <button
                         key={action.id}
@@ -574,16 +579,22 @@ export function InteractionPanel({
                       >
                         <span className="flex items-start justify-between gap-2">
                           <span className="block text-sm font-semibold text-foreground">
-                            {uiCopy.label}
+                            {action.label}
                           </span>
-                          {action.requiresTarget ? (
-                            <span className="shrink-0 whitespace-nowrap text-[11px] font-medium text-[var(--danger)]">
-                              타겟 필요
+                          {badgeLabel ? (
+                            <span
+                              className={`shrink-0 whitespace-nowrap text-[11px] font-medium ${
+                                action.requiresTarget
+                                  ? "text-[var(--danger)]"
+                                  : "text-[var(--teal)]"
+                              }`}
+                            >
+                              {badgeLabel}
                             </span>
                           ) : null}
                         </span>
                         <span className="mt-1 block whitespace-normal break-keep text-[0.2rem] leading-[0.9rem] text-[var(--ink-muted)]">
-                          {uiCopy.effect}
+                          {action.description}
                         </span>
                       </button>
                     );

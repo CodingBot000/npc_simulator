@@ -4,14 +4,27 @@ import path from "node:path";
 import type { GenerateInteractionInput } from "@/lib/types";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { dbQuery } from "@server/db/postgres";
+import {
+  buildInteractionContract,
+  validateReplyAgainstContract,
+} from "@server/engine/interaction-contract";
+import {
+  createRunpodVllmRunSync,
+  extractRunpodVllmText,
+} from "@server/runpod-client";
+import { parseRemoteProviderRef } from "@server/remote-provider";
 import { getCurrentScenario } from "@server/scenario";
+import {
+  createTogetherChatCompletion,
+  extractTogetherChatText,
+} from "@server/together-client";
 
 // MLX runtime entrypoint for inference-time LoRA adapter routing and reply rewriting.
 const LOCAL_MLX_BINARY = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.generate");
 const GENERIC_SYSTEM_PROMPT =
   "해저연구소 생존 협상 NPC로서 주어진 상태와 근거를 사용해 직접 대사만 출력한다. 설명문, 요약문, 해설, JSON, 목록, 라벨은 금지한다. 플레이어 또는 다른 NPC에게 지금 이 자리에서 바로 말하듯 한 단락의 한국어 대사만 말한다.";
 const SCENE_STATE_MIN_SYSTEM_PROMPT =
-  "해저연구소 생존 협상 장면 안의 생존자로서, 아래 상태를 바탕으로 지금 방 안 사람에게 바로 하는 한국어 대사만 한 단락으로 말한다.";
+  "해저연구소 생존 협상 장면 안의 생존자로서, 아래 상태를 바탕으로 지금 방 안 사람에게 바로 하는 한국어 대사만 한 단락으로 말한다. 플레이어 발화나 의도 카드를 설명, 번역, 요약, 해설하지 마라. '이 대사는', '라는 말에 대한 한국어 대사', '의사를 표현한다' 같은 메타 설명문은 절대 금지다.";
 const ROLE_SYSTEM_PROMPTS: Record<string, string> = {
   doctor:
     "해저연구소 의사 NPC로서 주어진 상태와 근거를 사용해 직접 대사만 출력한다. 의무실 기록, 경고, 무시된 중단 신호를 근거로 누가 사람을 버렸는지 직접 짚는다. 반드시 3~4개의 짧은 문장으로 말하고, 기록이나 경고 하나는 구체적으로 꺼내며, 책임져야 할 사람 이름을 바로 부른다. 회의록, 보고서, 판결문처럼 말하지 말고 지금 눈앞 사람에게 쏘아붙이듯 말한다. '의무실 기록에 따르면', '그럼에도 불구하고', '책임을 져야 합니다' 같은 보고서 문체와 존칭투, JSON, 라벨은 금지한다.",
@@ -36,24 +49,83 @@ const NPC_DISPLAY_LABELS: Record<string, string> = {
 };
 type PromptFormat = "raw_json" | "situation_card" | "direct_scene";
 type ScenePromptFormat = PromptFormat | "scene_state_min";
+type RuntimeArtifactKind = "mlx_adapter" | "mlx_fused_model" | "legacy_mlx_adapter";
+type LocalAdapterConfig = {
+  backend: "local";
+  path: string;
+  promptFormat: ScenePromptFormat;
+  runtimeKind: RuntimeArtifactKind;
+  mlxModel?: string;
+};
 
-const ADAPTER_CONFIGS: Record<
-  string,
-  { path: string; promptFormat: ScenePromptFormat }
-> = {
+type TogetherAdapterConfig = {
+  backend: "together";
+  model: string;
+  provider: string | null;
+  promptFormat: ScenePromptFormat;
+};
+
+type RunpodAdapterConfig = {
+  backend: "runpod";
+  endpointId: string;
+  model: string;
+  provider: string | null;
+  promptFormat: ScenePromptFormat;
+};
+
+type ResolvedAdapterConfig = LocalAdapterConfig | TogetherAdapterConfig | RunpodAdapterConfig;
+const LEGACY_QWEN_REPLY_MLX_MODEL =
+  "mlx-community/Qwen2.5-7B-Instruct-4bit";
+
+const LEGACY_QWEN_ADAPTER_CONFIGS: Record<string, LocalAdapterConfig> = {
   doctor: {
+    backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-doctor-role-v2"),
     promptFormat: "raw_json",
+    runtimeKind: "legacy_mlx_adapter",
+    mlxModel: LEGACY_QWEN_REPLY_MLX_MODEL,
   },
   supervisor: {
+    backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-supervisor-role-v3"),
     promptFormat: "raw_json",
+    runtimeKind: "legacy_mlx_adapter",
+    mlxModel: LEGACY_QWEN_REPLY_MLX_MODEL,
   },
   default: {
+    backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-aug26-v3"),
     promptFormat: "raw_json",
+    runtimeKind: "legacy_mlx_adapter",
+    mlxModel: LEGACY_QWEN_REPLY_MLX_MODEL,
   },
 };
+
+const LLAMA_ADAPTER_CONFIGS: Record<string, LocalAdapterConfig> = {
+  doctor: {
+    backend: "local",
+    path: appConfig.localReply.llamaRuntimePath,
+    promptFormat: appConfig.localReply.llamaPromptFormat,
+    runtimeKind: "mlx_fused_model",
+  },
+  supervisor: {
+    backend: "local",
+    path: appConfig.localReply.llamaRuntimePath,
+    promptFormat: appConfig.localReply.llamaPromptFormat,
+    runtimeKind: "mlx_fused_model",
+  },
+  default: {
+    backend: "local",
+    path: appConfig.localReply.llamaRuntimePath,
+    promptFormat: appConfig.localReply.llamaPromptFormat,
+    runtimeKind: "mlx_fused_model",
+  },
+};
+
+const ADAPTER_CONFIG_PRESETS = {
+  llama: LLAMA_ADAPTER_CONFIGS,
+  qwen: LEGACY_QWEN_ADAPTER_CONFIGS,
+} as const;
 
 let binaryCheckPromise: Promise<boolean> | null = null;
 const adapterAvailability = new Map<string, Promise<boolean>>();
@@ -72,14 +144,41 @@ function extractDelimitedText(output: string) {
 }
 
 function normalizeReplyText(text: string) {
-  return text
+  const normalized = text
     .trim()
-    .replace(/^(엔지니어|의사|감독관|소장|director|supervisor|doctor|engineer)\s*:\s*/iu, "")
+    .replace(/^(?:npc\s*대사|npc\s*reply|대사|엔지니어|의사|감독관|소장|director|supervisor|doctor|engineer)\s*:\s*/iu, "")
     .trim();
+  return stripWrappingQuotes(normalized);
 }
 
 function normalizeInlineText(text: string) {
   return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+function stripWrappingQuotes(text: string) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  const quotePairs: Array<[string, string]> = [
+    ['"', '"'],
+    ["'", "'"],
+    ["“", "”"],
+    ["‘", "’"],
+  ];
+
+  for (const [open, close] of quotePairs) {
+    if (trimmed.startsWith(open) && trimmed.endsWith(close)) {
+      return trimmed.slice(open.length, trimmed.length - close.length).trim();
+    }
+  }
+
+  return trimmed;
+}
+
+function compactSentence(text: string) {
+  return normalizeInlineText(text).replace(/[.。]$/u, "");
 }
 
 function truncateForPrompt(text: string, maxLength = 96) {
@@ -101,7 +200,10 @@ async function fileExists(filePath: string) {
 }
 
 function getAdapterConfigForNpc(npcId: string) {
-  return ADAPTER_CONFIGS[npcId] ?? ADAPTER_CONFIGS.default;
+  const preset =
+    ADAPTER_CONFIG_PRESETS[appConfig.localReply.family] ??
+    ADAPTER_CONFIG_PRESETS.llama;
+  return preset[npcId] ?? preset.default;
 }
 
 function supportsPromotedAdapterLookup() {
@@ -110,7 +212,7 @@ function supportsPromotedAdapterLookup() {
 }
 
 async function getPromotedAdapterConfigForNpc(npcId: string) {
-  if (!supportsPromotedAdapterLookup()) {
+  if (!appConfig.localReply.usePromoted || !supportsPromotedAdapterLookup()) {
     return null;
   }
 
@@ -119,14 +221,25 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
 
   try {
     const result = await dbQuery<{
+      training_backend: string | null;
       output_adapter_path: string | null;
+      runtime_artifact_path: string | null;
+      runtime_artifact_kind: string | null;
+      remote_provider: string | null;
+      remote_model_name: string | null;
       promoted_binding_key: string | null;
     }>(
-      `SELECT output_adapter_path, promoted_binding_key
+      `SELECT training_backend,
+              output_adapter_path,
+              runtime_artifact_path,
+              runtime_artifact_kind,
+              remote_provider,
+              remote_model_name,
+              promoted_binding_key
          FROM npc_training_run
         WHERE state = 'succeeded'
           AND promoted_at IS NOT NULL
-          AND output_adapter_path IS NOT NULL
+          AND (COALESCE(runtime_artifact_path, output_adapter_path) IS NOT NULL OR remote_model_name IS NOT NULL)
           AND promoted_binding_key = ANY($1::text[])
         ORDER BY CASE WHEN promoted_binding_key = $2 THEN 0 ELSE 1 END,
                  promoted_at DESC,
@@ -136,15 +249,43 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
     );
 
     const row = result.rows[0];
-    if (!row?.output_adapter_path) {
-      return null;
+    const promptBinding = row.promoted_binding_key ?? npcId;
+    const baseConfig = getAdapterConfigForNpc(promptBinding);
+    const remoteProviderRef = parseRemoteProviderRef(row?.remote_provider);
+    if (row?.remote_model_name && remoteProviderRef?.kind === "runpod") {
+      return {
+        backend: "runpod",
+        endpointId: remoteProviderRef.endpointId,
+        model: row.remote_model_name,
+        provider: row.remote_provider,
+        promptFormat: baseConfig.promptFormat,
+      } as const;
     }
 
-    const promptBinding = row.promoted_binding_key ?? npcId;
-    const baseConfig = ADAPTER_CONFIGS[promptBinding] ?? ADAPTER_CONFIGS.default;
+    if (
+      row?.remote_model_name &&
+      (remoteProviderRef?.kind === "together" ||
+        row?.training_backend === "together_serverless_lora")
+    ) {
+      return {
+        backend: "together",
+        model: row.remote_model_name,
+        provider: row.remote_provider,
+        promptFormat: baseConfig.promptFormat,
+      } as const;
+    }
+
+    const runtimePath = row?.runtime_artifact_path ?? row?.output_adapter_path ?? null;
+    if (!runtimePath) {
+      return null;
+    }
+    const runtimeKind = await resolveRuntimeArtifactKind(runtimePath, row.runtime_artifact_kind);
     return {
-      path: row.output_adapter_path,
+      backend: "local",
+      path: runtimePath,
       promptFormat: baseConfig.promptFormat,
+      runtimeKind,
+      mlxModel: baseConfig.mlxModel,
     } as const;
   } catch {
     return null;
@@ -163,14 +304,32 @@ async function hasMlxBinary() {
   return binaryCheckPromise;
 }
 
-async function hasAdapter(adapterPath: string) {
-  if (!adapterAvailability.has(adapterPath)) {
+async function resolveRuntimeArtifactKind(
+  artifactPath: string,
+  artifactKind: string | null | undefined,
+) {
+  if (artifactKind === "mlx_adapter" || artifactKind === "mlx_fused_model" || artifactKind === "legacy_mlx_adapter") {
+    return artifactKind;
+  }
+  if (await fileExists(path.join(artifactPath, "adapters.safetensors"))) {
+    return "legacy_mlx_adapter" as const;
+  }
+  return "mlx_fused_model" as const;
+}
+
+async function hasRuntimeArtifact(
+  artifactPath: string,
+  artifactKind: RuntimeArtifactKind,
+) {
+  if (!adapterAvailability.has(`${artifactKind}:${artifactPath}`)) {
     adapterAvailability.set(
-      adapterPath,
-      fileExists(path.join(adapterPath, "adapters.safetensors")),
+      `${artifactKind}:${artifactPath}`,
+      artifactKind === "mlx_fused_model"
+        ? fileExists(artifactPath)
+        : fileExists(path.join(artifactPath, "adapters.safetensors")),
     );
   }
-  return adapterAvailability.get(adapterPath) ?? Promise.resolve(false);
+  return adapterAvailability.get(`${artifactKind}:${artifactPath}`) ?? Promise.resolve(false);
 }
 
 function resolveSystemPrompt(npcId: string, promptFormat: ScenePromptFormat) {
@@ -254,6 +413,16 @@ function resolveLeaderLabel(input: GenerateInteractionInput) {
   return context.leaderBefore ?? input.consensusBoard[0]?.candidateLabel ?? "none";
 }
 
+function resolveInteractionContract(input: GenerateInteractionInput) {
+  return buildInteractionContract({
+    inputMode: input.request.inputMode,
+    text: input.request.text,
+    action: input.request.action,
+    targetNpcId: input.request.targetNpcId,
+    targetNpcLabel: input.targetNpc?.persona.name ?? null,
+  });
+}
+
 function summarizeChatMessageForPrompt(
   entry: GenerateInteractionInput["recentConversation"][number],
 ) {
@@ -288,6 +457,10 @@ function buildRecentEventPromptSummary(input: GenerateInteractionInput) {
   return lines.length > 0 ? lines.join(" / ") : null;
 }
 
+function resolvePlayerPromptLines(input: GenerateInteractionInput) {
+  return resolveInteractionContract(input).playerPromptLines;
+}
+
 function buildAdapterPromptContextSummary(input: GenerateInteractionInput) {
   const context = parsePromptContextSummary(input.promptContextSummary);
 
@@ -302,6 +475,7 @@ function buildAdapterPromptContextSummary(input: GenerateInteractionInput) {
 
 function buildRawJsonPrompt(input: GenerateInteractionInput) {
   const scenario = getCurrentScenario();
+  const contract = resolveInteractionContract(input);
   const userPayload = {
     scenarioId: scenario.id,
     turnIndex: input.round.currentRound,
@@ -310,6 +484,12 @@ function buildRawJsonPrompt(input: GenerateInteractionInput) {
     npcStyleHint: NPC_STYLE_HINTS[input.npc.persona.id] ?? null,
     playerText: input.request.text || input.normalizedInput.promptSummary,
     normalizedInputSummary: input.normalizedInput.promptSummary,
+    interactionContract: {
+      mode: contract.mode,
+      canonicalPlayerMove: contract.canonicalPlayerMove,
+      playerPromptLines: contract.playerPromptLines,
+      replyRules: contract.replyRules,
+    },
     promptContextSummary: buildAdapterPromptContextSummary(input),
   };
 
@@ -327,17 +507,20 @@ function buildRawJsonPrompt(input: GenerateInteractionInput) {
 
 function buildSituationCardPrompt(input: GenerateInteractionInput) {
   const scenario = getCurrentScenario();
+  const contract = resolveInteractionContract(input);
   const context = parsePromptContextSummary(input.promptContextSummary);
   const targetLabel = resolveTargetLabel(input);
   const evidenceSummary = buildEvidencePromptSummary(input);
+  const playerLines = contract.playerPromptLines;
 
   return [
     "상황 카드",
     `- 시나리오: ${scenario.id}`,
     `- 화자: ${NPC_DISPLAY_LABELS[input.npc.persona.id] ?? `${input.npc.persona.name}(${input.npc.persona.role})`}`,
     `- 상대: ${targetLabel}`,
-    `- 플레이어 발화: "${input.request.text || input.normalizedInput.promptSummary}"`,
+    ...playerLines,
     `- 플레이어 의도 요약: ${input.normalizedInput.promptSummary}`,
+    ...contract.replyRules.map((rule) => `- 응답 규칙: ${rule}`),
     `- 현재 라운드: ${context.roundBefore ?? String(input.round.currentRound)}`,
     `- 직전 압박 선두: ${context.leaderBefore ?? input.consensusBoard[0]?.candidateLabel ?? "없음"}`,
     `- 핵심 근거: ${evidenceSummary}`,
@@ -351,27 +534,32 @@ function buildSituationCardPrompt(input: GenerateInteractionInput) {
 }
 
 function buildDirectScenePrompt(input: GenerateInteractionInput) {
+  const contract = resolveInteractionContract(input);
   const context = parsePromptContextSummary(input.promptContextSummary);
   const targetLabel = resolveTargetLabel(input);
   const evidenceSummary = buildEvidencePromptSummary(input);
+  const playerLines = contract.playerPromptLines;
 
   return [
     `너는 지금 ${NPC_DISPLAY_LABELS[input.npc.persona.id] ?? `${input.npc.persona.name}(${input.npc.persona.role})`}로 말한다.`,
     targetLabel && targetLabel !== "none"
       ? `상대는 ${targetLabel}다. 지금 그 사람이나 방 안 사람들에게 바로 쏘아붙이듯 말해라.`
       : "상대가 정해지지 않았다. 지금 방 안 사람들에게 바로 말해라.",
-    `플레이어가 방금 이렇게 말했다: "${input.request.text || input.normalizedInput.promptSummary}"`,
+    ...playerLines,
     `지금 기억해야 할 근거: ${evidenceSummary}.`,
     `현재 라운드는 ${context.roundBefore ?? String(input.round.currentRound)}다.`,
     `직전 압박 선두는 ${resolveLeaderLabel(input) ?? "없음"}였다.`,
     `말투 힌트: ${NPC_STYLE_HINTS[input.npc.persona.id] ?? "없음"}`,
     "보고서, 회의록, 판결문처럼 쓰지 말고 지금 이 자리의 대사로만 2~4문장 말해라.",
     "문장 첫머리에 의무실 기록에 따르면, 판단 기준, 검토하십시오 같은 메타 문구를 쓰지 마라.",
+    "플레이어 문장이나 의도 카드를 설명하거나 번역하지 마라.",
     "화자 라벨, JSON, 목록, 요약문은 금지다.",
+    ...contract.replyRules,
   ].join("\n");
 }
 
 function buildSceneStateMinPrompt(input: GenerateInteractionInput) {
+  const contract = resolveInteractionContract(input);
   const speakerLabel =
     NPC_DISPLAY_LABELS[input.npc.persona.id] ??
     `${input.npc.persona.name}(${input.npc.persona.role})`;
@@ -387,11 +575,12 @@ function buildSceneStateMinPrompt(input: GenerateInteractionInput) {
   );
   const recentConversation = buildRecentConversationPromptSummary(input);
   const recentEvent = buildRecentEventPromptSummary(input);
+  const playerLines = contract.playerPromptLines;
 
   return [
     `화자: ${speakerLabel}`,
     `상대: ${targetLabel === "none" ? "없음" : targetLabel}`,
-    `플레이어 발화: "${input.request.text || input.normalizedInput.promptSummary}"`,
+    ...playerLines,
     "",
     "화자 상태",
     `- 감정: ${input.npc.emotion.primary} ${input.npc.emotion.intensity}`,
@@ -406,6 +595,13 @@ function buildSceneStateMinPrompt(input: GenerateInteractionInput) {
     "",
     "근거",
     ...(evidenceLines.length > 0 ? evidenceLines.map((line) => `- ${line}`) : ["- 뚜렷한 근거 없음"]),
+    "",
+    "출력 규칙",
+    "- 지금 방 안에서 바로 하는 NPC 대사만 2~4문장으로 말한다.",
+    "- 플레이어 발화나 의도 카드를 설명, 번역, 요약, 평가하지 않는다.",
+    "- '이 대사는', '라는 말에 대한 한국어 대사', '의사를 표현한다' 같은 메타 설명문을 쓰지 않는다.",
+    "- 화자 라벨, JSON, 목록, 요약문을 쓰지 않는다.",
+    ...contract.replyRules.map((rule) => `- ${rule}`),
   ]
     .filter(Boolean)
     .join("\n");
@@ -466,6 +662,76 @@ async function runMlxGenerate(args: string[]) {
   });
 }
 
+async function runTogetherGenerate(params: {
+  model: string;
+  npcId: string;
+  promptFormat: ScenePromptFormat;
+  prompt: string;
+}) {
+  const response = await createTogetherChatCompletion({
+    model: params.model,
+    messages: [
+      {
+        role: "system",
+        content: resolveSystemPrompt(params.npcId, params.promptFormat),
+      },
+      {
+        role: "user",
+        content: params.prompt,
+      },
+    ],
+    maxTokens: appConfig.localReply.maxTokens,
+    temperature: 0.7,
+  });
+  return extractTogetherChatText(response) ?? "";
+}
+
+async function runRunpodGenerate(params: {
+  endpointId: string;
+  model: string;
+  npcId: string;
+  promptFormat: ScenePromptFormat;
+  prompt: string;
+}) {
+  const response = await createRunpodVllmRunSync({
+    endpointId: params.endpointId,
+    messages: [
+      {
+        role: "system",
+        content: resolveSystemPrompt(params.npcId, params.promptFormat),
+      },
+      {
+        role: "user",
+        content: params.prompt,
+      },
+    ],
+    maxTokens: appConfig.localReply.maxTokens,
+    temperature: 0.7,
+  });
+  return extractRunpodVllmText(response) ?? "";
+}
+
+function canonicalizeReplyForGuard(text: string) {
+  return stripWrappingQuotes(normalizeInlineText(text))
+    .replace(/^[“"'‘’]+|[“"'‘’]+$/gu, "")
+    .trim();
+}
+
+function looksRepeatedRecentReply(text: string, input: GenerateInteractionInput) {
+  const candidate = canonicalizeReplyForGuard(text);
+  if (!candidate || candidate.length < 8) {
+    return false;
+  }
+
+  const recentNpcReplies = input.recentConversation
+    .filter((entry) => entry.speaker === "npc")
+    .slice(-3)
+    .map((entry) => canonicalizeReplyForGuard(entry.text))
+    .filter(Boolean);
+
+  return recentNpcReplies.some((entry) => entry === candidate);
+}
+
 export async function maybeGenerateReplyWithLocalAdapter(
   input: GenerateInteractionInput,
 ) {
@@ -479,45 +745,96 @@ export async function maybeGenerateReplyWithLocalAdapter(
     return null;
   }
 
-  const binaryAvailable = await hasMlxBinary();
-  if (!binaryAvailable) {
-    if (mode === "on") {
-      throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
-    }
-    return null;
-  }
-
   const adapterConfig = await resolveAdapterConfigForNpc(input.npc.persona.id);
-  const adapterPath = adapterConfig.path;
-  const adapterAvailable = await hasAdapter(adapterPath);
-  if (!adapterAvailable) {
-    if (mode === "on") {
-      throw new Error(`Adapter not found: ${adapterPath}`);
-    }
-    return null;
-  }
+  const prompt = buildPrompt(input, adapterConfig.promptFormat);
+  let text: string;
+  let sourceRef: string;
 
-  const text = await runMlxGenerate([
-    "--model",
-    appConfig.localReply.mlxModel,
-    "--adapter-path",
-    adapterPath,
-    "--system-prompt",
-    resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
-    "--prompt",
-    buildPrompt(input, adapterConfig.promptFormat),
-    "--max-tokens",
-    String(appConfig.localReply.maxTokens),
-  ]);
+  if (adapterConfig.backend === "together") {
+    text = await runTogetherGenerate({
+      model: adapterConfig.model,
+      npcId: input.npc.persona.id,
+      promptFormat: adapterConfig.promptFormat,
+      prompt,
+    });
+    sourceRef = adapterConfig.model;
+  } else if (adapterConfig.backend === "runpod") {
+    text = await runRunpodGenerate({
+      endpointId: adapterConfig.endpointId,
+      model: adapterConfig.model,
+      npcId: input.npc.persona.id,
+      promptFormat: adapterConfig.promptFormat,
+      prompt,
+    });
+    sourceRef = `${adapterConfig.endpointId}:${adapterConfig.model}`;
+  } else {
+    const binaryAvailable = await hasMlxBinary();
+    if (!binaryAvailable) {
+      if (mode === "on") {
+        throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
+      }
+      return null;
+    }
+
+    const adapterPath = adapterConfig.path;
+    const adapterAvailable = await hasRuntimeArtifact(
+      adapterPath,
+      adapterConfig.runtimeKind,
+    );
+    if (!adapterAvailable) {
+      if (mode === "on") {
+        throw new Error(`Runtime artifact not found: ${adapterPath}`);
+      }
+      return null;
+    }
+
+    text = await runMlxGenerate(
+      adapterConfig.runtimeKind === "mlx_fused_model"
+        ? [
+            "--model",
+            adapterPath,
+            "--system-prompt",
+            resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+            "--prompt",
+            prompt,
+            "--max-tokens",
+            String(appConfig.localReply.maxTokens),
+          ]
+        : [
+            "--model",
+            adapterConfig.mlxModel ?? appConfig.localReply.mlxModel,
+            "--adapter-path",
+            adapterPath,
+            "--system-prompt",
+            resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
+            "--prompt",
+            prompt,
+            "--max-tokens",
+            String(appConfig.localReply.maxTokens),
+          ],
+    );
+    sourceRef = adapterPath;
+  }
 
   const normalized = text.trim();
   const cleaned = normalizeReplyText(normalized);
-  if (!cleaned || /^!+$/u.test(cleaned)) {
+  const contract = resolveInteractionContract(input);
+  const validation = validateReplyAgainstContract({
+    replyText: cleaned,
+    contract,
+    npcName: input.npc.persona.name,
+  });
+  if (
+    !cleaned ||
+    /^!+$/u.test(cleaned) ||
+    !validation.ok ||
+    looksRepeatedRecentReply(cleaned, input)
+  ) {
     return null;
   }
 
   return {
     text: cleaned,
-    adapterPath,
+    adapterPath: sourceRef,
   };
 }

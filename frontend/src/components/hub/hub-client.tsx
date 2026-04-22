@@ -12,12 +12,14 @@ import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
 import { buildClientApiUrl } from "@/lib/api-client";
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
+import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
 import type {
+  ChatMessage,
   InteractionResponsePayload,
   PlayerAction,
   WorldSnapshot,
 } from "@/lib/types";
+import { formatPlayerConversationText, nowIso } from "@/lib/utils";
 
 function isApiError(
   payload: InteractionResponsePayload | WorldSnapshot | { message?: string },
@@ -27,6 +29,11 @@ function isApiError(
 
 interface HubClientProps {
   initialWorld: WorldSnapshot;
+}
+
+interface PendingConversationTurn {
+  npcId: string;
+  playerMessage: ChatMessage;
 }
 
 export function HubClient({ initialWorld }: HubClientProps) {
@@ -47,6 +54,8 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const [lastOutcome, setLastOutcome] =
     useState<InteractionResponsePayload | null>(null);
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
+  const [pendingConversationTurn, setPendingConversationTurn] =
+    useState<PendingConversationTurn | null>(null);
   const [showStickySummary, setShowStickySummary] = useState(false);
   const [stickyPinned, setStickyPinned] = useState(false);
   const [gameOverOpen, setGameOverOpen] = useState(
@@ -59,7 +68,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
   const selectedNpc =
     world.npcs.find((npc) => npc.persona.id === selectedNpcId) ?? world.npcs[0];
-  const conversation = world.conversations[selectedNpc.persona.id] ?? [];
+  const baseConversation = world.conversations[selectedNpc.persona.id] ?? [];
   const riskByNpcId = Object.fromEntries(
     world.consensusBoard.map((entry) => [entry.candidateId, entry.totalPressure]),
   );
@@ -73,6 +82,16 @@ export function HubClient({ initialWorld }: HubClientProps) {
       id: entry.candidateId,
       label: entry.candidateLabel,
     }));
+  const pendingConversationForSelectedNpc =
+    pendingConversationTurn?.npcId === selectedNpc.persona.id
+      ? [pendingConversationTurn.playerMessage]
+      : [];
+  const conversation = [
+    ...baseConversation,
+    ...pendingConversationForSelectedNpc,
+  ];
+  const waitingForSelectedNpcReply =
+    interactionBusy && pendingConversationTurn?.npcId === selectedNpc.persona.id;
   const stickyConsensusEntries = world.consensusBoard
     .filter((entry) => entry.candidateId !== DEFAULT_PLAYER_ID)
     .slice(0, world.npcs.length);
@@ -112,14 +131,35 @@ export function HubClient({ initialWorld }: HubClientProps) {
   }, []);
 
   async function sendInteraction(payload: {
-    inputMode: "free_text" | "action";
+    inputMode: "free_text" | "action" | "combined";
     action: PlayerAction | null;
     text: string;
   }) {
+    const timestamp = nowIso();
+    const pendingTargetLabel =
+      selectedTargetId
+        ? targetOptions.find((option) => option.id === selectedTargetId)?.label ??
+          DEFAULT_PLAYER_LABEL
+        : null;
     setBusy(true);
     setInteractionBusy(true);
     setError(null);
     setDraftWarning(null);
+    setPendingConversationTurn({
+      npcId: selectedNpc.persona.id,
+      playerMessage: {
+        id: `pending-${crypto.randomUUID()}`,
+        npcId: selectedNpc.persona.id,
+        speaker: "player",
+        text: formatPlayerConversationText({
+          text: payload.text,
+          action: payload.action,
+          targetLabel: pendingTargetLabel,
+        }),
+        timestamp,
+        action: payload.action,
+      },
+    });
 
     try {
       const response = await fetch(buildClientApiUrl("/api/interact"), {
@@ -151,8 +191,10 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
       setWorld((data as InteractionResponsePayload).world);
       setLastOutcome(data as InteractionResponsePayload);
+      setPendingConversationTurn(null);
       setDraft("");
     } catch (fetchError) {
+      setPendingConversationTurn(null);
       setError(
         fetchError instanceof Error
           ? fetchError.message
@@ -189,6 +231,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
           (data as WorldSnapshot).npcs[0]?.persona.id ??
           null,
       );
+      setPendingConversationTurn(null);
       setLastOutcome(null);
       setDraft("");
       setDraftWarning(null);
@@ -217,7 +260,10 @@ export function HubClient({ initialWorld }: HubClientProps) {
     });
   }
 
-  function handleAction(action: PlayerAction) {
+  function handleAction(
+    action: PlayerAction,
+    inputMode: "action" | "combined",
+  ) {
     const actionDefinition = world.availableActions.find((item) => item.id === action);
 
     if (actionDefinition?.requiresTarget && !selectedTargetId) {
@@ -226,9 +272,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
     }
 
     void sendInteraction({
-      inputMode: "action",
+      inputMode,
       action,
-      text: draft,
+      text: inputMode === "combined" ? draft : "",
     });
   }
 
@@ -249,6 +295,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
           <MissionBriefCard
             busy={busy}
             round={world.round}
+            scoring={world.scoring}
             world={world.world}
             onRestart={() => {
               void resetWorld();
@@ -296,12 +343,12 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
           <div className="grid gap-4 grid-cols-[minmax(0,6.5fr)_minmax(360px,3.5fr)] items-start">
             <div className="min-w-0">
-              <InteractionPanel
+            <InteractionPanel
                 npc={selectedNpc}
                 conversation={conversation}
                 draft={draft}
                 busy={busy}
-                waitingForReply={interactionBusy}
+                waitingForReply={waitingForSelectedNpcReply}
                 subtitle={world.presentation.interactionSubtitle}
                 placeholder={world.presentation.interactionPlaceholder}
                 availableActions={world.availableActions}
@@ -322,8 +369,8 @@ export function HubClient({ initialWorld }: HubClientProps) {
                   setDraftWarning(null);
                 }}
                 onSubmit={handleSubmit}
-                onAction={handleAction}
-              />
+              onAction={handleAction}
+            />
             </div>
 
             <div className="min-w-0">

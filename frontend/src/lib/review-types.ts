@@ -4,6 +4,15 @@ export type ReviewSourceMode =
   | "human_reviewed"
   | "llm_completed";
 export type ReviewTrainingKind = "sft" | "dpo";
+export type ReviewTrainingBackend =
+  | "local_peft"
+  | "together_serverless_lora"
+  | "smoke";
+export type ReviewTrainingExecutionMode =
+  | ReviewTrainingBackend
+  | "needs_new_sft"
+  | "reuse_existing_sft"
+  | "unsupported";
 export type ReviewTrainingBindingKey =
   | "default"
   | "doctor"
@@ -129,9 +138,33 @@ export interface ReviewDatasetView {
   pairItems: PairReviewItemView[];
 }
 
+export interface ReviewShadowInvalidCaseView {
+  episodeId: string | null;
+  scenarioId: string;
+  turnIndex: number | null;
+  npcId: string;
+  targetNpcId: string | null;
+  playerText: string;
+  activeReplyText: string;
+  shadowLabel: string | null;
+  durationMs: number | null;
+  sourceRef: string | null;
+  error: string | null;
+  rawOutput: string | null;
+  exportPath: string | null;
+  exportedAt: string | null;
+}
+
+export interface ReviewShadowInvalidSummaryView {
+  total: number;
+  latestExportedAt: string | null;
+  cases: ReviewShadowInvalidCaseView[];
+}
+
 export interface ReviewDashboardData {
   humanRequired: ReviewDatasetView;
   llmCompleted: ReviewDatasetView;
+  shadowInvalidJson: ReviewShadowInvalidSummaryView;
 }
 
 export interface ReviewMutationResult {
@@ -183,10 +216,16 @@ export interface ReviewTrainingPreflightView {
   parentRunId: string | null;
   adapterPath: string | null;
   sftFingerprintRelation: "match" | "mismatch" | null;
-  executionMode: "needs_new_sft" | "reuse_existing_sft" | null;
+  executionMode: ReviewTrainingExecutionMode | null;
+  trainingBackend: ReviewTrainingBackend | null;
   blockingIssues: string[];
   dataset: ReviewTrainingDatasetView;
 }
+
+export type ReviewTrainingRuntimeArtifactKind =
+  | "mlx_adapter"
+  | "mlx_fused_model"
+  | "legacy_mlx_adapter";
 
 export interface ReviewTrainingDurationsView {
   buildMs: number | null;
@@ -236,8 +275,16 @@ export interface ReviewTrainingPromotionView {
 export interface ReviewTrainingRunView {
   runId: string;
   kind: ReviewTrainingKind;
+  trainingBackend: ReviewTrainingBackend | null;
   state: "running" | "succeeded" | "failed";
-  currentStep: "build_dataset" | "train_sft" | "train_dpo" | null;
+  currentStep:
+    | "build_dataset"
+    | "upload_remote_files"
+    | "train_sft"
+    | "train_dpo"
+    | "wait_remote_training"
+    | "derive_runtime"
+    | null;
   message: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -246,8 +293,16 @@ export interface ReviewTrainingRunView {
   sourceFingerprint: string | null;
   sourceDatasetVersion: string | null;
   parentRunId: string | null;
+  baseModelId: string | null;
   datasetDir: string | null;
   adapterPath: string | null;
+  runtimeArtifactPath: string | null;
+  runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
+  remoteProvider: string | null;
+  remoteJobId: string | null;
+  remoteTrainingFileId: string | null;
+  remoteValidationFileId: string | null;
+  remoteModelName: string | null;
   logPath: string | null;
   durations: ReviewTrainingDurationsView;
   evaluation: ReviewTrainingEvaluationView;

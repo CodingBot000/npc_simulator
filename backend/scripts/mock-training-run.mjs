@@ -13,10 +13,14 @@ function usage() {
     "Usage: node scripts/mock-training-run.mjs [options]",
     "",
     "Options:",
-    "  --mode <build_sft|build_dpo|train_sft|train_dpo>",
+    "  --mode <build_sft|build_dpo|train_sft|train_dpo|derive_runtime>",
     "  --output-dir <path>           dataset build output directory",
     "  --dataset-dir <path>          dataset directory used by the trainer",
     "  --adapter-path <path>         adapter output directory",
+    "  --runtime-artifact-path <path> runtime artifact output directory",
+    "  --runtime-artifact-kind <kind> runtime artifact kind",
+    "  --runtime-base-model <repo>    optional MLX runtime base model id",
+    "  --manifest-path <path>        training result manifest output path",
     "  --run-id <value>              training run id",
     "  --snapshot-id <value>         optional source snapshot id",
     "  --reference-adapter-path <path> optional DPO parent adapter path",
@@ -74,19 +78,65 @@ async function runBuildMode(mode, outputDir, snapshotId) {
   });
 }
 
-async function runTrainMode(mode, adapterPath, datasetDir, runId, referenceAdapterPath) {
+async function runTrainMode(
+  mode,
+  adapterPath,
+  runtimeArtifactPath,
+  runtimeArtifactKind,
+  runtimeBaseModel,
+  manifestPath,
+  datasetDir,
+  runId,
+  referenceAdapterPath,
+) {
   if (!adapterPath) {
     throw new Error("--adapter-path is required for train mode");
   }
 
   const fullAdapterPath = resolveProjectPath(adapterPath);
+  const fullRuntimeArtifactPath = resolveProjectPath(
+    runtimeArtifactPath ?? path.join(path.dirname(fullAdapterPath), "runtime"),
+  );
+  const fullManifestPath = resolveProjectPath(
+    manifestPath ?? path.join(path.dirname(fullAdapterPath), "training-result.json"),
+  );
+
   await fs.mkdir(fullAdapterPath, { recursive: true });
-  await writeJsonFile(path.join(fullAdapterPath, "training-result.json"), {
+  await fs.mkdir(fullRuntimeArtifactPath, { recursive: true });
+  await writeJsonFile(path.join(fullAdapterPath, "adapter_config.json"), {
+    base_model_name_or_path: "unsloth/Meta-Llama-3.1-8B-Instruct",
+    peft_type: "LORA",
+    task_type: "CAUSAL_LM",
+  });
+  await fs.writeFile(path.join(fullAdapterPath, "adapter_model.safetensors"), "", "utf8");
+  if (runtimeArtifactKind === "mlx_fused_model") {
+    await writeJsonFile(path.join(fullRuntimeArtifactPath, "config.json"), {
+      model_type: "llama",
+      runtimeKind: runtimeArtifactKind,
+    });
+  } else {
+    await writeJsonFile(path.join(fullRuntimeArtifactPath, "adapter_config.json"), {
+      model:
+        runtimeBaseModel || "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      fine_tune_type: "lora",
+    });
+    await fs.writeFile(path.join(fullRuntimeArtifactPath, "adapters.safetensors"), "", "utf8");
+  }
+  await writeJsonFile(fullManifestPath, {
     generatedAt: new Date().toISOString(),
     mode,
     runId: runId ?? null,
     datasetDir: datasetDir ?? null,
     referenceAdapterPath: referenceAdapterPath ?? null,
+    runtimeBaseModelId: runtimeBaseModel ?? null,
+    canonicalArtifact: {
+      kind: "peft_adapter",
+      path: fullAdapterPath,
+    },
+    runtimeArtifact: {
+      kind: runtimeArtifactKind ?? "legacy_mlx_adapter",
+      path: fullRuntimeArtifactPath,
+    },
     status: "succeeded",
   });
 }
@@ -103,6 +153,10 @@ async function main() {
   const outputDir = getStringOption(options, "output-dir", null);
   const datasetDir = getStringOption(options, "dataset-dir", null);
   const adapterPath = getStringOption(options, "adapter-path", null);
+  const runtimeArtifactPath = getStringOption(options, "runtime-artifact-path", null);
+  const runtimeArtifactKind = getStringOption(options, "runtime-artifact-kind", null);
+  const runtimeBaseModel = getStringOption(options, "runtime-base-model", null);
+  const manifestPath = getStringOption(options, "manifest-path", null);
   const runId = getStringOption(options, "run-id", null);
   const snapshotId = getStringOption(options, "snapshot-id", null);
   const referenceAdapterPath = getStringOption(options, "reference-adapter-path", null);
@@ -113,8 +167,18 @@ async function main() {
 
   if (mode === "build_sft" || mode === "build_dpo") {
     await runBuildMode(mode, outputDir, snapshotId);
-  } else if (mode === "train_sft" || mode === "train_dpo") {
-    await runTrainMode(mode, adapterPath, datasetDir, runId, referenceAdapterPath);
+  } else if (mode === "train_sft" || mode === "train_dpo" || mode === "derive_runtime") {
+    await runTrainMode(
+      mode,
+      adapterPath,
+      runtimeArtifactPath,
+      runtimeArtifactKind,
+      runtimeBaseModel,
+      manifestPath,
+      datasetDir,
+      runId,
+      referenceAdapterPath,
+    );
   } else {
     throw new Error(`Unsupported --mode '${mode}'`);
   }

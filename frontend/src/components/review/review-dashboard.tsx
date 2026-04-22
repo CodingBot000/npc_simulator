@@ -17,6 +17,7 @@ import type {
   ReviewFinalizeStatusView,
   ReviewDatasetView,
   ReviewKind,
+  ReviewShadowInvalidCaseView,
   ReviewSourceMode,
   ReviewTrainingBindingKey,
   ReviewTrainingKind,
@@ -232,6 +233,74 @@ function TextBlock({
       className={`rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-7 text-foreground/95 ${className}`}
     >
       {children}
+    </div>
+  );
+}
+
+function ShadowInvalidCaseCard({
+  item,
+}: {
+  item: ReviewShadowInvalidCaseView;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-[rgba(209,111,76,0.16)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+          invalid_json
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[11px] text-[var(--ink-muted)]">
+          turn {item.turnIndex ?? "-"}
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[11px] text-[var(--ink-muted)]">
+          {item.npcId}
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-2 text-sm leading-6 text-[var(--ink-muted)]">
+        <p>
+          episode {item.episodeId ?? "-"} · {formatTimestamp(item.exportedAt)}
+        </p>
+        <p>
+          source {item.shadowLabel ?? "-"} · {formatDuration(item.durationMs)}
+        </p>
+        {item.sourceRef ? <p className="break-all">{item.sourceRef}</p> : null}
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+            Player Input
+          </p>
+          <TextBlock>{item.playerText || "-"}</TextBlock>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+            Active Reply
+          </p>
+          <TextBlock>{item.activeReplyText || "-"}</TextBlock>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+            Shadow Error
+          </p>
+          <TextBlock>{item.error || "-"}</TextBlock>
+        </div>
+
+        <details className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-foreground">
+            Raw Output 보기
+          </summary>
+          <TextBlock className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6">
+            {item.rawOutput || "-"}
+          </TextBlock>
+        </details>
+
+        {item.exportPath ? (
+          <p className="text-xs leading-5 text-[var(--ink-muted)]">{item.exportPath}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -589,6 +658,14 @@ function basenameFromPath(path: string | null) {
 }
 
 function describeTrainingRunOrigin(run: ReviewTrainingRunView) {
+  if (run.trainingBackend === "together_serverless_lora") {
+    return "Together serverless LoRA run";
+  }
+
+  if (run.trainingBackend === "smoke") {
+    return "smoke run";
+  }
+
   if (
     run.runId.startsWith("real-eval-import-") ||
     run.message?.toLowerCase().includes("imported")
@@ -647,6 +724,14 @@ function dpoExecutionModeLabel(
       return "새 SFT Base 필요";
     case "reuse_existing_sft":
       return "기존 성공 SFT Base 재사용";
+    case "unsupported":
+      return "현재 미지원";
+    case "together_serverless_lora":
+      return "Together serverless LoRA";
+    case "local_peft":
+      return "로컬 PEFT";
+    case "smoke":
+      return "smoke";
     default:
       return "판단 불가";
   }
@@ -692,7 +777,14 @@ function TrainingRunDetailCard({
                 {describeTrainingRunStage(run)}
               </p>
               <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                dataset {run.sourceDatasetVersion ?? "-"} · adapter {basenameFromPath(run.adapterPath)}
+                dataset {run.sourceDatasetVersion ?? "-"} · canonical{" "}
+                {run.remoteModelName
+                  ? run.remoteModelName
+                  : basenameFromPath(run.adapterPath)}{" "}
+                · runtime{" "}
+                {run.remoteModelName
+                  ? run.remoteModelName
+                  : basenameFromPath(run.runtimeArtifactPath)}
               </p>
               <p className="mt-2 break-all font-mono text-[11px] text-[var(--ink-muted)]">
                 runId {run.runId}
@@ -715,6 +807,7 @@ function TrainingRunDetailCard({
         <div className="mt-4 space-y-2 text-sm text-[var(--ink-muted)]">
           <p>runId: {run.runId}</p>
           <p>kind: {run.kind}</p>
+          <p>training backend: {run.trainingBackend ?? "-"}</p>
           <p>state: {run.state}</p>
           <p>step: {run.currentStep ?? "-"}</p>
           <p>message: {messageOverride ?? run.message ?? "-"}</p>
@@ -725,9 +818,17 @@ function TrainingRunDetailCard({
           <p>finishedAt: {formatTimestamp(run.finishedAt ?? null)}</p>
           <p>updatedAt: {formatTimestamp(run.updatedAt ?? null)}</p>
           <p>source dataset version: {run.sourceDatasetVersion ?? "-"}</p>
+          <p>base model: {run.baseModelId ?? "-"}</p>
           <p>fingerprint: {run.fingerprint ?? "-"}</p>
           <p>source fingerprint: {run.sourceFingerprint ?? "-"}</p>
           <p>parent run: {run.parentRunId ?? "-"}</p>
+          <p>runtime artifact: {run.runtimeArtifactPath ?? "-"}</p>
+          <p>runtime kind: {run.runtimeArtifactKind ?? "-"}</p>
+          <p>remote provider: {run.remoteProvider ?? "-"}</p>
+          <p>remote job: {run.remoteJobId ?? "-"}</p>
+          <p>remote training file: {run.remoteTrainingFileId ?? "-"}</p>
+          <p>remote validation file: {run.remoteValidationFileId ?? "-"}</p>
+          <p>remote model: {run.remoteModelName ?? "-"}</p>
           <p>
             소요: build {formatDuration(run.durations.buildMs ?? null)} / train{" "}
             {formatDuration(run.durations.trainMs ?? null)} / 전체{" "}
@@ -1816,6 +1917,41 @@ export function ReviewDashboard({
       </header>
 
       <CardSurface>
+        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
+            <p className="text-sm font-semibold text-foreground">Shadow invalid_json</p>
+            <p className="text-sm text-[var(--ink-muted)]">
+              local structured shadow 모델이 JSON 형식을 못 지킨 케이스만 따로 모아 본다.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-[rgba(209,111,76,0.16)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+                총 {data.shadowInvalidJson.total}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
+                최신 export {formatTimestamp(data.shadowInvalidJson.latestExportedAt)}
+              </span>
+            </div>
+          </div>
+
+          {data.shadowInvalidJson.cases.length > 0 ? (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {data.shadowInvalidJson.cases.map((item) => (
+                <ShadowInvalidCaseCard
+                  key={`${item.exportPath ?? "shadow"}:${item.turnIndex ?? "turn"}:${item.npcId}`}
+                  item={item}
+                />
+              ))}
+            </div>
+          ) : (
+            <TextBlock>
+              아직 export된 episode 중에서 `shadowComparison.status=invalid_json`로 수집된 케이스가 없습니다.
+              shadow compare를 켠 상태로 episode를 몇 번 더 export하면 여기에 최신 실패 케이스가 쌓입니다.
+            </TextBlock>
+          )}
+        </div>
+      </CardSurface>
+
+      <CardSurface>
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -2018,7 +2154,7 @@ export function ReviewDashboard({
             <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
               <p className="text-sm font-semibold text-foreground">Training</p>
               <p className="text-sm text-[var(--ink-muted)]">
-                finalize가 최신 상태일 때만 로컬 Qwen SFT / DPO 학습을 시작할 수 있습니다.
+                finalize가 최신 상태일 때만 로컬 Llama 3.1 SFT / DPO 학습을 시작할 수 있습니다.
               </p>
               <label className="block">
                 <div className="mb-2 flex items-center justify-between gap-3">

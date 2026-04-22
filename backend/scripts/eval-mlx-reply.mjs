@@ -11,7 +11,7 @@ import {
 } from "./_episode-cli-helpers.mjs";
 
 const DEFAULT_DATASET = "data/train/mlx_sft_compact/valid.jsonl";
-const DEFAULT_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit";
+const DEFAULT_MODEL = "mlx-community/Llama-3.1-8B-Instruct-4bit";
 const DEFAULT_OUTPUT_DIR = "data/evals/mlx_reply";
 
 function usage() {
