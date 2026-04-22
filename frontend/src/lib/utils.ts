@@ -5,6 +5,7 @@ import {
   NPC_ACTION_LABELS,
   PRESSURE_DIMENSION_LABELS,
   PLAYER_ACTION_LABELS,
+  PLAYER_ACTION_TARGET_MODES,
 } from "@/lib/constants";
 import type {
   AllowedActionType,
@@ -54,6 +55,30 @@ export function actionLabel(
   }
 
   return NPC_ACTION_LABELS[action as AllowedActionType];
+}
+
+export function formatPlayerConversationText(params: {
+  text: string;
+  action: PlayerAction | null | undefined;
+  targetLabel: string | null;
+}) {
+  const spokenText = params.text.trim();
+  if (spokenText) {
+    return spokenText;
+  }
+
+  if (!params.action) {
+    return "짧게 숨을 고르며 방 안의 시선을 읽었다.";
+  }
+
+  const label = actionLabel(params.action);
+  const targetMode = PLAYER_ACTION_TARGET_MODES[params.action];
+
+  if (params.targetLabel && (targetMode === "required" || targetMode === "optional")) {
+    return `${label} - 공격타겟 : ${params.targetLabel}`;
+  }
+
+  return label;
 }
 
 export function emotionLabel(primary: EmotionPrimary) {

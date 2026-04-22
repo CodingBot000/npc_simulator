@@ -1,6 +1,5 @@
 import {
   DEFAULT_PLAYER_ID,
-  DEFAULT_PLAYER_LABEL,
   NPC_ACTION_LABELS,
 } from "@/lib/constants";
 import type {
@@ -12,8 +11,13 @@ import type {
   NpcState,
   PersistedNpcState,
 } from "@/lib/types";
-import { actionLabel, nowIso } from "@/lib/utils";
+import { formatPlayerConversationText, nowIso } from "@/lib/utils";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
+import {
+  buildInteractionContract,
+  validateReplyAgainstContract,
+  validateStructuredResultAgainstContract,
+} from "@server/engine/interaction-contract";
 import {
   cleanupExportPaths,
   exportEpisodeDataset,
@@ -40,11 +44,12 @@ import { buildFallbackInteractionResult } from "@server/engine/fallback-interact
 import { maybeGenerateReplyWithLocalAdapter } from "@server/providers/mlx-reply-adapter";
 import { retrieveEvidenceBundle } from "@server/engine/retrieval";
 import { buildRuntimeStatus, getLlmProvider } from "@server/providers/llm-provider";
+import { maybeGenerateShadowComparison } from "@server/providers/shadow-compare";
 import { createWorldRepository } from "@server/store/repositories";
 import type { WorldRepositoryOptions } from "@server/store/repositories";
 import type { WorldStateBundle } from "@server/store/world-bundle";
 
-const REPLY_LABEL_PREFIX = /^(?:\.\.\.|…|\s)*(?:의사|감독관|엔지니어|소장|doctor|supervisor|engineer|director)\s*:\s*/iu;
+const REPLY_LABEL_PREFIX = /^(?:\.\.\.|…|\s)*(?:npc\s*대사|npc\s*reply|대사|의사|감독관|엔지니어|소장|doctor|supervisor|engineer|director)\s*:\s*/iu;
 const META_OPENING_PATTERNS = [
   /^(?:\.\.\.|…|\s)*(?:의무실 기록에 따르면|기록에 따르면)[,.: ]*/u,
   /^(?:\.\.\.|…|\s)*(?:판단 기준(?:은|으로는)?|검토하십시오|검토(?:하면|하면요)?)[,.: ]*/u,
@@ -66,6 +71,7 @@ function recentConversationForNpc(
         text: entry.playerText,
         timestamp: entry.timestamp,
         action: entry.playerAction,
+        fallbackUsed: false,
       },
       {
         id: `${entry.id}-npc`,
@@ -74,6 +80,7 @@ function recentConversationForNpc(
         text: entry.replyText,
         timestamp: entry.timestamp,
         action: entry.selectedAction,
+        fallbackUsed: entry.fallbackUsed ?? false,
       },
     ]);
 }
@@ -115,6 +122,19 @@ function sanitizeReplyText(text: string) {
   let cleaned = original.replace(REPLY_LABEL_PREFIX, "").trim();
   for (const pattern of META_OPENING_PATTERNS) {
     cleaned = cleaned.replace(pattern, "").trim();
+  }
+
+  const quotePairs: Array<[string, string]> = [
+    ['"', '"'],
+    ["'", "'"],
+    ["“", "”"],
+    ["‘", "’"],
+  ];
+  for (const [open, close] of quotePairs) {
+    if (cleaned.startsWith(open) && cleaned.endsWith(close)) {
+      cleaned = cleaned.slice(open.length, cleaned.length - close.length).trim();
+      break;
+    }
   }
 
   cleaned = cleaned.replace(/\s+/g, " ").trim();
@@ -166,6 +186,8 @@ export async function runInteractionTurn(
     text: request.text,
     action: request.action,
     inputMode: request.inputMode,
+    targetNpcId: request.targetNpcId,
+    targetNpcLabel: targetNpc?.persona.name ?? null,
   });
   const recentConversation = recentConversationForNpc(
     interactionLog.entries,
@@ -214,6 +236,15 @@ export async function runInteractionTurn(
     normalizedInput,
     promptContextSummary,
   };
+  const interactionContract = buildInteractionContract({
+    inputMode: request.inputMode,
+    text: request.text,
+    action: request.action,
+    targetNpcId: request.targetNpcId,
+    targetNpcLabel: targetNpc?.persona.name ?? null,
+  });
+  const shadowComparisonPromise = maybeGenerateShadowComparison(generationInput);
+  let fallbackUsed = provider.mode === "deterministic";
   let llmResult;
 
   try {
@@ -221,6 +252,7 @@ export async function runInteractionTurn(
       await provider.generateInteraction(generationInput),
     );
   } catch (error) {
+    fallbackUsed = true;
     console.warn(
       "[llm-provider] falling back to deterministic interaction:",
       error instanceof Error ? error.message : String(error),
@@ -228,6 +260,31 @@ export async function runInteractionTurn(
     llmResult = normalizeLlmInteractionResult(
       buildFallbackInteractionResult(generationInput),
     );
+  }
+
+  if (!fallbackUsed) {
+    const structuredValidation = validateStructuredResultAgainstContract({
+      result: llmResult,
+      contract: interactionContract,
+    });
+    const replyValidation = validateReplyAgainstContract({
+      replyText: sanitizeReplyText(llmResult.reply.text),
+      contract: interactionContract,
+      npcName: npc.persona.name,
+    });
+
+    if (!structuredValidation.ok || !replyValidation.ok) {
+      fallbackUsed = true;
+      console.warn(
+        "[llm-provider] contract validation failed, using deterministic fallback:",
+        [...structuredValidation.issues, ...replyValidation.issues]
+          .map((issue) => issue.code)
+          .join(", "),
+      );
+      llmResult = normalizeLlmInteractionResult(
+        buildFallbackInteractionResult(generationInput),
+      );
+    }
   }
 
   try {
@@ -252,6 +309,19 @@ export async function runInteractionTurn(
       text: sanitizeReplyText(llmResult.reply.text),
     },
   };
+  const shadowComparison = await shadowComparisonPromise;
+  const sanitizedShadowComparison =
+    shadowComparison?.result
+      ? {
+          ...shadowComparison,
+          result: {
+            ...shadowComparison.result,
+            reply: {
+              text: sanitizeReplyText(shadowComparison.result.reply.text),
+            },
+          },
+        }
+      : shadowComparison;
   const structuredTargetNpcId = isPersistedNpcId(
     llmResult.structuredImpact.targetNpcId,
     worldState.npcs,
@@ -330,6 +400,8 @@ export async function runInteractionTurn(
     episodeId: worldState.episodeId,
     npcId: request.npcId,
     targetNpcId: effectiveTargetNpcId,
+    replyText: llmResult.reply.text,
+    fallbackUsed,
     retrievedMemories,
     retrievedKnowledge,
     emotion: llmResult.emotion,
@@ -349,6 +421,7 @@ export async function runInteractionTurn(
     llmPromptContextSummary: promptContextSummary,
     datasetExportedAt: worldState.datasetExportedAt,
     exportPaths: worldState.exportPaths,
+    shadowComparison: sanitizedShadowComparison,
   };
   worldState.lastInspector = inspector;
 
@@ -358,13 +431,14 @@ export async function runInteractionTurn(
     targetNpcId: effectiveTargetNpcId,
     playerId: request.playerId,
     inputMode: request.inputMode,
+    fallbackUsed,
     roundBefore,
     roundAfter: worldState.round.currentRound,
-    playerText:
-      normalizedInput.text ||
-      (effectiveTargetNpcId
-        ? `${actionLabel(request.action)}: ${targetLabel ?? DEFAULT_PLAYER_LABEL}`
-        : actionLabel(request.action)),
+    playerText: formatPlayerConversationText({
+      text: normalizedInput.text,
+      action: request.action,
+      targetLabel,
+    }),
     rawPlayerText: request.text,
     normalizedInputSummary: normalizedInput.promptSummary,
     playerAction: request.action,
@@ -385,6 +459,7 @@ export async function runInteractionTurn(
     leaderAfter: leadingCandidate,
     resolutionAfter: resolution,
     round: worldState.round.currentRound,
+    shadowComparison: sanitizedShadowComparison,
   };
   interactionLog.entries.push(logEntry);
 

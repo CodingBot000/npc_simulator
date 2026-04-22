@@ -19,6 +19,7 @@ function usage() {
     "  --adapter-path <path>         adapter output directory",
     "  --runtime-artifact-path <path> runtime artifact output directory",
     "  --runtime-artifact-kind <kind> runtime artifact kind",
+    "  --runtime-base-model <repo>    optional MLX runtime base model id",
     "  --manifest-path <path>        training result manifest output path",
     "  --run-id <value>              training run id",
     "  --snapshot-id <value>         optional source snapshot id",
@@ -82,6 +83,7 @@ async function runTrainMode(
   adapterPath,
   runtimeArtifactPath,
   runtimeArtifactKind,
+  runtimeBaseModel,
   manifestPath,
   datasetDir,
   runId,
@@ -102,19 +104,20 @@ async function runTrainMode(
   await fs.mkdir(fullAdapterPath, { recursive: true });
   await fs.mkdir(fullRuntimeArtifactPath, { recursive: true });
   await writeJsonFile(path.join(fullAdapterPath, "adapter_config.json"), {
-    base_model_name_or_path: "Qwen/Qwen2.5-7B-Instruct",
+    base_model_name_or_path: "unsloth/Meta-Llama-3.1-8B-Instruct",
     peft_type: "LORA",
     task_type: "CAUSAL_LM",
   });
   await fs.writeFile(path.join(fullAdapterPath, "adapter_model.safetensors"), "", "utf8");
   if (runtimeArtifactKind === "mlx_fused_model") {
     await writeJsonFile(path.join(fullRuntimeArtifactPath, "config.json"), {
-      model_type: "qwen2",
+      model_type: "llama",
       runtimeKind: runtimeArtifactKind,
     });
   } else {
     await writeJsonFile(path.join(fullRuntimeArtifactPath, "adapter_config.json"), {
-      model: "mlx-community/Qwen2.5-7B-Instruct-4bit",
+      model:
+        runtimeBaseModel || "mlx-community/Llama-3.1-8B-Instruct-4bit",
       fine_tune_type: "lora",
     });
     await fs.writeFile(path.join(fullRuntimeArtifactPath, "adapters.safetensors"), "", "utf8");
@@ -125,6 +128,7 @@ async function runTrainMode(
     runId: runId ?? null,
     datasetDir: datasetDir ?? null,
     referenceAdapterPath: referenceAdapterPath ?? null,
+    runtimeBaseModelId: runtimeBaseModel ?? null,
     canonicalArtifact: {
       kind: "peft_adapter",
       path: fullAdapterPath,
@@ -151,6 +155,7 @@ async function main() {
   const adapterPath = getStringOption(options, "adapter-path", null);
   const runtimeArtifactPath = getStringOption(options, "runtime-artifact-path", null);
   const runtimeArtifactKind = getStringOption(options, "runtime-artifact-kind", null);
+  const runtimeBaseModel = getStringOption(options, "runtime-base-model", null);
   const manifestPath = getStringOption(options, "manifest-path", null);
   const runId = getStringOption(options, "run-id", null);
   const snapshotId = getStringOption(options, "snapshot-id", null);
@@ -168,6 +173,7 @@ async function main() {
       adapterPath,
       runtimeArtifactPath,
       runtimeArtifactKind,
+      runtimeBaseModel,
       manifestPath,
       datasetDir,
       runId,

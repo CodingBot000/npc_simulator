@@ -11,7 +11,13 @@ import type {
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
 } from "@/lib/review-types";
-import { PROJECT_ROOT } from "@server/config";
+import {
+  DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL,
+  DEFAULT_LOCAL_REPLY_MLX_MODEL,
+  DEFAULT_REMOTE_TRAINING_BASE_MODEL,
+  PROJECT_ROOT,
+  getServerEnv,
+} from "@server/config";
 import { getReviewFinalizeStatus } from "./finalize";
 import {
   appendTrainingRunEventInDb,
@@ -82,47 +88,74 @@ const DERIVE_MLX_RUNTIME_SCRIPT_PATH = path.join(
   "derive-mlx-runtime-from-peft.py",
 );
 
-const DEFAULT_LOCAL_TRAINING_BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct";
-const DEFAULT_TOGETHER_TRAINING_BASE_MODEL =
-  "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
 const TOGETHER_REMOTE_PROVIDER = "together";
+const LEGACY_CANONICAL_TRAINING_BASE_MODEL = getServerEnv(
+  "CANONICAL_TRAINING_BASE_MODEL",
+);
 const TRAINING_EXECUTION_MODE: ReviewTrainingBackend =
-  process.env.TRAINING_EXECUTION_MODE === "together_serverless_lora"
+  getServerEnv("TRAINING_EXECUTION_MODE") === "together_serverless_lora"
     ? "together_serverless_lora"
-    : process.env.TRAINING_EXECUTION_MODE === "smoke" ||
-        process.env.LOCAL_TRAINING_EXECUTION_MODE === "smoke"
+    : getServerEnv("TRAINING_EXECUTION_MODE") === "smoke" ||
+        getServerEnv("LOCAL_TRAINING_EXECUTION_MODE") === "smoke"
       ? "smoke"
       : "local_peft";
+const LOCAL_CANONICAL_TRAINING_BASE_MODEL =
+  getServerEnv("LOCAL_CANONICAL_TRAINING_BASE_MODEL") ||
+  LEGACY_CANONICAL_TRAINING_BASE_MODEL ||
+  DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL;
+const LOCAL_REPLY_MLX_MODEL =
+  getServerEnv("LOCAL_REPLY_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL;
+const REMOTE_TRAINING_BASE_MODEL =
+  getServerEnv("REMOTE_TRAINING_BASE_MODEL") ||
+  LEGACY_CANONICAL_TRAINING_BASE_MODEL ||
+  DEFAULT_REMOTE_TRAINING_BASE_MODEL;
 const TRAINING_BASE_MODEL =
-  process.env.CANONICAL_TRAINING_BASE_MODEL ||
-  (TRAINING_EXECUTION_MODE === "together_serverless_lora"
-    ? DEFAULT_TOGETHER_TRAINING_BASE_MODEL
-    : DEFAULT_LOCAL_TRAINING_BASE_MODEL);
-const TOGETHER_POLL_INTERVAL_MS = Number(process.env.TOGETHER_POLL_INTERVAL_MS || "10000");
+  TRAINING_EXECUTION_MODE === "together_serverless_lora"
+    ? REMOTE_TRAINING_BASE_MODEL
+    : LOCAL_CANONICAL_TRAINING_BASE_MODEL;
+const TOGETHER_POLL_INTERVAL_MS = Number(
+  getServerEnv("TOGETHER_POLL_INTERVAL_MS") || "10000",
+);
 const TOGETHER_TRAINING_SUFFIX_PREFIX =
-  process.env.TOGETHER_TRAINING_SUFFIX_PREFIX || "npc-sim";
-const TOGETHER_TRAINING_N_EVALS = Number(process.env.TOGETHER_TRAINING_N_EVALS || "8");
-const TOGETHER_TRAINING_EPOCHS = Number(process.env.TOGETHER_TRAINING_EPOCHS || "3");
+  getServerEnv("TOGETHER_TRAINING_SUFFIX_PREFIX") || "npc-sim";
+const TOGETHER_TRAINING_N_EVALS = Number(
+  getServerEnv("TOGETHER_TRAINING_N_EVALS") || "8",
+);
+const TOGETHER_TRAINING_N_CHECKPOINTS = Number(
+  getServerEnv("TOGETHER_TRAINING_N_CHECKPOINTS") || "1",
+);
+const TOGETHER_TRAINING_EPOCHS = Number(
+  getServerEnv("TOGETHER_TRAINING_EPOCHS") || "3",
+);
+const TOGETHER_TRAINING_BATCH_SIZE = Number(
+  getServerEnv("TOGETHER_TRAINING_BATCH_SIZE") || "8",
+);
+const TOGETHER_TRAINING_LEARNING_RATE = Number(
+  getServerEnv("TOGETHER_TRAINING_LEARNING_RATE") || "1e-5",
+);
+const TOGETHER_TRAINING_WARMUP_RATIO = Number(
+  getServerEnv("TOGETHER_TRAINING_WARMUP_RATIO") || "0",
+);
 const SFT_TRAINING_ARGS = {
-  batchSize: Number(process.env.LOCAL_TRAINING_SFT_BATCH_SIZE || "1"),
-  iters: Number(process.env.LOCAL_TRAINING_SFT_ITERS || "40"),
-  learningRate: process.env.LOCAL_TRAINING_SFT_LEARNING_RATE || "1e-6",
-  numLayers: Number(process.env.LOCAL_TRAINING_SFT_NUM_LAYERS || "2"),
-  stepsPerReport: Number(process.env.LOCAL_TRAINING_SFT_STEPS_PER_REPORT || "10"),
-  stepsPerEval: Number(process.env.LOCAL_TRAINING_SFT_STEPS_PER_EVAL || "10"),
-  saveEvery: Number(process.env.LOCAL_TRAINING_SFT_SAVE_EVERY || "20"),
-  maxSeqLength: Number(process.env.LOCAL_TRAINING_SFT_MAX_SEQ_LENGTH || "2048"),
+  batchSize: Number(getServerEnv("LOCAL_TRAINING_SFT_BATCH_SIZE") || "1"),
+  iters: Number(getServerEnv("LOCAL_TRAINING_SFT_ITERS") || "40"),
+  learningRate: getServerEnv("LOCAL_TRAINING_SFT_LEARNING_RATE") || "1e-6",
+  numLayers: Number(getServerEnv("LOCAL_TRAINING_SFT_NUM_LAYERS") || "2"),
+  stepsPerReport: Number(getServerEnv("LOCAL_TRAINING_SFT_STEPS_PER_REPORT") || "10"),
+  stepsPerEval: Number(getServerEnv("LOCAL_TRAINING_SFT_STEPS_PER_EVAL") || "10"),
+  saveEvery: Number(getServerEnv("LOCAL_TRAINING_SFT_SAVE_EVERY") || "20"),
+  maxSeqLength: Number(getServerEnv("LOCAL_TRAINING_SFT_MAX_SEQ_LENGTH") || "2048"),
 };
 const DPO_TRAINING_ARGS = {
-  batchSize: Number(process.env.LOCAL_TRAINING_DPO_BATCH_SIZE || "1"),
-  iters: Number(process.env.LOCAL_TRAINING_DPO_ITERS || "30"),
-  learningRate: process.env.LOCAL_TRAINING_DPO_LEARNING_RATE || "5e-7",
-  numLayers: Number(process.env.LOCAL_TRAINING_DPO_NUM_LAYERS || "2"),
-  stepsPerReport: Number(process.env.LOCAL_TRAINING_DPO_STEPS_PER_REPORT || "5"),
-  stepsPerEval: Number(process.env.LOCAL_TRAINING_DPO_STEPS_PER_EVAL || "10"),
-  saveEvery: Number(process.env.LOCAL_TRAINING_DPO_SAVE_EVERY || "10"),
-  beta: process.env.LOCAL_TRAINING_DPO_BETA || "0.1",
-  maxSeqLength: Number(process.env.LOCAL_TRAINING_DPO_MAX_SEQ_LENGTH || "2048"),
+  batchSize: Number(getServerEnv("LOCAL_TRAINING_DPO_BATCH_SIZE") || "1"),
+  iters: Number(getServerEnv("LOCAL_TRAINING_DPO_ITERS") || "30"),
+  learningRate: getServerEnv("LOCAL_TRAINING_DPO_LEARNING_RATE") || "5e-7",
+  numLayers: Number(getServerEnv("LOCAL_TRAINING_DPO_NUM_LAYERS") || "2"),
+  stepsPerReport: Number(getServerEnv("LOCAL_TRAINING_DPO_STEPS_PER_REPORT") || "5"),
+  stepsPerEval: Number(getServerEnv("LOCAL_TRAINING_DPO_STEPS_PER_EVAL") || "10"),
+  saveEvery: Number(getServerEnv("LOCAL_TRAINING_DPO_SAVE_EVERY") || "10"),
+  beta: getServerEnv("LOCAL_TRAINING_DPO_BETA") || "0.1",
+  maxSeqLength: Number(getServerEnv("LOCAL_TRAINING_DPO_MAX_SEQ_LENGTH") || "2048"),
 };
 
 interface SnapshotSummary {
@@ -182,7 +215,7 @@ type TrainingArtifactSpec = {
   runtimeArtifactKind: ReviewTrainingRuntimeArtifactKind | null;
   remoteProvider?: string | null;
   remoteModelName?: string | null;
-  outputRootDir: string;
+  outputRootDir?: string;
   trainingResultPath: string;
 };
 
@@ -760,6 +793,8 @@ async function buildRunSpec(params: {
             DERIVE_MLX_RUNTIME_SCRIPT_PATH,
             "--model",
             TRAINING_BASE_MODEL,
+            "--runtime-base-model",
+            LOCAL_REPLY_MLX_MODEL,
             "--adapter-dir",
             adapterPath!,
             "--output-dir",
@@ -1061,7 +1096,11 @@ async function runTogetherTrainingWorker(
     suffix,
     lora: true,
     nEpochs: TOGETHER_TRAINING_EPOCHS,
+    nCheckpoints: TOGETHER_TRAINING_N_CHECKPOINTS,
     nEvals: TOGETHER_TRAINING_N_EVALS,
+    batchSize: TOGETHER_TRAINING_BATCH_SIZE,
+    learningRate: TOGETHER_TRAINING_LEARNING_RATE,
+    warmupRatio: TOGETHER_TRAINING_WARMUP_RATIO,
   });
 
   await updateTrainingRunStateInDb({

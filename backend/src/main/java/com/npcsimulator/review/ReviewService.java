@@ -53,12 +53,17 @@ public class ReviewService {
     private static final String JUDGE_REVIEW_SUMMARY_PATH = "data/evals/judged/judge-summary.json";
     private static final String HUMAN_REVIEW_SUMMARY_PATH = "data/review/live/human_review_summary.json";
     private static final String LLM_FIRST_PASS_SUMMARY_PATH = "data/review/live/llm_first_pass_summary.json";
+    private static final String EPISODE_EXPORT_DIR = "data/datasets/episodes";
     private static final String FINALIZE_SFT_KEEP_INPUT = "data/evals/filtered-live/keep_sft.jsonl";
     private static final String FINALIZE_SFT_OUTPUT_DIR = "data/train/sft/live";
     private static final String FINALIZE_PREFERENCE_INPUT = "data/evals/preference/candidate_pairs_live_gap1.jsonl";
     private static final String FINALIZE_PREFERENCE_OUTPUT_DIR = "data/train/preference/live";
-    private static final String DEFAULT_LOCAL_TRAINING_BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct";
-    private static final String DEFAULT_TOGETHER_TRAINING_BASE_MODEL =
+    private static final int SHADOW_INVALID_CASE_LIMIT = 8;
+    private static final String DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
+        "unsloth/Meta-Llama-3.1-8B-Instruct";
+    private static final String DEFAULT_LOCAL_REPLY_MLX_MODEL =
+        "mlx-community/Llama-3.1-8B-Instruct-4bit";
+    private static final String DEFAULT_REMOTE_TRAINING_BASE_MODEL =
         "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
     private static final String TOGETHER_REMOTE_PROVIDER = "together";
 
@@ -71,6 +76,9 @@ public class ReviewService {
     private final String datasourcePassword;
     private final String trainingExecutionMode;
     private final String trainingEvalMode;
+    private final String localTrainingBaseModel;
+    private final String localReplyMlxModel;
+    private final String remoteTrainingBaseModel;
     private final String trainingBaseModel;
     private final String trainingEvalCasesPath;
     private final String trainingEvalProvider;
@@ -104,7 +112,10 @@ public class ReviewService {
         @Value("${TRAINING_EXECUTION_MODE:}") String trainingExecutionMode,
         @Value("${LOCAL_TRAINING_EXECUTION_MODE:}") String legacyTrainingExecutionMode,
         @Value("${LOCAL_TRAINING_EVAL_MODE:golden}") String trainingEvalMode,
-        @Value("${CANONICAL_TRAINING_BASE_MODEL:}") String trainingBaseModel,
+        @Value("${LOCAL_CANONICAL_TRAINING_BASE_MODEL:}") String localTrainingBaseModel,
+        @Value("${CANONICAL_TRAINING_BASE_MODEL:}") String legacyTrainingBaseModel,
+        @Value("${LOCAL_REPLY_MLX_MODEL:}") String localReplyMlxModel,
+        @Value("${REMOTE_TRAINING_BASE_MODEL:}") String remoteTrainingBaseModel,
         @Value("${LOCAL_TRAINING_EVAL_CASES:backend/scripts/eval-cases/reply-golden-v1.json}") String trainingEvalCasesPath,
         @Value("${LOCAL_TRAINING_EVAL_PROVIDER:codex}") String trainingEvalProvider,
         @Value("${LOCAL_TRAINING_EVAL_JUDGE_MODEL:}") String trainingEvalJudgeModel,
@@ -137,7 +148,14 @@ public class ReviewService {
             firstNonBlank(trainingExecutionMode, legacyTrainingExecutionMode)
         );
         this.trainingEvalMode = trainingEvalMode == null ? "golden" : trainingEvalMode.trim().toLowerCase();
-        this.trainingBaseModel = resolveTrainingBaseModel(trainingBaseModel, this.trainingExecutionMode);
+        this.localTrainingBaseModel = resolveLocalTrainingBaseModel(localTrainingBaseModel, legacyTrainingBaseModel);
+        this.localReplyMlxModel = resolveLocalReplyMlxModel(localReplyMlxModel);
+        this.remoteTrainingBaseModel = resolveRemoteTrainingBaseModel(remoteTrainingBaseModel, legacyTrainingBaseModel);
+        this.trainingBaseModel = resolveTrainingBaseModel(
+            this.localTrainingBaseModel,
+            this.remoteTrainingBaseModel,
+            this.trainingExecutionMode
+        );
         this.trainingEvalCasesPath = trainingEvalCasesPath;
         this.trainingEvalProvider = trainingEvalProvider;
         this.trainingEvalJudgeModel = trainingEvalJudgeModel;
@@ -234,6 +252,7 @@ public class ReviewService {
         ObjectNode response = objectMapper.createObjectNode();
         response.set("humanRequired", datasetView(humanSftItems, humanPairItems));
         response.set("llmCompleted", datasetView(completedSftItems, completedPairItems));
+        response.set("shadowInvalidJson", buildShadowInvalidJsonSummary());
         return response;
     }
 
@@ -1481,6 +1500,96 @@ public class ReviewService {
         return response;
     }
 
+    private ObjectNode buildShadowInvalidJsonSummary() {
+        ObjectNode response = objectMapper.createObjectNode();
+        ArrayNode cases = objectMapper.createArrayNode();
+        int total = 0;
+        String latestExportedAt = null;
+        Path episodeDir = resolveProjectPath(EPISODE_EXPORT_DIR);
+
+        if (episodeDir == null || !Files.isDirectory(episodeDir)) {
+            response.put("total", 0);
+            response.set("latestExportedAt", NullNode.instance);
+            response.set("cases", cases);
+            return response;
+        }
+
+        try (Stream<Path> files = Files.list(episodeDir)) {
+            List<Path> episodeFiles = files
+                .filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().endsWith(".json"))
+                .sorted((left, right) -> right.getFileName().toString().compareTo(left.getFileName().toString()))
+                .toList();
+
+            for (Path file : episodeFiles) {
+                ObjectNode root = object(loadJsonFile(file));
+                ObjectNode episode = object(root.get("episode"));
+                JsonNode turns = root.get("turns");
+                if (turns == null || !turns.isArray()) {
+                    continue;
+                }
+
+                String exportedAt = extractText(episode, "exportedAt");
+                if (latestExportedAt == null && exportedAt != null) {
+                    latestExportedAt = exportedAt;
+                }
+
+                for (JsonNode turnNode : turns) {
+                    ObjectNode turn = object(turnNode);
+                    ObjectNode shadow = object(turn.get("shadowComparison"));
+                    if (!"invalid_json".equals(extractText(shadow, "status"))) {
+                        continue;
+                    }
+
+                    total += 1;
+                    if (cases.size() >= SHADOW_INVALID_CASE_LIMIT) {
+                        continue;
+                    }
+
+                    ObjectNode caseNode = objectMapper.createObjectNode();
+                    caseNode.set("episodeId", nullableTextNode(extractText(episode, "episodeId")));
+                    caseNode.put("scenarioId", defaultText(extractText(episode, "scenarioId"), "unknown-scenario"));
+                    caseNode.set("turnIndex", nullableNumberNode(extractNumber(turn, "turnIndex")));
+                    caseNode.put("npcId", defaultText(extractText(turn, "npcId"), "unknown"));
+                    caseNode.set("targetNpcId", nullableTextNode(extractText(turn, "targetNpcId")));
+                    caseNode.put(
+                        "playerText",
+                        defaultText(
+                            firstNonBlank(
+                                extractText(turn, "rawPlayerText"),
+                                extractText(turn, "normalizedInputSummary")
+                            ),
+                            ""
+                        )
+                    );
+                    caseNode.put("activeReplyText", defaultText(extractText(turn, "modelReplyText"), ""));
+                    caseNode.set("shadowLabel", nullableTextNode(extractText(shadow, "label")));
+                    caseNode.set("durationMs", nullableNumberNode(extractNumber(shadow, "durationMs")));
+                    caseNode.set("sourceRef", nullableTextNode(extractText(shadow, "sourceRef")));
+                    caseNode.set("error", nullableTextNode(extractText(shadow, "error")));
+                    caseNode.set("rawOutput", nullableTextNode(extractText(shadow, "rawOutput")));
+                    caseNode.set(
+                        "exportPath",
+                        nullableTextNode(requiredRepoRoot().relativize(file.toAbsolutePath().normalize()).toString())
+                    );
+                    caseNode.set("exportedAt", nullableTextNode(exportedAt));
+                    cases.add(caseNode);
+                }
+            }
+        } catch (IOException error) {
+            throw new ReviewApiException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Failed to scan episode exports for shadow invalid JSON cases.",
+                error
+            );
+        }
+
+        response.put("total", total);
+        response.set("latestExportedAt", nullableTextNode(latestExportedAt));
+        response.set("cases", cases);
+        return response;
+    }
+
     private ObjectNode pendingNode(ReviewRepository.PendingCounts pending) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("sft", pending.sft());
@@ -1789,6 +1898,8 @@ public class ReviewService {
                     resolveRequiredProjectPath(DERIVE_MLX_RUNTIME_SCRIPT).toString(),
                     "--model",
                     trainingBaseModel,
+                    "--runtime-base-model",
+                    localReplyMlxModel,
                     "--adapter-dir",
                     adapterPath.toString(),
                     "--output-dir",
@@ -1859,13 +1970,41 @@ public class ReviewService {
         return "local_peft";
     }
 
-    private static String resolveTrainingBaseModel(String configuredBaseModel, String executionMode) {
+    private static String resolveLocalTrainingBaseModel(String configuredLocalBaseModel, String legacyBaseModel) {
+        String configuredBaseModel = configuredLocalBaseModel;
+        if (configuredBaseModel == null || configuredBaseModel.isBlank()) {
+            configuredBaseModel = legacyBaseModel;
+        }
         if (configuredBaseModel != null && !configuredBaseModel.isBlank()) {
             return configuredBaseModel.trim();
         }
-        return "together_serverless_lora".equals(executionMode)
-            ? DEFAULT_TOGETHER_TRAINING_BASE_MODEL
-            : DEFAULT_LOCAL_TRAINING_BASE_MODEL;
+        return DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL;
+    }
+
+    private static String resolveLocalReplyMlxModel(String configuredRuntimeBaseModel) {
+        if (configuredRuntimeBaseModel != null && !configuredRuntimeBaseModel.isBlank()) {
+            return configuredRuntimeBaseModel.trim();
+        }
+        return DEFAULT_LOCAL_REPLY_MLX_MODEL;
+    }
+
+    private static String resolveRemoteTrainingBaseModel(String configuredRemoteBaseModel, String legacyBaseModel) {
+        String configuredBaseModel = configuredRemoteBaseModel;
+        if (configuredBaseModel == null || configuredBaseModel.isBlank()) {
+            configuredBaseModel = legacyBaseModel;
+        }
+        if (configuredBaseModel != null && !configuredBaseModel.isBlank()) {
+            return configuredBaseModel.trim();
+        }
+        return DEFAULT_REMOTE_TRAINING_BASE_MODEL;
+    }
+
+    private static String resolveTrainingBaseModel(
+        String localBaseModel,
+        String remoteBaseModel,
+        String executionMode
+    ) {
+        return "together_serverless_lora".equals(executionMode) ? remoteBaseModel : localBaseModel;
     }
 
     private void registerFinalizeArtifacts(String runUid) {

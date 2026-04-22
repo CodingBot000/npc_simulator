@@ -1,11 +1,108 @@
 import { Panel } from "@/components/ui/panel";
-import type { InspectorPayload, NpcState } from "@/lib/types";
+import type {
+  InspectorPayload,
+  LlmInteractionResult,
+  NpcState,
+  ShadowComparisonPayload,
+} from "@/lib/types";
 import { formatDimensionDelta } from "@/lib/utils";
 
 interface InspectorPanelProps {
   inspector: InspectorPayload | null;
   npc: NpcState;
   open: boolean;
+}
+
+function formatDuration(durationMs: number | null) {
+  if (durationMs == null) {
+    return "time n/a";
+  }
+
+  return `${durationMs}ms`;
+}
+
+function formatImpactTags(tags: string[]) {
+  return tags.length > 0 ? tags.join(", ") : "없음";
+}
+
+function formatTarget(targetNpcId: string | null) {
+  return targetNpcId ?? "없음";
+}
+
+function shadowStatusClassName(status: ShadowComparisonPayload["status"]) {
+  if (status === "parsed") {
+    return "border-[rgba(74,166,124,0.28)] bg-[rgba(74,166,124,0.16)] text-[var(--success)]";
+  }
+
+  if (status === "invalid_json") {
+    return "border-[rgba(176,91,45,0.32)] bg-[rgba(176,91,45,0.16)] text-[var(--accent)]";
+  }
+
+  return "border-[rgba(214,90,90,0.28)] bg-[rgba(214,90,90,0.16)] text-[var(--danger)]";
+}
+
+interface ComparisonResultCardProps {
+  label: string;
+  meta: string;
+  result: LlmInteractionResult;
+  targetNpcId: string | null;
+}
+
+function ComparisonResultCard({
+  label,
+  meta,
+  result,
+  targetNpcId,
+}: ComparisonResultCardProps) {
+  return (
+    <div className="rounded-[18px] border border-[var(--panel-border)] bg-black/10 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--teal)]">
+        {label}
+      </p>
+      <p className="mt-1 text-xs leading-5">{meta}</p>
+      <div className="mt-3 space-y-3 text-sm leading-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+            Reply
+          </p>
+          <p className="mt-1 text-foreground">{result.reply.text}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+            Emotion
+          </p>
+          <p className="mt-1 text-foreground">
+            {result.emotion.primary} · {result.emotion.reason}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+            Intent
+          </p>
+          <p className="mt-1 text-foreground">{result.intent.summary}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+            Selected Action
+          </p>
+          <p className="mt-1 text-foreground">{result.selectedAction.type}</p>
+          <p>{result.selectedAction.reason}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+            Structured Impact
+          </p>
+          <p className="mt-1 text-foreground">
+            {formatImpactTags(result.structuredImpact.impactTags)}
+          </p>
+          <p>
+            confidence {result.structuredImpact.confidence} · target{" "}
+            {formatTarget(targetNpcId)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function InspectorPanel({
@@ -18,6 +115,32 @@ export function InspectorPanel({
   }
 
   const activeInspector = inspector?.npcId === npc.persona.id ? inspector : inspector;
+  const activeResult: LlmInteractionResult | null = activeInspector
+    ? {
+        reply: {
+          text: activeInspector.replyText,
+        },
+        emotion: activeInspector.emotion,
+        intent: activeInspector.intent,
+        candidateActions: activeInspector.candidateActions,
+        selectedAction: activeInspector.selectedAction,
+        structuredImpact: activeInspector.structuredImpact,
+      }
+    : null;
+  const shadowComparison = activeInspector?.shadowComparison ?? null;
+  const shadowResult = shadowComparison?.result ?? null;
+  const selectedActionSummary =
+    shadowComparison?.status === "parsed" && shadowResult
+      ? shadowResult.selectedAction.type === activeInspector?.selectedAction.type
+        ? `selectedAction 일치 · ${shadowResult.selectedAction.type}`
+        : `selectedAction 차이 · active ${activeInspector?.selectedAction.type} / shadow ${shadowResult.selectedAction.type}`
+      : null;
+  const targetSummary =
+    shadowComparison?.status === "parsed" && shadowResult
+      ? shadowResult.structuredImpact.targetNpcId === activeInspector?.targetNpcId
+        ? `targetNpcId 일치 · ${formatTarget(shadowResult.structuredImpact.targetNpcId)}`
+        : `targetNpcId 차이 · active ${formatTarget(activeInspector?.targetNpcId ?? null)} / shadow ${formatTarget(shadowResult.structuredImpact.targetNpcId)}`
+      : null;
 
   return (
     <Panel
@@ -114,6 +237,65 @@ export function InspectorPanel({
               </p>
             </div>
           </section>
+
+          {shadowComparison && activeResult ? (
+            <section className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+                    Shadow Compare
+                  </p>
+                  <p className="mt-1 text-xs leading-5">
+                    현재 적용 결과와 shadow 모델 결과를 나란히 본다.
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${shadowStatusClassName(shadowComparison.status)}`}
+                >
+                  {shadowComparison.status}
+                </span>
+              </div>
+
+              <div className="mt-3 space-y-2 text-xs leading-5">
+                <p>
+                  {shadowComparison.label} · {formatDuration(shadowComparison.durationMs)}
+                </p>
+                {shadowComparison.sourceRef ? (
+                  <p className="break-all">{shadowComparison.sourceRef}</p>
+                ) : null}
+                {selectedActionSummary ? <p>{selectedActionSummary}</p> : null}
+                {targetSummary ? <p>{targetSummary}</p> : null}
+              </div>
+
+              {shadowComparison.status === "parsed" && shadowResult ? (
+                <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                  <ComparisonResultCard
+                    label="Active Turn Output"
+                    meta="현재 게임 진행에 반영된 결과"
+                    result={activeResult}
+                    targetNpcId={activeInspector.targetNpcId}
+                  />
+                  <ComparisonResultCard
+                    label={shadowComparison.label}
+                    meta={`shadow 실행 결과 · ${formatDuration(shadowComparison.durationMs)}`}
+                    result={shadowResult}
+                    targetNpcId={shadowResult.structuredImpact.targetNpcId}
+                  />
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <p className="leading-6 text-foreground">
+                    {shadowComparison.error ?? "Shadow 결과를 구조화 JSON으로 읽지 못했다."}
+                  </p>
+                  {shadowComparison.rawOutput ? (
+                    <pre className="max-h-56 overflow-auto rounded-[18px] border border-[var(--panel-border)] bg-black/15 p-4 text-xs leading-5 text-foreground whitespace-pre-wrap">
+                      {shadowComparison.rawOutput}
+                    </pre>
+                  ) : null}
+                </div>
+              )}
+            </section>
+          ) : null}
 
           <section className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">

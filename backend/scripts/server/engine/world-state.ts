@@ -24,6 +24,7 @@ function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
       text: entry.playerText || "짧게 숨을 고르며 방 안의 시선을 읽었다.",
       timestamp: entry.timestamp,
       action: entry.playerAction,
+      fallbackUsed: false,
     },
     {
       id: `${entry.id}-npc`,
@@ -32,6 +33,7 @@ function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
       text: entry.replyText,
       timestamp: entry.timestamp,
       action: entry.selectedAction,
+      fallbackUsed: entry.fallbackUsed ?? false,
     },
   ];
 }
@@ -128,6 +130,7 @@ export function buildWorldSnapshot(params: {
     datasetExportedAt: params.worldState.datasetExportedAt,
     exportPaths: params.worldState.exportPaths,
     presentation: { ...scenario.presentation },
+    scoring: { ...scenario.scoring },
     availableActions: [...scenario.actions],
     world: params.worldState.world,
     npcs,

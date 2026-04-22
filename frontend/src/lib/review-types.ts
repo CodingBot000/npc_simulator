@@ -138,9 +138,33 @@ export interface ReviewDatasetView {
   pairItems: PairReviewItemView[];
 }
 
+export interface ReviewShadowInvalidCaseView {
+  episodeId: string | null;
+  scenarioId: string;
+  turnIndex: number | null;
+  npcId: string;
+  targetNpcId: string | null;
+  playerText: string;
+  activeReplyText: string;
+  shadowLabel: string | null;
+  durationMs: number | null;
+  sourceRef: string | null;
+  error: string | null;
+  rawOutput: string | null;
+  exportPath: string | null;
+  exportedAt: string | null;
+}
+
+export interface ReviewShadowInvalidSummaryView {
+  total: number;
+  latestExportedAt: string | null;
+  cases: ReviewShadowInvalidCaseView[];
+}
+
 export interface ReviewDashboardData {
   humanRequired: ReviewDatasetView;
   llmCompleted: ReviewDatasetView;
+  shadowInvalidJson: ReviewShadowInvalidSummaryView;
 }
 
 export interface ReviewMutationResult {

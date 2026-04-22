@@ -12,6 +12,14 @@ interface StickySummaryHeaderProps {
   onTogglePinned: () => void;
 }
 
+function playerReadout(npc: NpcState) {
+  return [
+    `신 ${npc.relationship.playerTrust}`,
+    `호 ${npc.relationship.playerAffinity}`,
+    `긴 ${npc.relationship.playerTension}`,
+  ].join(" · ");
+}
+
 export function StickySummaryHeader({
   visible,
   pinned,
@@ -100,6 +108,13 @@ export function StickySummaryHeader({
                       {riskByNpcId[npc.persona.id] ?? 0}
                     </p>
                   </div>
+                  <p
+                    className={`mt-1 truncate text-[11px] leading-4 ${
+                      selected ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
+                    }`}
+                  >
+                    {playerReadout(npc)}
+                  </p>
                 </button>
               );
             })}

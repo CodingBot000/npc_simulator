@@ -46,7 +46,7 @@ export interface ScenarioScoringConfig {
   minRoundsBeforeResolution: number;
   maxRounds: number;
   instantConsensusVotes: number;
-  pressureThreshold: number;
+  leadGapThreshold: number;
 }
 
 export interface ScenarioSeeds {

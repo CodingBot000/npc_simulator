@@ -9,6 +9,7 @@ import type {
   ImpactTag,
   LlmInteractionResult,
 } from "@/lib/types";
+import { buildInteractionContract } from "@server/engine/interaction-contract";
 
 function targetLabel(input: GenerateInteractionInput) {
   if (input.targetNpc) {
@@ -24,6 +25,9 @@ function targetLabel(input: GenerateInteractionInput) {
 
 function selectedActionType(action: GenerateInteractionInput["request"]["action"]): AllowedActionType {
   switch (action) {
+    case "make_case":
+    case "expose":
+      return "accuse";
     case "ally":
       return "ally";
     case "appeal":
@@ -34,8 +38,6 @@ function selectedActionType(action: GenerateInteractionInput["request"]["action"
       return "stall";
     case "confess":
       return "defend";
-    case "make_case":
-    case "expose":
     default:
       return "probe";
   }
@@ -117,24 +119,33 @@ function impactFor(input: GenerateInteractionInput): {
 
 function replyFor(input: GenerateInteractionInput) {
   const focus = targetLabel(input);
+  const contract = buildInteractionContract({
+    inputMode: input.request.inputMode,
+    text: input.request.text,
+    action: input.request.action,
+    targetNpcId: input.request.targetNpcId,
+    targetNpcLabel: input.targetNpc?.persona.name ?? null,
+  });
 
   switch (input.request.action) {
     case "make_case":
-      return `${focus} 책임을 따지자는 뜻은 알겠어. 다만 감정 말고, 왜 지금 그 사람을 남겨야 하는지 더 분명한 근거가 필요해.`;
+      return `${focus} 책임을 묻자는 건 알겠어. 그러면 감정 말고 왜 지금 그 사람부터 따져야 하는지 근거를 더 분명히 말해.`;
     case "expose":
-      return `${focus} 쪽 기록을 꺼내면 방 분위기는 달라지겠지. 그 화살이 어디까지 가야 하는지는 조금 더 확인해 보자.`;
+      return `${focus} 관련 기록을 꺼내겠다는 거지. 사실이라면 그냥 넘길 수 없는 얘기야. 숨긴 게 뭔지 더 정확히 말해.`;
     case "appeal":
-      return "양심을 건드리려는 건 알겠어. 그래도 누가 실제로 멈출 수 있었는지는 끝까지 따져야 해.";
+      return "양심을 건드리려는 건 알겠어. 그래도 감정만으로 끝낼 순 없어. 누가 실제로 멈출 수 있었는지는 끝까지 따져야 해.";
     case "ally":
-      return `${focus} 쪽으로 같이 몰아 세우자는 거군. 지금은 그 편이 가장 현실적으로 들린다.`;
+      return `${focus} 쪽으로 같이 몰자는 제안으로 들린다. 내가 그 편에 서야 할 이유를 더 분명히 대봐.`;
     case "deflect":
-      return `${focus} 쪽으로 시선을 돌리려는 건 보인다. 그게 통하려면 나까지 납득할 이유가 더 필요해.`;
+      return `${focus} 쪽으로 화살을 돌리려는 거군. 왜 지금 그 사람부터 물어야 하는지 똑바로 말해.`;
     case "stall":
-      return "지금은 결론을 서두르지 말자. 한 번만 더 보면 누가 더 흔들리는지 조금 더 선명해질 거야.";
+      return "지금 결론 내리긴 이르다. 한 번 더 확인하고 움직이자. 지금은 서두를수록 말만 더 꼬인다.";
     case "confess":
-      return "작게라도 인정한 건 들었다. 그 정도 솔직함이면 당장 너만 몰아세우지는 않겠어.";
+      return "작게라도 인정한 건 들었다. 그럼 어디까지 네 잘못인지부터 분명히 해. 솔직함만으로 다 끝나진 않아.";
     default:
-      return `${focus} 이야기를 꺼낸 건 이해했어. 지금은 그 말이 방 안 압력을 어느 쪽으로 더 쏠리게 하는지 지켜보자.`;
+      return contract.mode === "free_text" && contract.normalizedPlayerText
+        ? `네 말은 들었다. ${contract.normalizedPlayerText}라는 쪽으로 몰아가려는 건 알겠어. 그게 왜 맞는지 더 분명히 말해.`
+        : `${focus} 이야기를 꺼낸 건 이해했어. 그 말이 왜 지금 이 판을 흔드는지부터 더 분명히 말해.`;
   }
 }
 

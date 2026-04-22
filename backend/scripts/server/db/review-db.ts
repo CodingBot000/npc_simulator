@@ -2143,6 +2143,50 @@ export async function updateTrainingRunStateInDb(params: {
   );
 }
 
+export async function updateTrainingRunRemoteDeploymentInDb(params: {
+  runUid: string;
+  remoteProvider: string;
+  remoteModelName: string;
+  message?: string | null;
+  deployment?: unknown;
+}) {
+  const result = await dbQuery<TrainingRunRow>(
+    "SELECT * FROM npc_training_run WHERE run_uid = $1 ORDER BY id DESC LIMIT 1",
+    [params.runUid],
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    throw new Error(`training run not found: ${params.runUid}`);
+  }
+
+  const existingParams = asObject(row.params_json);
+  const nextRemoteDeployment = {
+    ...asObject(existingParams.remoteDeployment),
+    ...asObject(params.deployment),
+  };
+
+  await dbQuery(
+    `UPDATE npc_training_run
+        SET remote_provider = $2,
+            remote_model_name = $3,
+            message = COALESCE($4, message),
+            params_json = $5,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE run_uid = $1`,
+    [
+      params.runUid,
+      params.remoteProvider,
+      params.remoteModelName,
+      params.message ?? null,
+      jsonParam({
+        ...existingParams,
+        remoteDeployment: nextRemoteDeployment,
+      }),
+    ],
+  );
+}
+
 export async function appendTrainingRunEventInDb(params: {
   runUid: string;
   level: string;

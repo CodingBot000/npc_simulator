@@ -8,7 +8,7 @@ import { apiResult, type ApiResult } from "@server/api/response";
 const requestSchema = z.object({
   npcId: z.string().min(1),
   targetNpcId: z.string().min(1).nullable(),
-  inputMode: z.enum(["free_text", "action"]),
+  inputMode: z.enum(["free_text", "action", "combined"]),
   text: z.string(),
   action: z.enum(playerActions).nullable(),
   playerId: z.string().min(1),

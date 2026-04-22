@@ -55,7 +55,7 @@ export type EmotionPrimary = (typeof emotionPrimaries)[number];
 export type AllowedActionType = (typeof allowedActionTypes)[number];
 export type PlayerAction = (typeof playerActions)[number];
 export type ImpactTag = (typeof impactTags)[number];
-export type InputMode = "free_text" | "action";
+export type InputMode = "free_text" | "action" | "combined";
 export type LlmProviderMode = "codex" | "openai" | "deterministic";
 
 export type NpcId = string;
@@ -211,6 +211,25 @@ export interface LlmInteractionResult {
   structuredImpact: StructuredImpactInference;
 }
 
+export type RuntimeArtifactKind =
+  | "mlx_adapter"
+  | "mlx_fused_model"
+  | "legacy_mlx_adapter";
+
+export type ShadowComparisonStatus = "parsed" | "invalid_json" | "error";
+
+export interface ShadowComparisonPayload {
+  label: string;
+  mode: "local_mlx";
+  status: ShadowComparisonStatus;
+  durationMs: number | null;
+  sourceRef: string | null;
+  artifactKind: RuntimeArtifactKind | null;
+  error: string | null;
+  rawOutput: string | null;
+  result: LlmInteractionResult | null;
+}
+
 export interface PressureImpact {
   blame: number;
   distrust: number;
@@ -240,6 +259,8 @@ export interface InspectorPayload {
   episodeId: string;
   npcId: string;
   targetNpcId: string | null;
+  replyText: string;
+  fallbackUsed?: boolean;
   retrievedMemories: RetrievedMemoryEntry[];
   retrievedKnowledge: RetrievedKnowledgeEvidence[];
   emotion: NpcEmotionState;
@@ -259,6 +280,7 @@ export interface InspectorPayload {
   llmPromptContextSummary: string;
   datasetExportedAt: string | null;
   exportPaths: EpisodeExportPaths;
+  shadowComparison: ShadowComparisonPayload | null;
 }
 
 export interface InteractionLogEntry {
@@ -267,6 +289,7 @@ export interface InteractionLogEntry {
   targetNpcId: string | null;
   playerId: string;
   inputMode: InputMode;
+  fallbackUsed?: boolean;
   roundBefore?: number;
   roundAfter?: number;
   playerText: string;
@@ -290,6 +313,7 @@ export interface InteractionLogEntry {
   leaderAfter?: ConsensusBoardEntry | null;
   resolutionAfter?: ResolutionState;
   round: number;
+  shadowComparison?: ShadowComparisonPayload | null;
 }
 
 export interface ChatMessage {
@@ -299,6 +323,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   action: PlayerAction | AllowedActionType | null;
+  fallbackUsed?: boolean;
 }
 
 export interface RuntimeStatus {
@@ -317,6 +342,13 @@ export interface ScenarioPresentationSnapshot {
   interactionPlaceholder: string;
   boardTitle: string;
   boardSubtitle: string;
+}
+
+export interface ScenarioScoringSnapshot {
+  minRoundsBeforeResolution: number;
+  maxRounds: number;
+  instantConsensusVotes: number;
+  leadGapThreshold: number;
 }
 
 export interface AvailableActionDefinition {
@@ -413,6 +445,7 @@ export interface WorldSnapshot {
   datasetExportedAt: string | null;
   exportPaths: EpisodeExportPaths;
   presentation: ScenarioPresentationSnapshot;
+  scoring: ScenarioScoringSnapshot;
   availableActions: AvailableActionDefinition[];
   world: WorldMeta;
   npcs: NpcState[];

@@ -1,9 +1,14 @@
 import { Panel } from "@/components/ui/panel";
-import type { RoundState, WorldMeta } from "@/lib/types";
+import type {
+  RoundState,
+  ScenarioScoringSnapshot,
+  WorldMeta,
+} from "@/lib/types";
 
 interface MissionBriefCardProps {
   busy: boolean;
   round: RoundState;
+  scoring: ScenarioScoringSnapshot;
   world: WorldMeta;
   onRestart: () => void;
 }
@@ -20,9 +25,19 @@ function roundStatusLabel(round: RoundState) {
   return "이제 결말이 날 수 있는 구간";
 }
 
+function resolutionRuleText(scoring: ScenarioScoringSnapshot) {
+  return [
+    `최소 ${scoring.minRoundsBeforeResolution}라운드 이후`,
+    `1위와 2위의 압력차가 ${scoring.leadGapThreshold} 이상이 되거나`,
+    `한 후보가 ${scoring.instantConsensusVotes}표를 모으거나`,
+    `${scoring.maxRounds}라운드에 도달하면 결말이 난다.`,
+  ].join(" ");
+}
+
 export function MissionBriefCard({
   busy,
   round,
+  scoring,
   world,
   onRestart,
 }: MissionBriefCardProps) {
@@ -51,6 +66,10 @@ export function MissionBriefCard({
           </p>
           <p className="mt-2 text-sm leading-7 text-foreground">
             네가 아니라 다른 한 사람이 밸브실에 남도록 판세를 움직여라.
+            <br />
+            <span className="text-[var(--ink-muted)]">
+              종료조건: {resolutionRuleText(scoring)}
+            </span>
           </p>
         </article>
 

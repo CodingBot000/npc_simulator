@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const bodyFont = Noto_Sans_KR({
+const bodyFont = localFont({
+  src: "./fonts/NotoSansKR-Variable.ttf",
   variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: "100 900",
+  style: "normal",
+  display: "swap",
 });
 
-const displayFont = Space_Grotesk({
+const displayFont = localFont({
+  src: "./fonts/SpaceGrotesk-Variable.ttf",
   variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "700"],
+  weight: "300 700",
+  style: "normal",
+  display: "swap",
 });
 
 export const metadata: Metadata = {

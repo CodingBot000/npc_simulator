@@ -17,6 +17,7 @@ import type {
   ReviewFinalizeStatusView,
   ReviewDatasetView,
   ReviewKind,
+  ReviewShadowInvalidCaseView,
   ReviewSourceMode,
   ReviewTrainingBindingKey,
   ReviewTrainingKind,
@@ -232,6 +233,74 @@ function TextBlock({
       className={`rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-7 text-foreground/95 ${className}`}
     >
       {children}
+    </div>
+  );
+}
+
+function ShadowInvalidCaseCard({
+  item,
+}: {
+  item: ReviewShadowInvalidCaseView;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-[rgba(209,111,76,0.16)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+          invalid_json
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[11px] text-[var(--ink-muted)]">
+          turn {item.turnIndex ?? "-"}
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[11px] text-[var(--ink-muted)]">
+          {item.npcId}
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-2 text-sm leading-6 text-[var(--ink-muted)]">
+        <p>
+          episode {item.episodeId ?? "-"} · {formatTimestamp(item.exportedAt)}
+        </p>
+        <p>
+          source {item.shadowLabel ?? "-"} · {formatDuration(item.durationMs)}
+        </p>
+        {item.sourceRef ? <p className="break-all">{item.sourceRef}</p> : null}
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+            Player Input
+          </p>
+          <TextBlock>{item.playerText || "-"}</TextBlock>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+            Active Reply
+          </p>
+          <TextBlock>{item.activeReplyText || "-"}</TextBlock>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+            Shadow Error
+          </p>
+          <TextBlock>{item.error || "-"}</TextBlock>
+        </div>
+
+        <details className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-foreground">
+            Raw Output 보기
+          </summary>
+          <TextBlock className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6">
+            {item.rawOutput || "-"}
+          </TextBlock>
+        </details>
+
+        {item.exportPath ? (
+          <p className="text-xs leading-5 text-[var(--ink-muted)]">{item.exportPath}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1848,6 +1917,41 @@ export function ReviewDashboard({
       </header>
 
       <CardSurface>
+        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
+            <p className="text-sm font-semibold text-foreground">Shadow invalid_json</p>
+            <p className="text-sm text-[var(--ink-muted)]">
+              local structured shadow 모델이 JSON 형식을 못 지킨 케이스만 따로 모아 본다.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-[rgba(209,111,76,0.16)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+                총 {data.shadowInvalidJson.total}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
+                최신 export {formatTimestamp(data.shadowInvalidJson.latestExportedAt)}
+              </span>
+            </div>
+          </div>
+
+          {data.shadowInvalidJson.cases.length > 0 ? (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {data.shadowInvalidJson.cases.map((item) => (
+                <ShadowInvalidCaseCard
+                  key={`${item.exportPath ?? "shadow"}:${item.turnIndex ?? "turn"}:${item.npcId}`}
+                  item={item}
+                />
+              ))}
+            </div>
+          ) : (
+            <TextBlock>
+              아직 export된 episode 중에서 `shadowComparison.status=invalid_json`로 수집된 케이스가 없습니다.
+              shadow compare를 켠 상태로 episode를 몇 번 더 export하면 여기에 최신 실패 케이스가 쌓입니다.
+            </TextBlock>
+          )}
+        </div>
+      </CardSurface>
+
+      <CardSurface>
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -2050,7 +2154,7 @@ export function ReviewDashboard({
             <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
               <p className="text-sm font-semibold text-foreground">Training</p>
               <p className="text-sm text-[var(--ink-muted)]">
-                finalize가 최신 상태일 때만 로컬 Qwen SFT / DPO 학습을 시작할 수 있습니다.
+                finalize가 최신 상태일 때만 로컬 Llama 3.1 SFT / DPO 학습을 시작할 수 있습니다.
               </p>
               <label className="block">
                 <div className="mb-2 flex items-center justify-between gap-3">

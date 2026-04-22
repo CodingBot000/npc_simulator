@@ -6,6 +6,11 @@ import { runStructuredLlmJudge } from "../_quality-judge-helpers.mjs";
 import { appConfig, PROJECT_ROOT } from "@server/config";
 import { closeDbPool, dbQuery } from "@server/db/postgres";
 import {
+  createRunpodVllmRunSync,
+  extractRunpodVllmText,
+} from "@server/runpod-client";
+import { parseRemoteProviderRef } from "@server/remote-provider";
+import {
   createTogetherChatCompletion,
   extractTogetherChatText,
 } from "@server/together-client";
@@ -149,6 +154,12 @@ type RuntimeTarget =
     }
   | {
       kind: "together";
+      model: string;
+      provider: string | null;
+    }
+  | {
+      kind: "runpod";
+      endpointId: string;
       model: string;
       provider: string | null;
     };
@@ -457,6 +468,29 @@ async function runGenerate(params: {
     return text;
   }
 
+  if (params.target.kind === "runpod") {
+    const response = await createRunpodVllmRunSync({
+      endpointId: params.target.endpointId,
+      messages: [
+        {
+          role: "system",
+          content: resolveSystemPrompt(params.npcId),
+        },
+        {
+          role: "user",
+          content: params.prompt,
+        },
+      ],
+      maxTokens: appConfig.localReply.maxTokens,
+      temperature: 0.7,
+    });
+    const text = normalizeReplyText(extractRunpodVllmText(response) ?? "");
+    if (!text) {
+      throw new Error("empty Runpod reply");
+    }
+    return text;
+  }
+
   const args =
     params.target.artifactPath && params.target.artifactKind === "mlx_fused_model"
       ? [
@@ -722,6 +756,40 @@ function buildReport(summary: Record<string, unknown>) {
   ].join("\n");
 }
 
+function resolveRemoteRuntimeTarget(params: {
+  remoteProvider: string | null;
+  remoteModelName: string | null;
+  trainingBackend?: string | null;
+}): RuntimeTarget | null {
+  if (!params.remoteModelName) {
+    return null;
+  }
+
+  const parsedProvider = parseRemoteProviderRef(params.remoteProvider);
+  if (parsedProvider?.kind === "runpod") {
+    return {
+      kind: "runpod",
+      endpointId: parsedProvider.endpointId,
+      model: params.remoteModelName,
+      provider: params.remoteProvider,
+    };
+  }
+
+  if (
+    parsedProvider?.kind === "together" ||
+    params.trainingBackend === "together_serverless_lora" ||
+    !params.remoteProvider
+  ) {
+    return {
+      kind: "together",
+      model: params.remoteModelName,
+      provider: params.remoteProvider,
+    };
+  }
+
+  throw new Error(`unsupported remote provider for eval target: ${params.remoteProvider}`);
+}
+
 export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
   const run = await readTrainingRun(args.runId);
   const candidateRuntimePath =
@@ -731,12 +799,13 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
   }
 
   let candidateTarget: RuntimeTarget;
-  if (run.remote_model_name) {
-    candidateTarget = {
-      kind: "together",
-      model: run.remote_model_name,
-      provider: run.remote_provider,
-    };
+  const candidateRemoteTarget = resolveRemoteRuntimeTarget({
+    remoteProvider: run.remote_provider,
+    remoteModelName: run.remote_model_name,
+    trainingBackend: run.training_backend,
+  });
+  if (candidateRemoteTarget) {
+    candidateTarget = candidateRemoteTarget;
   } else if (candidateRuntimePath) {
     if (!(await pathExists(LOCAL_MLX_BINARY))) {
       throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);
@@ -761,12 +830,12 @@ export async function runTrainingGoldenEvalWorker(args: WorkerArgs) {
       ? args.baselineAdapterPath
       : null;
   let baselineTarget: RuntimeTarget;
-  if (args.baselineRemoteModel) {
-    baselineTarget = {
-      kind: "together",
-      model: args.baselineRemoteModel,
-      provider: args.baselineRemoteProvider,
-    };
+  const baselineRemoteTarget = resolveRemoteRuntimeTarget({
+    remoteProvider: args.baselineRemoteProvider,
+    remoteModelName: args.baselineRemoteModel,
+  });
+  if (baselineRemoteTarget) {
+    baselineTarget = baselineRemoteTarget;
   } else if (baselineAdapterPath) {
     if (!(await pathExists(LOCAL_MLX_BINARY))) {
       throw new Error(`MLX binary not found: ${LOCAL_MLX_BINARY}`);

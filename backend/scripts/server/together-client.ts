@@ -185,11 +185,14 @@ export async function uploadTogetherFile(params: {
   purpose?: string;
 }) {
   const fileBytes = await fs.readFile(params.filePath);
+  const filename = path.basename(params.filePath);
   const form = new FormData();
   form.set("purpose", params.purpose ?? "fine-tune");
+  form.set("file_name", filename);
+  form.set("file_type", "jsonl");
   form.set(
     "file",
-    new File([fileBytes], path.basename(params.filePath), {
+    new File([fileBytes], filename, {
       type: "application/jsonl",
     }),
   );
@@ -304,4 +307,3 @@ export function extractTogetherChatText(response: TogetherChatResponse) {
   }
   return trimToNull(firstChoice?.text);
 }
-

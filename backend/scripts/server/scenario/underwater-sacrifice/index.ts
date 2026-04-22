@@ -40,32 +40,32 @@ export const underwaterSacrificeScenario: ScenarioDefinition = {
   actions: [
     {
       id: "make_case",
-      label: "논리 제시",
-      description: "대상이 왜 가장 남아야 하는 사람인지 논리로 몰아간다.",
+      label: "책임 묻기",
+      description: "타겟이 왜 남아야 하는지 논리부터 세운다.",
       requiresTarget: true,
     },
     {
       id: "expose",
-      label: "폭로",
-      description: "기록, 결정, 숨겨진 책임을 꺼내 대상의 압력을 높인다.",
+      label: "사실 확인",
+      description: "타겟에게 불리한 기록과 사실을 꺼내 몰아세운다.",
       requiresTarget: true,
     },
     {
       id: "appeal",
-      label: "감정 호소",
-      description: "죄책감, 연민, 의무감을 자극한다. 대상이 있으면 그 사람을 감싸거나 흔든다.",
+      label: "양심 흔들기",
+      description: "죄책감과 연민을 자극해 상대의 판단을 흔든다.",
       requiresTarget: false,
     },
     {
       id: "ally",
-      label: "연대 제안",
-      description: "지금 말 걸고 있는 인물과 공동전선을 만들고 타깃을 고립시킨다.",
+      label: "편들기",
+      description: "현재 대화상대와 한편이 되어 타겟을 고립시킨다.",
       requiresTarget: true,
     },
     {
       id: "deflect",
-      label: "책임 전가",
-      description: "당신에게 온 책임과 의심을 다른 사람 쪽으로 돌린다.",
+      label: "화살 돌리기",
+      description: "당신에게 온 책임과 시선을 타겟에게 돌린다.",
       requiresTarget: true,
     },
     {
@@ -76,8 +76,8 @@ export const underwaterSacrificeScenario: ScenarioDefinition = {
     },
     {
       id: "confess",
-      label: "부분 자백",
-      description: "작은 잘못을 먼저 인정해 더 큰 불신을 막는다.",
+      label: "작게 인정하기",
+      description: "내 잘못을 먼저 인정해 나에게 몰린 압박을 낮춘다.",
       requiresTarget: false,
     },
   ],
@@ -87,7 +87,7 @@ export const underwaterSacrificeScenario: ScenarioDefinition = {
     minRoundsBeforeResolution: 4,
     maxRounds: 7,
     instantConsensusVotes: 3,
-    pressureThreshold: 96,
+    leadGapThreshold: 140,
   },
   seeds: underwaterSeeds,
 };
