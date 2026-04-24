@@ -15,6 +15,8 @@ import type {
   JudgementDimensions,
   PlayerAction,
   RelationshipState,
+  ScenarioScoringSnapshot,
+  WorldSnapshot,
 } from "@/lib/types";
 
 export function clamp(value: number, min: number, max: number) {
@@ -192,4 +194,30 @@ export function formatDimensionDelta(
     })
     .map((key) => `${PRESSURE_DIMENSION_LABELS[key]} ${formatDelta(delta[key] ?? 0)}`)
     .join(" / ");
+}
+
+export function hasScenarioScoring(
+  scoring: ScenarioScoringSnapshot | null | undefined,
+): scoring is ScenarioScoringSnapshot {
+  return Boolean(
+    scoring &&
+      Number.isFinite(scoring.minRoundsBeforeResolution) &&
+      Number.isFinite(scoring.maxRounds) &&
+      Number.isFinite(scoring.instantConsensusVotes) &&
+      Number.isFinite(scoring.leadGapThreshold),
+  );
+}
+
+export function mergeWorldSnapshotScoring(
+  snapshot: WorldSnapshot,
+  fallbackScoring: ScenarioScoringSnapshot | null | undefined,
+) {
+  if (hasScenarioScoring(snapshot.scoring) || !hasScenarioScoring(fallbackScoring)) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    scoring: fallbackScoring,
+  } satisfies WorldSnapshot;
 }

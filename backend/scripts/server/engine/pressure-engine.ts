@@ -1,7 +1,7 @@
 import {
   DEFAULT_PLAYER_ID,
   DEFAULT_PLAYER_LABEL,
-} from "@/lib/constants";
+} from "@backend-shared/constants";
 import type {
   CandidateId,
   ConsensusBoardEntry,
@@ -15,12 +15,12 @@ import type {
   ResolutionState,
   RoundState,
   StructuredImpactInference,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import {
   candidateLabel,
   clamp,
   pressureSummary,
-} from "@/lib/utils";
+} from "@backend-shared/utils";
 import { buildPressureAdjustment, buildRelationshipDeltaForNpc } from "@server/engine/pressure-rules";
 import {
   buildRelationshipDeltaFromImpact,
@@ -49,7 +49,7 @@ function uniqueCandidateIds(judgements: JudgementState[]) {
   return Array.from(new Set(judgements.map((entry) => entry.candidateId)));
 }
 
-function emptyDimensionDelta(): Partial<JudgementDimensions> {
+export function emptyDimensionDelta(): Partial<JudgementDimensions> {
   return {
     blame: 0,
     distrust: 0,
@@ -60,7 +60,7 @@ function emptyDimensionDelta(): Partial<JudgementDimensions> {
   };
 }
 
-function sumDimensionDelta(
+export function sumDimensionDelta(
   current: Partial<JudgementDimensions>,
   delta: Partial<JudgementDimensions>,
 ) {
@@ -77,7 +77,7 @@ function withDelta(value: number, delta: number) {
   return clamp(Math.round(value + delta), 0, 40);
 }
 
-function updateJudgementDimensions(
+export function updateJudgementDimensions(
   dimensions: JudgementDimensions,
   delta: Partial<JudgementDimensions>,
 ) {

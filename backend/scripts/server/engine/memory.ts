@@ -2,7 +2,7 @@ import {
   MAX_LONG_MEMORIES,
   MAX_RETRIEVED_MEMORIES,
   MAX_SHORT_MEMORIES,
-} from "@/lib/constants";
+} from "@backend-shared/constants";
 import type {
   LlmInteractionResult,
   MemoryEntry,
@@ -12,8 +12,8 @@ import type {
   RetrievedMemoryEntry,
   RelationshipDelta,
   ResolutionState,
-} from "@/lib/types";
-import { clamp, extractTags, nowIso, tokenize } from "@/lib/utils";
+} from "@backend-shared/types";
+import { clamp, extractTags, nowIso, tokenize } from "@backend-shared/utils";
 
 export function retrieveRelevantMemories(
   memories: MemoryEntry[],

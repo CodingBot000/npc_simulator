@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { GenerateInteractionInput } from "@/lib/types";
+import type { GenerateInteractionInput } from "@backend-shared/types";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { dbQuery } from "@server/db/postgres";
 import {
@@ -420,6 +420,10 @@ function resolveInteractionContract(input: GenerateInteractionInput) {
     action: input.request.action,
     targetNpcId: input.request.targetNpcId,
     targetNpcLabel: input.targetNpc?.persona.name ?? null,
+    targetCandidates: input.consensusBoard.map((entry) => ({
+      id: entry.candidateId,
+      label: entry.candidateLabel,
+    })),
   });
 }
 

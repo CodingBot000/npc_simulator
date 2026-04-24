@@ -1,4 +1,4 @@
-import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@/lib/constants";
+import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@backend-shared/constants";
 import type {
   ChatMessage,
   EventLogEntry,
@@ -7,8 +7,8 @@ import type {
   RuntimeStatus,
   WorldSnapshot,
   WorldStateFile,
-} from "@/lib/types";
-import { formatDimensionDelta, groupBy } from "@/lib/utils";
+} from "@backend-shared/types";
+import { formatDimensionDelta, groupBy } from "@backend-shared/utils";
 import { buildConsensusBoard } from "@server/engine/pressure-engine";
 import { buildRuntimeStatus } from "@server/providers/llm-provider";
 import { getCurrentScenario } from "@server/scenario";
@@ -58,8 +58,8 @@ export function composeInteractionEventLogEntry(params: {
   selectedActionLabel: string;
   promptSummary: string;
   targetLabel: string | null;
-  pressureChanges: import("@/lib/types").PressureChange[];
-  resolution: import("@/lib/types").ResolutionState;
+  pressureChanges: import("@backend-shared/types").PressureChange[];
+  resolution: import("@backend-shared/types").ResolutionState;
 }) {
   const tone: EventLogEntry["tone"] = params.resolution.resolved
     ? "danger"

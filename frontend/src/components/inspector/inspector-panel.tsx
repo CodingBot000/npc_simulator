@@ -343,6 +343,43 @@ export function InspectorPanel({
             </ul>
           </section>
 
+          {activeInspector.autonomyPhase ? (
+            <section className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+                Autonomy Phase
+              </p>
+              <p className="text-xs leading-5">
+                draw {activeInspector.autonomyPhase.drawCountBefore} →{" "}
+                {activeInspector.autonomyPhase.drawCountAfter}
+                {" · "}
+                {activeInspector.autonomyPhase.executed
+                  ? `${activeInspector.autonomyPhase.steps.length} step`
+                  : "no follow-up"}
+              </p>
+              <ul className="mt-3 space-y-3 leading-6">
+                {activeInspector.autonomyPhase.steps.length > 0 ? (
+                  activeInspector.autonomyPhase.steps.map((step, index) => (
+                    <li key={`${step.actorNpcId}-${step.moveType}-${index}`}>
+                      <p className="font-semibold text-foreground">
+                        {index + 1}. {step.actorLabel} · {step.moveType}
+                        {step.targetLabel ? ` · ${step.targetLabel}` : ""}
+                      </p>
+                      <p>{step.summary}</p>
+                      <p className="text-xs">
+                        {step.rationale}
+                        {step.secondaryTargetLabel
+                          ? ` · from ${step.secondaryTargetLabel}`
+                          : ""}
+                      </p>
+                    </li>
+                  ))
+                ) : (
+                  <li>이번 턴에는 NPC 후속 반응이 발생하지 않았다.</li>
+                )}
+              </ul>
+            </section>
+          ) : null}
+
           <section className="rounded-[22px] border border-[var(--panel-border)] bg-white/20 p-4">
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
               Selected Action

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { LlmProviderMode, RuntimeArtifactKind } from "@/lib/types";
+import type { LlmProviderMode, RuntimeArtifactKind } from "@backend-shared/types";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
   "unsloth/Meta-Llama-3.1-8B-Instruct";
@@ -253,5 +253,8 @@ export const appConfig = {
     ),
     mlxModel: getServerEnv("SHADOW_COMPARE_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL,
     maxTokens: Number(getServerEnv("SHADOW_COMPARE_MAX_TOKENS") || "360"),
+  },
+  npcAutonomy: {
+    debugSeed: getServerEnv("NPC_AUTONOMY_DEBUG_SEED"),
   },
 };

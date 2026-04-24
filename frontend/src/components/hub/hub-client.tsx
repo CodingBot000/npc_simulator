@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import { EventLog } from "@/components/hub/event-log";
 import { InteractionPanel } from "@/components/hub/interaction-panel";
@@ -19,7 +17,12 @@ import type {
   PlayerAction,
   WorldSnapshot,
 } from "@/lib/types";
-import { formatPlayerConversationText, nowIso } from "@/lib/utils";
+import {
+  formatPlayerConversationText,
+  hasScenarioScoring,
+  mergeWorldSnapshotScoring,
+  nowIso,
+} from "@/lib/utils";
 
 function isApiError(
   payload: InteractionResponsePayload | WorldSnapshot | { message?: string },
@@ -34,6 +37,28 @@ interface HubClientProps {
 interface PendingConversationTurn {
   npcId: string;
   playerMessage: ChatMessage;
+  startedAtMs: number;
+}
+
+function findLatestNpcReplyMessage(
+  conversation: ChatMessage[],
+  replyText: string,
+  previousMessageIds: Set<string>,
+) {
+  return (
+    [...conversation]
+      .reverse()
+      .find(
+        (message) =>
+          message.speaker === "npc" &&
+          message.text === replyText &&
+          !previousMessageIds.has(message.id),
+      ) ??
+    [...conversation]
+      .reverse()
+      .find((message) => message.speaker === "npc" && !previousMessageIds.has(message.id)) ??
+    null
+  );
 }
 
 export function HubClient({ initialWorld }: HubClientProps) {
@@ -56,11 +81,15 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
   const [pendingConversationTurn, setPendingConversationTurn] =
     useState<PendingConversationTurn | null>(null);
+  const [replyElapsedByMessageId, setReplyElapsedByMessageId] = useState<
+    Record<string, number>
+  >({});
   const [showStickySummary, setShowStickySummary] = useState(false);
   const [stickyPinned, setStickyPinned] = useState(false);
   const [gameOverOpen, setGameOverOpen] = useState(
     initialWorld.resolution.resolved,
   );
+  const scoringRecoveryAttemptedRef = useRef(hasScenarioScoring(initialWorld.scoring));
   const summarySectionRef = useRef<HTMLDivElement | null>(null);
   const allowDevTools =
     typeof window !== "undefined" &&
@@ -92,9 +121,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
   ];
   const waitingForSelectedNpcReply =
     interactionBusy && pendingConversationTurn?.npcId === selectedNpc.persona.id;
-  const stickyConsensusEntries = world.consensusBoard
-    .filter((entry) => entry.candidateId !== DEFAULT_PLAYER_ID)
-    .slice(0, world.npcs.length);
+  const stickyConsensusEntries = world.consensusBoard.slice(0, world.npcs.length + 1);
 
   useEffect(() => {
     if (selectedTargetId === selectedNpc.persona.id) {
@@ -107,6 +134,41 @@ export function HubClient({ initialWorld }: HubClientProps) {
       setGameOverOpen(true);
     }
   }, [world.resolution.resolved]);
+
+  useEffect(() => {
+    if (hasScenarioScoring(world.scoring) || scoringRecoveryAttemptedRef.current) {
+      return;
+    }
+
+    scoringRecoveryAttemptedRef.current = true;
+    const controller = new AbortController();
+
+    async function recoverScoring() {
+      try {
+        const response = await fetch(buildClientApiUrl("/api/world"), {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as
+          | WorldSnapshot
+          | { message?: string };
+
+        if (!response.ok || isApiError(payload)) {
+          return;
+        }
+
+        setWorld((current) =>
+          mergeWorldSnapshotScoring(payload as WorldSnapshot, current.scoring),
+        );
+      } catch {
+        // Keep the generic fallback text when recovery fails.
+      }
+    }
+
+    void recoverScoring();
+
+    return () => controller.abort();
+  }, [world.scoring]);
 
   useEffect(() => {
     const target = summarySectionRef.current;
@@ -136,6 +198,8 @@ export function HubClient({ initialWorld }: HubClientProps) {
     text: string;
   }) {
     const timestamp = nowIso();
+    const requestStartedAtMs = Date.now();
+    const previousMessageIds = new Set(baseConversation.map((message) => message.id));
     const pendingTargetLabel =
       selectedTargetId
         ? targetOptions.find((option) => option.id === selectedTargetId)?.label ??
@@ -147,6 +211,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
     setDraftWarning(null);
     setPendingConversationTurn({
       npcId: selectedNpc.persona.id,
+      startedAtMs: requestStartedAtMs,
       playerMessage: {
         id: `pending-${crypto.randomUUID()}`,
         npcId: selectedNpc.persona.id,
@@ -189,8 +254,29 @@ export function HubClient({ initialWorld }: HubClientProps) {
         );
       }
 
-      setWorld((data as InteractionResponsePayload).world);
-      setLastOutcome(data as InteractionResponsePayload);
+      const responsePayload = data as InteractionResponsePayload;
+      const updatedConversation =
+        responsePayload.world.conversations[selectedNpc.persona.id] ?? [];
+      const replyMessage = findLatestNpcReplyMessage(
+        updatedConversation,
+        responsePayload.reply.text,
+        previousMessageIds,
+      );
+
+      if (replyMessage) {
+        setReplyElapsedByMessageId((current) => ({
+          ...current,
+          [replyMessage.id]: Date.now() - requestStartedAtMs,
+        }));
+      }
+
+      setWorld((current) =>
+        mergeWorldSnapshotScoring(
+          responsePayload.world,
+          current.scoring,
+        ),
+      );
+      setLastOutcome(responsePayload);
       setPendingConversationTurn(null);
       setDraft("");
     } catch (fetchError) {
@@ -224,7 +310,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
         );
       }
 
-      setWorld(data as WorldSnapshot);
+      setWorld((current) =>
+        mergeWorldSnapshotScoring(data as WorldSnapshot, current.scoring),
+      );
       setSelectedNpcId((data as WorldSnapshot).npcs[0]?.persona.id ?? "");
       setSelectedTargetId(
         (data as WorldSnapshot).npcs[1]?.persona.id ??
@@ -232,6 +320,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
           null,
       );
       setPendingConversationTurn(null);
+      setReplyElapsedByMessageId({});
       setLastOutcome(null);
       setDraft("");
       setDraftWarning(null);
@@ -349,6 +438,12 @@ export function HubClient({ initialWorld }: HubClientProps) {
                 draft={draft}
                 busy={busy}
                 waitingForReply={waitingForSelectedNpcReply}
+                pendingReplyStartedAtMs={
+                  pendingConversationTurn?.npcId === selectedNpc.persona.id
+                    ? pendingConversationTurn.startedAtMs
+                    : null
+                }
+                replyElapsedByMessageId={replyElapsedByMessageId}
                 subtitle={world.presentation.interactionSubtitle}
                 placeholder={world.presentation.interactionPlaceholder}
                 availableActions={world.availableActions}

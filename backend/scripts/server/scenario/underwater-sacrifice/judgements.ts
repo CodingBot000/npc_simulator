@@ -1,5 +1,5 @@
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
-import type { JudgementDimensions, JudgementState } from "@/lib/types";
+import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
+import type { JudgementDimensions, JudgementState } from "@backend-shared/types";
 
 function judgementScore(dimensions: JudgementDimensions) {
   return (

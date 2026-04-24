@@ -1,7 +1,7 @@
 import type {
   GenerateInteractionInput,
   LlmInteractionResult,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import { buildFallbackInteractionResult } from "@server/engine/fallback-interaction";
 
 export class DeterministicProvider {

@@ -1,8 +1,9 @@
-FROM node:22-bookworm-slim AS node-deps
+FROM node:22-trixie-slim AS node-deps
 WORKDIR /workspace
 
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/package.json
+COPY backend/scripts/package.json backend/scripts/package.json
 
 RUN npm ci
 
@@ -17,7 +18,7 @@ COPY backend/src src
 RUN chmod +x gradlew
 RUN ./gradlew --no-daemon bootJar
 
-FROM node:22-bookworm-slim
+FROM node:22-trixie-slim
 WORKDIR /workspace
 
 RUN apt-get update \
@@ -29,7 +30,6 @@ ENV NPC_SIMULATOR_ROOT=/workspace
 
 COPY --from=node-deps /workspace/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
-COPY frontend frontend
 COPY backend/scripts backend/scripts
 COPY data data
 COPY --from=build /workspace/backend/build/libs/*.jar /app/app.jar

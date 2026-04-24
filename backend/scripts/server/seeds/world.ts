@@ -3,7 +3,8 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@/lib/types";
+} from "@backend-shared/types";
+import { createAutonomyRuntimeState } from "@server/engine/npc-autonomy/random";
 import { getCurrentScenario } from "@server/scenario";
 
 function cloneSeed<T>(value: T): T {
@@ -36,6 +37,7 @@ export function createSeedWorldState(): WorldStateFile {
     round: cloneSeed(scenario.seeds.round),
     judgements: cloneSeed(scenario.seeds.judgements),
     resolution: cloneSeed(scenario.seeds.resolution),
+    autonomyRuntime: createAutonomyRuntimeState(scenario.autonomy.debugSeed),
   };
 }
 

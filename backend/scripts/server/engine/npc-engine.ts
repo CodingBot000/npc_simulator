@@ -1,7 +1,7 @@
 import {
   DEFAULT_PLAYER_ID,
   NPC_ACTION_LABELS,
-} from "@/lib/constants";
+} from "@backend-shared/constants";
 import type {
   EpisodeExportPaths,
   InspectorPayload,
@@ -10,9 +10,10 @@ import type {
   InteractionResponsePayload,
   NpcState,
   PersistedNpcState,
-} from "@/lib/types";
-import { formatPlayerConversationText, nowIso } from "@/lib/utils";
+} from "@backend-shared/types";
+import { formatPlayerConversationText, nowIso } from "@backend-shared/utils";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
+import { simulateNpcAutonomyPhase } from "@server/engine/npc-autonomy";
 import {
   buildInteractionContract,
   validateReplyAgainstContract,
@@ -188,6 +189,10 @@ export async function runInteractionTurn(
     inputMode: request.inputMode,
     targetNpcId: request.targetNpcId,
     targetNpcLabel: targetNpc?.persona.name ?? null,
+    targetCandidates: worldState.npcs.map((candidate) => ({
+      id: candidate.persona.id,
+      label: candidate.persona.name,
+    })),
   });
   const recentConversation = recentConversationForNpc(
     interactionLog.entries,
@@ -242,6 +247,10 @@ export async function runInteractionTurn(
     action: request.action,
     targetNpcId: request.targetNpcId,
     targetNpcLabel: targetNpc?.persona.name ?? null,
+    targetCandidates: worldState.npcs.map((candidate) => ({
+      id: candidate.persona.id,
+      label: candidate.persona.name,
+    })),
   });
   const shadowComparisonPromise = maybeGenerateShadowComparison(generationInput);
   let fallbackUsed = provider.mode === "deterministic";
@@ -350,14 +359,29 @@ export async function runInteractionTurn(
   const roundProgress = progressRound(worldState.round);
   worldState.round = roundProgress.round;
 
-  const consensusBoard = pressureUpdate.consensusBoard;
+  const roundEventEntry = roundProgress.roundEvent
+    ? composeRoundEventLogEntry(roundProgress.roundEvent)
+    : null;
+  const autonomyPhase = simulateNpcAutonomyPhase({
+    worldState,
+    requestNpcId: request.npcId,
+    recentEvents: [
+      ...(roundEventEntry ? [roundEventEntry] : []),
+      ...worldState.events.slice(0, 4),
+    ],
+  });
+  const consensusBoard = buildConsensusBoard({
+    judgements: worldState.judgements,
+    npcs: worldState.npcs,
+  });
   const resolution = resolveIfNeeded({
     round: worldState.round,
     consensusBoard,
   });
   worldState.resolution = resolution;
 
-  const timestamp = nowIso();
+  const turnEventBaseTime = Date.now();
+  const timestamp = new Date(turnEventBaseTime).toISOString();
   const targetLabel = effectiveTargetNpcId
     ? boardTargetLabel(effectiveTargetNpcId, worldState.npcs)
     : null;
@@ -372,11 +396,23 @@ export async function runInteractionTurn(
     resolution,
   });
   eventLogEntry.timestamp = timestamp;
-  worldState.events.unshift(eventLogEntry);
 
-  if (roundProgress.roundEvent) {
-    const roundEventEntry = composeRoundEventLogEntry(roundProgress.roundEvent);
+  if (roundEventEntry) {
+    roundEventEntry.timestamp = new Date(turnEventBaseTime + 1).toISOString();
+  }
+
+  autonomyPhase.eventEntries.forEach((entry, index) => {
+    entry.timestamp = new Date(turnEventBaseTime + 2 + index).toISOString();
+  });
+
+  if (eventLogEntry) {
+    worldState.events.unshift(eventLogEntry);
+  }
+  if (roundEventEntry) {
     worldState.events.unshift(roundEventEntry);
+  }
+  for (const entry of autonomyPhase.eventEntries) {
+    worldState.events.unshift(entry);
   }
 
   const nextMemories = updateMemoryBank(
@@ -422,6 +458,7 @@ export async function runInteractionTurn(
     datasetExportedAt: worldState.datasetExportedAt,
     exportPaths: worldState.exportPaths,
     shadowComparison: sanitizedShadowComparison,
+    autonomyPhase: autonomyPhase.phase,
   };
   worldState.lastInspector = inspector;
 
@@ -460,6 +497,7 @@ export async function runInteractionTurn(
     resolutionAfter: resolution,
     round: worldState.round.currentRound,
     shadowComparison: sanitizedShadowComparison,
+    autonomyPhase: autonomyPhase.phase,
   };
   interactionLog.entries.push(logEntry);
 

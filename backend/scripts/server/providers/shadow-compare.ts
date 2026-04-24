@@ -10,8 +10,8 @@ import {
   type RuntimeArtifactKind,
   type ShadowComparisonPayload,
   type ShadowComparisonStatus,
-} from "@/lib/types";
-import { safeJsonParse, stripCodeFence } from "@/lib/utils";
+} from "@backend-shared/types";
+import { safeJsonParse, stripCodeFence } from "@backend-shared/utils";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
 import { buildNpcInteractionMessages } from "@server/engine/intent";

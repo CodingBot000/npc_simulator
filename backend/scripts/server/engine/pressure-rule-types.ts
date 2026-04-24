@@ -20,7 +20,7 @@ import type {
   PlayerAction,
   RelationshipDelta,
   RoundState,
-} from "@/lib/types";
+} from "@backend-shared/types";
 
 export type PressureRole = "player" | "target";
 export type DimensionKey = keyof JudgementDimensions;

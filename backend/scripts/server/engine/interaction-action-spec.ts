@@ -1,8 +1,8 @@
 import {
   PLAYER_ACTION_DESCRIPTIONS,
   PLAYER_ACTION_LABELS,
-} from "@/lib/constants";
-import type { PlayerAction } from "@/lib/types";
+} from "@backend-shared/constants";
+import type { PlayerAction } from "@backend-shared/types";
 
 export interface PlayerActionSpec {
   id: PlayerAction;

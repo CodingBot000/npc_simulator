@@ -1,7 +1,7 @@
 import type {
   GenerateInteractionInput,
   LlmInteractionResult,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
 import {
   llmInteractionSchema,

@@ -8,6 +8,9 @@
       "@/*": [
         "./frontend/src/*"
       ],
+      "@backend-shared/*": [
+        "./backend/scripts/shared/*"
+      ],
       "@server/*": [
         "./backend/scripts/server/*"
       ]

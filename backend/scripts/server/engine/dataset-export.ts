@@ -6,7 +6,7 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import { DATA_DIR, PROJECT_ROOT } from "@server/config";
 import { buildConsensusBoard } from "@server/engine/pressure-engine";
 import { upsertEpisodeExportToDb } from "@server/db/review-db";

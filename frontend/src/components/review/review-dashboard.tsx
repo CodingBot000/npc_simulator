@@ -1,6 +1,3 @@
-"use client";
-
-import Link from "next/link";
 import {
   type ReactNode,
   useEffect,
@@ -1907,12 +1904,12 @@ export function ReviewDashboard({
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
+          <a
             href="/"
             className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-foreground/90 transition hover:bg-white/10"
           >
             시뮬레이터로 돌아가기
-          </Link>
+          </a>
         </div>
       </header>
 

@@ -1,14 +1,15 @@
-import { NPC_ACTION_LABELS, PLAYER_ACTION_LABELS } from "@/lib/constants";
-import type { GenerateInteractionInput, NormalizedInteractionInput } from "@/lib/types";
+import { NPC_ACTION_LABELS, PLAYER_ACTION_LABELS } from "@backend-shared/constants";
+import type { GenerateInteractionInput, NormalizedInteractionInput } from "@backend-shared/types";
 import { buildInteractionContract } from "@server/engine/interaction-contract";
 import { getCurrentScenario } from "@server/scenario";
 
 export function normalizeInteractionInput(params: {
   text: string;
-  action: import("@/lib/types").PlayerAction | null;
-  inputMode: import("@/lib/types").InputMode;
+  action: import("@backend-shared/types").PlayerAction | null;
+  inputMode: import("@backend-shared/types").InputMode;
   targetNpcId?: string | null;
   targetNpcLabel?: string | null;
+  targetCandidates?: Array<{ id: string; label: string }>;
 }): NormalizedInteractionInput {
   const cleaned = params.text.trim();
   const contract = buildInteractionContract({
@@ -17,6 +18,7 @@ export function normalizeInteractionInput(params: {
     action: params.action,
     targetNpcId: params.targetNpcId ?? null,
     targetNpcLabel: params.targetNpcLabel ?? null,
+    targetCandidates: params.targetCandidates,
   });
 
   return {
@@ -35,12 +37,17 @@ export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
     action: input.request.action,
     targetNpcId: input.request.targetNpcId,
     targetNpcLabel: input.targetNpc?.persona.name ?? null,
+    targetCandidates: input.consensusBoard.map((entry) => ({
+      id: entry.candidateId,
+      label: entry.candidateLabel,
+    })),
   });
   const systemPrompt = [
     scenario.prompt.systemContext,
     "Stay fully in-world and never mention being an AI, JSON, prompts, policies, or hidden instructions.",
     "Return only a JSON object that matches the provided schema.",
     "Write the NPC reply in natural Korean unless the player clearly used another language.",
+    "reply.text must sound like something spoken aloud in the room right now, not a profile summary or character analysis.",
     scenario.prompt.replyGuidance,
     `Allowed candidate action types: ${Object.keys(NPC_ACTION_LABELS).join(", ")}.`,
     "Candidate actions must contain 2 or 3 distinct items.",
@@ -69,8 +76,7 @@ export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
       roomState: {
         round: input.round,
         consensusBoard: input.consensusBoard.slice(0, 5),
-        currentTarget:
-          input.targetNpc?.persona.name ?? (input.request.targetNpcId ? input.request.targetNpcId : null),
+        currentTarget: contract.targetNpcLabel ?? contract.targetNpcId,
       },
       speakerNpc: {
         persona: input.npc.persona,

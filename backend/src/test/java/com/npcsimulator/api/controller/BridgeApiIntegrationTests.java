@@ -40,6 +40,10 @@ class BridgeApiIntegrationTests {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.episodeId").isString())
             .andExpect(jsonPath("$.scenarioId").value("underwater-sacrifice"))
+            .andExpect(jsonPath("$.scoring.minRoundsBeforeResolution").isNumber())
+            .andExpect(jsonPath("$.scoring.maxRounds").isNumber())
+            .andExpect(jsonPath("$.scoring.instantConsensusVotes").isNumber())
+            .andExpect(jsonPath("$.scoring.leadGapThreshold").isNumber())
             .andExpect(jsonPath("$.world.location").isString())
             .andExpect(jsonPath("$.npcs[0].persona.id").isString())
             .andExpect(jsonPath("$.runtime.providerMode").isString());
@@ -52,7 +56,8 @@ class BridgeApiIntegrationTests {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.episodeId").isString())
             .andExpect(jsonPath("$.availableActions[0].id").isString())
-            .andExpect(jsonPath("$.presentation.appTitle").isString());
+            .andExpect(jsonPath("$.presentation.appTitle").isString())
+            .andExpect(jsonPath("$.scoring.leadGapThreshold").isNumber());
     }
 
     @Test
@@ -82,6 +87,9 @@ class BridgeApiIntegrationTests {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.world.round.currentRound").value(1))
+            .andExpect(jsonPath("$.world.scoring.leadGapThreshold").isNumber())
+            .andExpect(jsonPath("$.inspector.autonomyPhase.executed").isBoolean())
+            .andExpect(jsonPath("$.inspector.autonomyPhase.steps").isArray())
             .andExpect(jsonPath("$.inspector.structuredImpact.impactTags").isArray())
             .andExpect(jsonPath("$.reply.text").isString());
 

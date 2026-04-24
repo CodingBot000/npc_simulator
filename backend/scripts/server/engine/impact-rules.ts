@@ -1,11 +1,11 @@
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
+import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
 import type {
   CandidateId,
   ImpactTag,
   JudgementDimensions,
   RelationshipDelta,
   StructuredImpactInference,
-} from "@/lib/types";
+} from "@backend-shared/types";
 
 type DimensionDelta = Partial<JudgementDimensions>;
 

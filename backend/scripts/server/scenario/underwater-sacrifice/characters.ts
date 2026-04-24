@@ -1,5 +1,5 @@
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
-import type { PersistedNpcState } from "@/lib/types";
+import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
+import type { PersistedNpcState } from "@backend-shared/types";
 import type { ScenarioSeeds } from "@server/scenario/types";
 
 const seedTime = "2026-04-09T12:00:00.000Z";

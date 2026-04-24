@@ -5,7 +5,7 @@ import {
   impactTags,
   type LlmProvider,
   type RuntimeStatus,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import { appConfig } from "@server/config";
 import { CodexProvider } from "@server/providers/codex-provider";
 import { DeterministicProvider } from "@server/providers/deterministic-provider";

@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { HubClient } from "@/components/hub/hub-client";
 import { Panel } from "@/components/ui/panel";

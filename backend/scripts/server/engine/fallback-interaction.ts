@@ -2,13 +2,13 @@ import {
   DEFAULT_PLAYER_ID,
   DEFAULT_PLAYER_LABEL,
   NPC_ACTION_LABELS,
-} from "@/lib/constants";
+} from "@backend-shared/constants";
 import type {
   AllowedActionType,
   GenerateInteractionInput,
   ImpactTag,
   LlmInteractionResult,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import { buildInteractionContract } from "@server/engine/interaction-contract";
 
 function targetLabel(input: GenerateInteractionInput) {
@@ -118,14 +118,18 @@ function impactFor(input: GenerateInteractionInput): {
 }
 
 function replyFor(input: GenerateInteractionInput) {
-  const focus = targetLabel(input);
   const contract = buildInteractionContract({
     inputMode: input.request.inputMode,
     text: input.request.text,
     action: input.request.action,
     targetNpcId: input.request.targetNpcId,
     targetNpcLabel: input.targetNpc?.persona.name ?? null,
+    targetCandidates: input.consensusBoard.map((entry) => ({
+      id: entry.candidateId,
+      label: entry.candidateLabel,
+    })),
   });
+  const focus = contract.targetNpcLabel ?? targetLabel(input);
 
   switch (input.request.action) {
     case "make_case":
@@ -144,7 +148,9 @@ function replyFor(input: GenerateInteractionInput) {
       return "작게라도 인정한 건 들었다. 그럼 어디까지 네 잘못인지부터 분명히 해. 솔직함만으로 다 끝나진 않아.";
     default:
       return contract.mode === "free_text" && contract.normalizedPlayerText
-        ? `네 말은 들었다. ${contract.normalizedPlayerText}라는 쪽으로 몰아가려는 건 알겠어. 그게 왜 맞는지 더 분명히 말해.`
+        ? contract.targetNpcLabel
+          ? `네 말은 들었다. ${contract.targetNpcLabel} 쪽 책임을 묻고 싶은 거지. 왜 지금 그 사람부터 봐야 하는지 더 분명히 말해.`
+          : `네 말은 들었다. ${contract.normalizedPlayerText}라는 쪽으로 몰아가려는 건 알겠어. 그게 왜 맞는지 더 분명히 말해.`
         : `${focus} 이야기를 꺼낸 건 이해했어. 그 말이 왜 지금 이 판을 흔드는지부터 더 분명히 말해.`;
   }
 }

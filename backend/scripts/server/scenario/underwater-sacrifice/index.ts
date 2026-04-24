@@ -1,4 +1,6 @@
 import type { ScenarioDefinition, ScenarioSeeds } from "@server/scenario/types";
+import { appConfig } from "@server/config";
+import { underwaterAutonomyConfig } from "@server/scenario/underwater-sacrifice/autonomy";
 import { underwaterCharacters, underwaterMemories } from "@server/scenario/underwater-sacrifice/characters";
 import { underwaterRoundEvents, underwaterSeedEvents } from "@server/scenario/underwater-sacrifice/events";
 import { createUnderwaterInitialJudgements } from "@server/scenario/underwater-sacrifice/judgements";
@@ -88,6 +90,10 @@ export const underwaterSacrificeScenario: ScenarioDefinition = {
     maxRounds: 7,
     instantConsensusVotes: 3,
     leadGapThreshold: 140,
+  },
+  autonomy: {
+    ...underwaterAutonomyConfig,
+    debugSeed: appConfig.npcAutonomy.debugSeed,
   },
   seeds: underwaterSeeds,
 };

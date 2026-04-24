@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Noto Sans KR Variable";
+  src: url("../assets/fonts/NotoSansKR-Variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk Variable";
+  src: url("../assets/fonts/SpaceGrotesk-Variable.ttf") format("truetype");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #07131e;
   --foreground: #e5f1f7;
@@ -14,6 +30,8 @@
   --danger: #d65a5a;
   --success: #4aa67c;
   --shadow: 0 22px 50px rgba(2, 10, 17, 0.4);
+  --font-body: "Noto Sans KR Variable";
+  --font-display: "Space Grotesk Variable";
 }
 
 @theme inline {
@@ -32,8 +50,16 @@ body {
   min-height: 100%;
 }
 
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
   position: relative;
+  min-height: 100vh;
+  margin: 0;
   color: var(--foreground);
   font-family: var(--font-body), "Apple SD Gothic Neo", sans-serif;
   background:
@@ -62,6 +88,10 @@ body::after {
   background:
     linear-gradient(180deg, rgba(76, 194, 200, 0.04), transparent 20%),
     radial-gradient(circle at 50% 0%, rgba(76, 194, 200, 0.12), transparent 35%);
+}
+
+#root {
+  min-height: 100vh;
 }
 
 ::selection {

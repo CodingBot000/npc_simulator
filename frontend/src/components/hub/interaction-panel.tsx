@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import type {
   AvailableActionDefinition,
@@ -19,6 +17,8 @@ interface InteractionPanelProps {
   draft: string;
   busy: boolean;
   waitingForReply: boolean;
+  pendingReplyStartedAtMs: number | null;
+  replyElapsedByMessageId: Record<string, number>;
   subtitle: string;
   placeholder: string;
   availableActions: AvailableActionDefinition[];
@@ -63,6 +63,18 @@ function formatConversationTimestamp(timestamp: string) {
   const second = String(kst.getUTCSeconds()).padStart(2, "0");
 
   return `${month}.${day} ${hour}:${minute}:${second}`;
+}
+
+function formatElapsedDuration(elapsedMs: number) {
+  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes > 0) {
+    return `${minutes}분 ${String(seconds).padStart(2, "0")}초`;
+  }
+
+  return `${totalSeconds}초`;
 }
 
 function GuideAlertModal({
@@ -166,6 +178,8 @@ export function InteractionPanel({
   draft,
   busy,
   waitingForReply,
+  pendingReplyStartedAtMs,
+  replyElapsedByMessageId,
   subtitle,
   placeholder,
   availableActions,
@@ -185,7 +199,7 @@ export function InteractionPanel({
   const [draftConfirmed, setDraftConfirmed] = useState(false);
   const [localWarning, setLocalWarning] = useState<string | null>(null);
   const [loadingDotCount, setLoadingDotCount] = useState(1);
-  const [waitingElapsedSeconds, setWaitingElapsedSeconds] = useState(0);
+  const [waitingElapsedMs, setWaitingElapsedMs] = useState(0);
   const conversationViewportRef = useRef<HTMLDivElement | null>(null);
   const selectedTargetLabel =
     targetOptions.find((option) => option.id === selectedTargetId)?.label ?? null;
@@ -198,7 +212,7 @@ export function InteractionPanel({
   const actionButtonsDisabled =
     busy || resolution.resolved || !showIntentCard;
   const submitButtonLabel =
-    playInputMode === "combined" ? "이 말로 확정하기" : "이 말로 밀어붙이기";
+    playInputMode === "combined" ? "확정" : "말하기";
   const submitButtonClassName =
     isDraftConfirmed
       ? "bg-[var(--teal)] hover:brightness-105"
@@ -224,22 +238,23 @@ export function InteractionPanel({
   }, [waitingForReply]);
 
   useEffect(() => {
-    if (!waitingForReply) {
-      setWaitingElapsedSeconds(0);
+    if (!waitingForReply || pendingReplyStartedAtMs === null) {
+      setWaitingElapsedMs(0);
       return undefined;
     }
 
-    const startedAt = Date.now();
-    setWaitingElapsedSeconds(0);
+    const updateElapsed = () => {
+      setWaitingElapsedMs(Date.now() - pendingReplyStartedAtMs);
+    };
+
+    updateElapsed();
 
     const intervalId = window.setInterval(() => {
-      setWaitingElapsedSeconds(
-        Math.floor((Date.now() - startedAt) / 1000),
-      );
+      updateElapsed();
     }, 250);
 
     return () => window.clearInterval(intervalId);
-  }, [waitingForReply]);
+  }, [pendingReplyStartedAtMs, waitingForReply]);
 
   useEffect(() => {
     const viewport = conversationViewportRef.current;
@@ -435,6 +450,10 @@ export function InteractionPanel({
                         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
                           {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
                           {formatConversationTimestamp(message.timestamp)}
+                          {message.speaker === "npc" &&
+                          replyElapsedByMessageId[message.id] !== undefined
+                            ? ` · 응답 ${formatElapsedDuration(replyElapsedByMessageId[message.id])}`
+                            : ""}
                         </p>
                         {message.speaker === "npc" && message.fallbackUsed ? (
                           <span className="ml-auto rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
@@ -453,7 +472,7 @@ export function InteractionPanel({
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm leading-7">{loadingLabel}</p>
                         <p className="ml-auto text-right text-[11px] font-semibold tabular-nums opacity-65">
-                          {waitingElapsedSeconds}초
+                          {formatElapsedDuration(waitingElapsedMs)}
                         </p>
                       </div>
                     </article>

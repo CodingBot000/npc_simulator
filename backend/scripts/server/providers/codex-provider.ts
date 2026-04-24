@@ -5,8 +5,8 @@ import path from "node:path";
 import type {
   GenerateInteractionInput,
   LlmInteractionResult,
-} from "@/lib/types";
-import { safeJsonParse, stripCodeFence } from "@/lib/utils";
+} from "@backend-shared/types";
+import { safeJsonParse, stripCodeFence } from "@backend-shared/utils";
 import { PROJECT_ROOT } from "@server/config";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
 import {

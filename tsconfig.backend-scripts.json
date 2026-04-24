@@ -4,7 +4,6 @@
     "jsx": "react-jsx"
   },
   "include": [
-    "backend/scripts/**/*.ts",
-    "frontend/src/lib/**/*.ts"
+    "backend/scripts/**/*.ts"
   ]
 }

@@ -1,8 +1,15 @@
 .git
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 .next
 .venv
 node_modules
 frontend/.next
+frontend/dist
 frontend/node_modules
 backend/.gradle
 backend/build

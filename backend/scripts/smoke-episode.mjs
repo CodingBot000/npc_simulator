@@ -113,19 +113,24 @@ async function main() {
   ];
 
   const freeTextOutcomes = [];
+  const autonomyStepCounts = [];
   let finalOutcome = null;
 
   for (const [index, turn] of turns.entries()) {
     finalOutcome = await postTurn(turn);
     const inspector = finalOutcome.inspector;
+    const autonomyPhase = inspector.autonomyPhase ?? null;
+    const autonomyStepCount = autonomyPhase?.steps?.length ?? 0;
 
     console.log(
-      `turn=${index + 1} mode=${turn.inputMode} round=${finalOutcome.world.round.currentRound} tags=${inspector.structuredImpact.impactTags.join(",")} pressureDelta=${totalPressureDelta(finalOutcome)}`,
+      `turn=${index + 1} mode=${turn.inputMode} round=${finalOutcome.world.round.currentRound} tags=${inspector.structuredImpact.impactTags.join(",")} pressureDelta=${totalPressureDelta(finalOutcome)} autonomySteps=${autonomyStepCount}`,
     );
 
     if (turn.inputMode === "free_text") {
       freeTextOutcomes.push(finalOutcome);
     }
+
+    autonomyStepCounts.push(autonomyStepCount);
 
     if (finalOutcome.world.resolution.resolved) {
       break;
@@ -141,6 +146,14 @@ async function main() {
     finalOutcome.world.round.currentRound >= finalOutcome.world.round.minRoundsBeforeResolution ||
       !finalOutcome.world.resolution.resolved,
     "game resolved before minRoundsBeforeResolution",
+  );
+  assert(
+    autonomyStepCounts.some((count) => count > 0),
+    "autonomy phase never produced a follow-up step",
+  );
+  assert(
+    finalOutcome.world.events.some((entry) => entry.title === "방 안의 후속 반응"),
+    "autonomy event log entry was not recorded",
   );
   assert(finalOutcome.world.resolution.resolved, "episode did not resolve within smoke turns");
   assert(finalOutcome.world.datasetExportedAt, "datasetExportedAt was not set");

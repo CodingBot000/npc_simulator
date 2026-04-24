@@ -14,7 +14,7 @@
  * Last updated: 2026-04-09
  */
 
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
+import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
 import type { EvaluatorReactionProfile } from "@server/engine/pressure-rule-types";
 
 export const EVALUATOR_REACTION_PROFILES: Record<string, EvaluatorReactionProfile> = {

@@ -122,8 +122,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/ReviewFinalizeStatus"
     post:
       operationId: runReviewFinalize
       responses:
@@ -132,8 +131,148 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/ReviewFinalizeStatus"
+  /api/review/training:
+    get:
+      operationId: getReviewTrainingStatus
+      responses:
+        "200":
+          description: Training job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+    post:
+      operationId: runReviewTraining
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingRequest"
+      responses:
+        "200":
+          description: Training job status after launch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+  /api/review/training/evaluate:
+    post:
+      operationId: runReviewTrainingEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingRunActionRequest"
+      responses:
+        "200":
+          description: Training status after evaluation launch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+  /api/review/training/decision:
+    post:
+      operationId: updateReviewTrainingDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingDecisionRequest"
+      responses:
+        "200":
+          description: Training status after decision update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+  /api/review/training/promote:
+    post:
+      operationId: promoteReviewTrainingRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingRunActionRequest"
+      responses:
+        "200":
+          description: Training status after model promotion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+  /api/review/pipeline:
+    get:
+      operationId: getReviewPipelineStatus
+      responses:
+        "200":
+          description: Review pipeline status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineStatus"
+  /api/review/pipeline/judge:
+    post:
+      operationId: runJudgeReviewQueue
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPipelineRunRequest"
+      responses:
+        "200":
+          description: Pipeline command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineRunResult"
+  /api/review/pipeline/prepare-human-review:
+    post:
+      operationId: runPrepareHumanReview
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPipelineRunRequest"
+      responses:
+        "200":
+          description: Pipeline command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineRunResult"
+  /api/review/pipeline/llm-first-pass:
+    post:
+      operationId: runReviewLlmFirstPass
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPipelineRunRequest"
+      responses:
+        "200":
+          description: Pipeline command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineRunResult"
+  /api/system/info:
+    get:
+      operationId: getSystemInfo
+      responses:
+        "200":
+          description: Backend system info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
 components:
   schemas:
     InteractionRequest:
@@ -150,6 +289,7 @@ components:
           enum:
             - free_text
             - action
+            - combined
         text:
           type: string
         action:
@@ -183,6 +323,80 @@ components:
     ReviewDashboardData:
       type: object
       additionalProperties: true
+    ReviewFinalizeStatus:
+      type: object
+      additionalProperties: true
+    ReviewTrainingStatus:
+      type: object
+      additionalProperties: true
+    ReviewPipelineStatus:
+      type: object
+      additionalProperties: true
+    ReviewPipelineRunResult:
+      type: object
+      additionalProperties: true
+    ReviewTrainingRequest:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - sft
+            - dpo
+      required:
+        - kind
+      additionalProperties: true
+    ReviewTrainingRunActionRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+        bindingKey:
+          type: string
+      required:
+        - runId
+      additionalProperties: true
+    ReviewTrainingDecisionRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+        decision:
+          type: string
+          enum:
+            - accepted
+            - rejected
+        reviewer:
+          type:
+            - string
+            - "null"
+        notes:
+          type: string
+      required:
+        - runId
+        - decision
+      additionalProperties: true
+    ReviewPipelineRunRequest:
+      type: object
+      additionalProperties: true
+    SystemInfo:
+      type: object
+      properties:
+        service:
+          type: string
+        status:
+          type: string
+        phase:
+          type: string
+        pendingMigrations:
+          type: array
+          items:
+            type: string
+      required:
+        - service
+        - status
+        - phase
+        - pendingMigrations
     ReviewDecisionRequest:
       oneOf:
         - type: object

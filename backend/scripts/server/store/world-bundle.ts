@@ -2,13 +2,14 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import {
   createSeedInteractionLog,
   createSeedMemoryFile,
   createSeedWorldState,
   emptyEpisodeExportPaths,
 } from "@server/seeds/world";
+import { normalizeAutonomyRuntimeState } from "@server/engine/npc-autonomy/random";
 import { getCurrentScenario } from "@server/scenario";
 
 export interface WorldStateBundle {
@@ -19,6 +20,7 @@ export interface WorldStateBundle {
 
 function withEpisodeDefaults(state: Partial<WorldStateFile>) {
   const next = { ...state } as WorldStateFile;
+  const scenario = getCurrentScenario();
 
   if (!next.episodeId) {
     next.episodeId = crypto.randomUUID();
@@ -39,6 +41,12 @@ function withEpisodeDefaults(state: Partial<WorldStateFile>) {
   if (!next.exportPaths) {
     next.exportPaths = emptyEpisodeExportPaths();
   }
+
+  next.autonomyRuntime = normalizeAutonomyRuntimeState({
+    value: next.autonomyRuntime,
+    fallbackSeed: next.episodeId,
+    debugSeed: scenario.autonomy.debugSeed,
+  });
 
   return next;
 }

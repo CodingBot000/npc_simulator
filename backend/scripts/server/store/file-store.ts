@@ -4,8 +4,8 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@/lib/types";
-import { DATA_FILES } from "@/lib/constants";
+} from "@backend-shared/types";
+import { DATA_FILES } from "@backend-shared/constants";
 import { DATA_DIR } from "@server/config";
 import type {
   LockedStateMutationResult,

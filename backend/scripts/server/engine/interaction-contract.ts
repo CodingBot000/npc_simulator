@@ -3,12 +3,12 @@ import {
   DEFAULT_PLAYER_LABEL,
   PLAYER_ACTION_DESCRIPTIONS,
   PLAYER_ACTION_LABELS,
-} from "@/lib/constants";
+} from "@backend-shared/constants";
 import type {
   InputMode,
   LlmInteractionResult,
   PlayerAction,
-} from "@/lib/types";
+} from "@backend-shared/types";
 import {
   PLAYER_ACTION_SPECS,
   type PlayerActionSpec,
@@ -36,6 +36,16 @@ const GENERIC_ROOM_FACT_PATTERNS = [
   /다섯 명 중 네 명/u,
   /안전합니다/u,
 ];
+
+const PROFILE_SUMMARY_DESCRIPTOR_PATTERN =
+  /(?:성향|가치관|말투|특성|특징|내면|심리|기질)/u;
+const PROFILE_SUMMARY_VERB_PATTERN =
+  /(?:중시한|싫어한|흔들리|집착한|선호한|꺼려한|두려워한|민감한|약한|강한)/u;
+
+interface TargetCandidate {
+  id: string;
+  label: string;
+}
 
 export interface InteractionContract {
   mode: InputMode;
@@ -107,6 +117,39 @@ function quotePlayerText(text: string) {
   return `"${String(text ?? "").replace(/"/g, '\\"')}"`;
 }
 
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function inferMentionedTargetCandidate(params: {
+  mode: InputMode;
+  normalizedPlayerText: string;
+  targetNpcId: string | null;
+  targetCandidates?: TargetCandidate[];
+}) {
+  if (
+    params.mode !== "free_text" ||
+    params.targetNpcId ||
+    !params.normalizedPlayerText ||
+    !params.targetCandidates?.length
+  ) {
+    return null;
+  }
+
+  const normalizedText = params.normalizedPlayerText.replace(/\s+/g, "");
+
+  return [...params.targetCandidates]
+    .filter((candidate) => candidate.id !== DEFAULT_PLAYER_ID && candidate.label.trim().length > 0)
+    .sort((left, right) => right.label.length - left.label.length)
+    .find((candidate) => {
+      const label = candidate.label.trim();
+      return (
+        params.normalizedPlayerText.includes(label) ||
+        normalizedText.includes(label.replace(/\s+/g, ""))
+      );
+    }) ?? null;
+}
+
 export function resolveInteractionMode(params: {
   requestedMode?: InputMode;
   text: string;
@@ -162,6 +205,10 @@ function buildCanonicalMove(params: {
   targetNpcLabel: string | null;
 }) {
   if (params.mode === "free_text") {
+    if (params.normalizedPlayerText && params.targetNpcLabel) {
+      return `플레이어는 ${params.targetNpcLabel}을 거론하며 ${quotePlayerText(params.normalizedPlayerText)}라고 말했다.`;
+    }
+
     return params.normalizedPlayerText || "짧게 숨을 고르며 상대의 반응을 떠봤다.";
   }
 
@@ -220,6 +267,18 @@ function buildReplyRules(params: {
     "라벨, 요약, 번역문, 보고서체를 쓰지 않는다.",
   ];
 
+  if (params.mode === "free_text") {
+    rules.push("플레이어가 방금 한 주장이나 질문에 바로 답하면서 시작한다.");
+    rules.push("다른 인물의 성향, 가치관, 심리, 말투를 해설하듯 소개하지 않는다.");
+    rules.push("인물 프로필 요약문이 아니라 지금 방 안에서 바로 내뱉는 대사 2~4문장만 말한다.");
+
+    if (params.targetNpcLabel) {
+      rules.push(
+        `${params.targetNpcLabel}을 거론한 free_text라면 그 이름을 직접 언급하거나 그 사람에 대한 입장을 즉시 드러낸다.`,
+      );
+    }
+  }
+
   if (!params.spec) {
     return rules;
   }
@@ -276,6 +335,7 @@ export function buildInteractionContract(params: {
   action: PlayerAction | null;
   targetNpcId: string | null;
   targetNpcLabel?: string | null;
+  targetCandidates?: TargetCandidate[];
 }): InteractionContract {
   const mode = resolveInteractionMode({
     requestedMode: params.inputMode,
@@ -284,9 +344,19 @@ export function buildInteractionContract(params: {
   });
   const spec = actionSpecFor(params.action);
   const normalizedPlayerText = normalizeInlineText(params.text);
-  const resolvedTargetLabel = targetLabelFor({
+  const inferredTargetCandidate = inferMentionedTargetCandidate({
+    mode,
+    normalizedPlayerText,
     targetNpcId: params.targetNpcId,
-    targetNpcLabel: params.targetNpcLabel,
+    targetCandidates: params.targetCandidates,
+  });
+  const resolvedTargetId =
+    params.targetNpcId === DEFAULT_PLAYER_ID
+      ? DEFAULT_PLAYER_ID
+      : params.targetNpcId ?? inferredTargetCandidate?.id ?? null;
+  const resolvedTargetLabel = targetLabelFor({
+    targetNpcId: resolvedTargetId,
+    targetNpcLabel: params.targetNpcLabel ?? inferredTargetCandidate?.label ?? null,
   });
   const canonicalPlayerMove = buildCanonicalMove({
     mode,
@@ -306,8 +376,7 @@ export function buildInteractionContract(params: {
     actionDescription,
     rawPlayerText: String(params.text ?? ""),
     normalizedPlayerText,
-    targetNpcId:
-      params.targetNpcId === DEFAULT_PLAYER_ID ? DEFAULT_PLAYER_ID : params.targetNpcId,
+    targetNpcId: resolvedTargetId,
     targetNpcLabel: resolvedTargetLabel,
     canonicalPlayerMove,
     promptSummary: buildPromptSummary({
@@ -331,12 +400,35 @@ export function buildInteractionContract(params: {
     structuredRules: buildStructuredRules({
       mode,
       spec,
-      targetNpcId: params.targetNpcId,
+      targetNpcId: resolvedTargetId,
       targetNpcLabel: resolvedTargetLabel,
     }),
     requiredSignals: spec?.replyAlignmentKeywords ?? [],
     forbiddenPatterns: [...COMMON_META_PATTERNS, ...GENERIC_ROOM_FACT_PATTERNS],
   };
+}
+
+function looksLikeProfileSummary(text: string, subjectLabels: string[]) {
+  return subjectLabels.some((label) => {
+    const escaped = escapeRegExp(label.trim());
+    if (!escaped) {
+      return false;
+    }
+
+    const subjectPattern = new RegExp(
+      `^${escaped}(?:\\s*(?:박사|의사|감독관|소장|엔지니어|연구소장))?(?:은|는|이|가)`,
+      "u",
+    );
+
+    if (!subjectPattern.test(text)) {
+      return false;
+    }
+
+    return (
+      PROFILE_SUMMARY_DESCRIPTOR_PATTERN.test(text) ||
+      PROFILE_SUMMARY_VERB_PATTERN.test(text)
+    );
+  });
 }
 
 export function validateReplyAgainstContract(params: {
@@ -370,6 +462,20 @@ export function validateReplyAgainstContract(params: {
     issues.push({
       code: "third_person_self_reference",
       message: "NPC가 자기 이름으로 3인칭 서술을 시작했다.",
+    });
+  }
+
+  const profileSummarySubjects = [
+    params.contract.targetNpcLabel,
+    params.npcName,
+    "그 사람",
+    "저 사람",
+    "그쪽",
+  ].filter((label): label is string => Boolean(label?.trim()));
+  if (looksLikeProfileSummary(normalized, profileSummarySubjects)) {
+    issues.push({
+      code: "profile_summary",
+      message: "NPC 대사 대신 인물 프로필 요약문이 나왔다.",
     });
   }
 
