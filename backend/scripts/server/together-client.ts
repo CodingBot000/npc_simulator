@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PROJECT_ROOT } from "@server/config";
+import { getServerEnv } from "@server/config";
 
 const DEFAULT_TOGETHER_API_BASE_URL = "https://api.together.xyz/v1";
 
@@ -56,8 +56,6 @@ type TogetherChatResponse = {
   }>;
 };
 
-let localEnvPromise: Promise<Map<string, string>> | null = null;
-
 function trimToNull(value: string | null | undefined) {
   if (typeof value !== "string") {
     return null;
@@ -67,69 +65,11 @@ function trimToNull(value: string | null | undefined) {
 }
 
 function togetherApiBaseUrl() {
-  return trimToNull(process.env.TOGETHER_API_BASE_URL) ?? DEFAULT_TOGETHER_API_BASE_URL;
-}
-
-function parseEnvValue(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return "";
-  }
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-async function readLocalEnvFile() {
-  if (!localEnvPromise) {
-    localEnvPromise = (async () => {
-      const values = new Map<string, string>();
-      const envPath = path.join(PROJECT_ROOT, ".env.local");
-      let raw = "";
-      try {
-        raw = await fs.readFile(envPath, "utf8");
-      } catch {
-        return values;
-      }
-
-      for (const line of raw.split(/\r?\n/u)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) {
-          continue;
-        }
-        const separatorIndex = trimmed.indexOf("=");
-        if (separatorIndex <= 0) {
-          continue;
-        }
-        const key = trimmed.slice(0, separatorIndex).trim();
-        const value = parseEnvValue(trimmed.slice(separatorIndex + 1));
-        if (key) {
-          values.set(key, value);
-        }
-      }
-      return values;
-    })();
-  }
-
-  return localEnvPromise;
+  return trimToNull(getServerEnv("TOGETHER_API_BASE_URL")) ?? DEFAULT_TOGETHER_API_BASE_URL;
 }
 
 export async function getEnvValueOrLocalFile(key: string) {
-  const directValue = trimToNull(process.env[key]);
-  if (directValue) {
-    return directValue;
-  }
-
-  const values = await readLocalEnvFile();
-  const fallback = trimToNull(values.get(key));
-  if (fallback) {
-    process.env[key] = fallback;
-  }
-  return fallback;
+  return getServerEnv(key);
 }
 
 export async function getTogetherApiKey() {

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { DATA_DIR } from "@server/config";
+import { DATA_DIR, getServerEnv } from "@server/config";
 import { DbWorldRepository } from "@server/store/db-store";
 import { FileWorldRepository } from "@server/store/file-store";
 import type { WorldStateBundle } from "@server/store/world-bundle";
@@ -56,11 +56,11 @@ export function createWorldRepository(
   options: WorldRepositoryOptions = {},
 ): WorldRepository {
   const legacyDataDir = resolveWorldDataDir(options);
-  const repositoryMode = process.env.NPC_SIMULATOR_WORLD_REPOSITORY_MODE;
+  const repositoryMode = getServerEnv("NPC_SIMULATOR_WORLD_REPOSITORY_MODE");
 
   if (
     repositoryMode === "file" ||
-    !isPostgresDatasource(process.env.SPRING_DATASOURCE_URL)
+    !isPostgresDatasource(getServerEnv("SPRING_DATASOURCE_URL") ?? undefined)
   ) {
     return new FileWorldRepository(legacyDataDir);
   }

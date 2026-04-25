@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { GenerateInteractionInput } from "@backend-provider";
-import { PROJECT_ROOT, appConfig } from "@server/config";
+import { PROJECT_ROOT, appConfig, getServerEnv } from "@server/config";
 import { dbQuery } from "@server/db/postgres";
 import {
   buildInteractionContract,
@@ -207,7 +207,7 @@ function getAdapterConfigForNpc(npcId: string) {
 }
 
 function supportsPromotedAdapterLookup() {
-  const datasourceUrl = process.env.SPRING_DATASOURCE_URL ?? "";
+  const datasourceUrl = getServerEnv("SPRING_DATASOURCE_URL") ?? "";
   return /postgres(?:ql)?:/u.test(datasourceUrl);
 }
 

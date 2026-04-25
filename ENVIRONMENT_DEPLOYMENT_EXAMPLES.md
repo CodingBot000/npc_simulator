@@ -13,6 +13,7 @@ Actual `.env`, `.env.local`, and secret-bearing files are intentionally not edit
 Use the root compose env as the main source:
 
 ```dotenv
+NPC_SIMULATOR_DEPLOYMENT_MODE=local
 VITE_API_BASE_URL=http://localhost:8080
 NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/npc_simulator
@@ -25,6 +26,7 @@ Notes:
 
 - Frontend browser talks to `http://localhost:8080`
 - Backend may use local CLI-oriented provider flows
+- Backend may fall back to `PROJECT_ROOT/.env.local` for missing server env values only in local mode
 - Local reply / shadow compare artifact paths may stay enabled locally
 
 ## 2. Local frontend + cloud backend + cloud Postgres
@@ -38,6 +40,7 @@ VITE_API_BASE_URL=https://api.example.com
 Backend cloud env:
 
 ```dotenv
+NPC_SIMULATOR_DEPLOYMENT_MODE=cloud
 BACKEND_PORT=8080
 BACKEND_STORAGE_ROOT=/srv/npc-simulator/storage
 SPRING_PROFILES_ACTIVE=prod
@@ -69,6 +72,7 @@ VITE_API_BASE_URL=https://api.example.com
 Backend cloud env:
 
 ```dotenv
+NPC_SIMULATOR_DEPLOYMENT_MODE=cloud
 BACKEND_PORT=8080
 BACKEND_STORAGE_ROOT=/srv/npc-simulator/storage
 SPRING_PROFILES_ACTIVE=prod
@@ -87,6 +91,7 @@ Notes:
 
 - Frontend and backend are fully separate deployment units
 - Browser CORS should point only at the deployed frontend domain
+- Cloud mode resolves server env from process/platform injection only and does not read `.env.local`
 - Current backend image still needs `NPC_SIMULATOR_ROOT=/workspace` because the Spring backend runs Node-based bridge code from the workspace layout
 - Training / review artifact execution remains local-first for now
 

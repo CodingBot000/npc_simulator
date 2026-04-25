@@ -1,9 +1,18 @@
-import fs from "node:fs";
 import path from "node:path";
 import type {
   LlmProviderMode,
   RuntimeArtifactKind,
 } from "@backend-contracts/api";
+import {
+  DATA_DIR,
+  PROJECT_ROOT,
+  serverRuntimeContext,
+} from "@server/config/runtime-context";
+import {
+  getServerEnv,
+  getProcessEnv,
+  hasServerEnv,
+} from "@server/config/env-loader";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
   "unsloth/Meta-Llama-3.1-8B-Instruct";
@@ -21,30 +30,6 @@ type LocalReplyPromptFormat =
   | "direct_scene"
   | "scene_state_min";
 
-function detectProjectRoot() {
-  const explicitRoot = process.env.NPC_SIMULATOR_ROOT;
-
-  if (explicitRoot) {
-    return path.resolve(explicitRoot);
-  }
-
-  const cwd = process.cwd();
-  const candidates = [cwd, path.dirname(cwd)];
-
-  for (const candidate of candidates) {
-    if (
-      fs.existsSync(path.join(candidate, "data")) &&
-      fs.existsSync(path.join(candidate, "docs"))
-    ) {
-      return candidate;
-    }
-  }
-
-  return cwd;
-}
-
-export const PROJECT_ROOT = detectProjectRoot();
-export const DATA_DIR = path.join(PROJECT_ROOT, "data");
 export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   PROJECT_ROOT,
   "outputs",
@@ -52,77 +37,6 @@ export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   "manual_llama31_local_check_20260421_025259",
   "runtime",
 );
-
-let localEnvValues: Map<string, string> | null = null;
-
-function trimToNull(value: string | null | undefined) {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-}
-
-function parseEnvValue(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return "";
-  }
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function readLocalEnvValues() {
-  if (localEnvValues) {
-    return localEnvValues;
-  }
-
-  const values = new Map<string, string>();
-  const envPath = path.join(PROJECT_ROOT, ".env.local");
-
-  if (!fs.existsSync(envPath)) {
-    localEnvValues = values;
-    return values;
-  }
-
-  const raw = fs.readFileSync(envPath, "utf8");
-  for (const line of raw.split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separatorIndex = trimmed.indexOf("=");
-    if (separatorIndex <= 0) {
-      continue;
-    }
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = parseEnvValue(trimmed.slice(separatorIndex + 1));
-    if (key) {
-      values.set(key, value);
-    }
-  }
-
-  localEnvValues = values;
-  return values;
-}
-
-export function getServerEnv(key: string) {
-  const directValue = trimToNull(process.env[key]);
-  if (directValue) {
-    return directValue;
-  }
-
-  const fallback = trimToNull(readLocalEnvValues().get(key));
-  if (fallback) {
-    process.env[key] = fallback;
-  }
-  return fallback;
-}
 
 function parseBooleanEnv(key: string, defaultValue: boolean) {
   const rawValue = getServerEnv(key);
@@ -140,8 +54,20 @@ function parseBooleanEnv(key: string, defaultValue: boolean) {
   return defaultValue;
 }
 
+export {
+  DATA_DIR,
+  PROJECT_ROOT,
+  getProcessEnv,
+  getServerEnv,
+  hasServerEnv,
+  serverRuntimeContext,
+};
+
 function resolveProjectPath(rawPath: string | null | undefined) {
-  const trimmed = trimToNull(rawPath);
+  const trimmed =
+    typeof rawPath === "string" && rawPath.trim().length > 0
+      ? rawPath.trim()
+      : null;
   if (!trimmed) {
     return null;
   }
@@ -212,6 +138,7 @@ const localReplyUsePromoted = parseBooleanEnv(
 );
 
 export const appConfig = {
+  runtime: serverRuntimeContext,
   providerMode,
   localReplyAdapterMode,
   models: {
