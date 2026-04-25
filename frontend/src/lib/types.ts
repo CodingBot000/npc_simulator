@@ -4,12 +4,20 @@ import type {
   OpenApiSchema,
   WorldSnapshot as ApiWorldSnapshot,
 } from "@/lib/api-contract";
+import type {
+  AllowedActionType as SharedAllowedActionType,
+  CandidateId as SharedCandidateId,
+  ConsensusBoardEntry as SharedConsensusBoardEntry,
+  EmotionPrimary as SharedEmotionPrimary,
+  JudgementDimensions as SharedJudgementDimensions,
+  PlayerAction as SharedPlayerAction,
+} from "@sim-shared/types";
 
 type Schema = OpenApiSchema;
 
-export type EmotionPrimary = Schema["EmotionPrimary"];
-export type AllowedActionType = Schema["AllowedActionType"];
-export type PlayerAction = Schema["PlayerAction"];
+export type EmotionPrimary = SharedEmotionPrimary;
+export type AllowedActionType = SharedAllowedActionType;
+export type PlayerAction = SharedPlayerAction;
 export type AutonomyMoveType = Schema["AutonomyMoveType"];
 export type ImpactTag = Schema["ImpactTag"];
 export type InputMode = Schema["InputMode"];
@@ -76,7 +84,7 @@ export const impactTags = [
 ] as const satisfies readonly ImpactTag[];
 
 export type NpcId = Schema["NpcId"];
-export type CandidateId = Schema["CandidateId"];
+export type CandidateId = SharedCandidateId;
 export type ResolutionType = Schema["ResolutionType"];
 
 export type NpcPersona = Schema["NpcPersona"];
@@ -115,15 +123,8 @@ export type ScenarioScoringSnapshot = Schema["ScenarioScoringSnapshot"];
 export type AvailableActionDefinition = Schema["AvailableActionDefinition"];
 export type WorldMeta = Schema["WorldMeta"];
 export type RoundState = Schema["RoundState"];
-export interface JudgementDimensions {
-  blame: number;
-  distrust: number;
-  hostility: number;
-  dispensability: number;
-  utility: number;
-  sympathy: number;
-}
-export type ConsensusBoardEntry = Schema["ConsensusBoardEntry"];
+export type JudgementDimensions = SharedJudgementDimensions;
+export type ConsensusBoardEntry = SharedConsensusBoardEntry;
 export type ResolutionState = Schema["ResolutionState"];
 export type EpisodeExportPaths = Schema["EpisodeExportPaths"];
 export type WorldSnapshot = ApiWorldSnapshot;

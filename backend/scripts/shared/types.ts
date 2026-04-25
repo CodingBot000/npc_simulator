@@ -3,6 +3,14 @@ import type {
   InteractionResponsePayload,
   WorldSnapshot,
 } from "./api-contract-types";
+import type {
+  AllowedActionType as SharedAllowedActionType,
+  CandidateId as SharedCandidateId,
+  ConsensusBoardEntry as SharedConsensusBoardEntry,
+  EmotionPrimary as SharedEmotionPrimary,
+  JudgementDimensions as SharedJudgementDimensions,
+  PlayerAction as SharedPlayerAction,
+} from "@sim-shared/types";
 
 export const emotionPrimaries = [
   "focused",
@@ -11,7 +19,7 @@ export const emotionPrimaries = [
   "guilty",
   "cold",
   "desperate",
-] as const;
+] as const satisfies readonly SharedEmotionPrimary[];
 
 export const allowedActionTypes = [
   "accuse",
@@ -21,7 +29,7 @@ export const allowedActionTypes = [
   "ally",
   "stall",
   "probe",
-] as const;
+] as const satisfies readonly SharedAllowedActionType[];
 
 export const playerActions = [
   "make_case",
@@ -31,7 +39,7 @@ export const playerActions = [
   "deflect",
   "stall",
   "confess",
-] as const;
+] as const satisfies readonly SharedPlayerAction[];
 export const autonomyMoveTypes = [
   "pile_on",
   "shield",
@@ -63,16 +71,16 @@ export const impactTags = [
   "no_major_shift",
 ] as const;
 
-export type EmotionPrimary = (typeof emotionPrimaries)[number];
-export type AllowedActionType = (typeof allowedActionTypes)[number];
-export type PlayerAction = (typeof playerActions)[number];
+export type EmotionPrimary = SharedEmotionPrimary;
+export type AllowedActionType = SharedAllowedActionType;
+export type PlayerAction = SharedPlayerAction;
 export type AutonomyMoveType = (typeof autonomyMoveTypes)[number];
 export type ImpactTag = (typeof impactTags)[number];
 export type InputMode = "free_text" | "action" | "combined";
 export type LlmProviderMode = "codex" | "openai" | "deterministic";
 
 export type NpcId = string;
-export type CandidateId = string;
+export type CandidateId = SharedCandidateId;
 export type ResolutionType = "threshold" | "consensus" | "max_rounds" | null;
 
 export interface NpcPersona {
@@ -441,14 +449,7 @@ export interface RoundState {
   facilityStatus: string;
 }
 
-export interface JudgementDimensions {
-  blame: number;
-  distrust: number;
-  hostility: number;
-  dispensability: number;
-  utility: number;
-  sympathy: number;
-}
+export type JudgementDimensions = SharedJudgementDimensions;
 
 export interface JudgementState {
   evaluatorNpcId: string;
@@ -457,14 +458,7 @@ export interface JudgementState {
   sacrificePreference: number;
 }
 
-export interface ConsensusBoardEntry {
-  candidateId: CandidateId;
-  candidateLabel: string;
-  totalPressure: number;
-  topVotes: number;
-  trend: "up" | "down" | "flat";
-  summary: string;
-}
+export type ConsensusBoardEntry = SharedConsensusBoardEntry;
 
 export interface ResolutionState {
   resolved: boolean;
