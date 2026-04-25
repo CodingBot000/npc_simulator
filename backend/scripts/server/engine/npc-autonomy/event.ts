@@ -1,8 +1,8 @@
 import type {
-  AutonomyMoveType,
   AutonomyStepResult,
   EventLogEntry,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { AutonomyMoveType } from "@sim-shared/types";
 
 function buildSummary(params: {
   actorLabel: string;

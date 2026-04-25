@@ -2,7 +2,7 @@ import {
   PLAYER_ACTION_DESCRIPTIONS,
   PLAYER_ACTION_LABELS,
 } from "@backend-shared/constants";
-import type { PlayerAction } from "@backend-shared/types";
+import type { PlayerAction } from "@sim-shared/types";
 
 export interface PlayerActionSpec {
   id: PlayerAction;

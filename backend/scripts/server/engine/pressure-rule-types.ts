@@ -14,13 +14,15 @@
  */
 
 import type {
+  RelationshipDelta,
+  RoundState,
+} from "@backend-shared/api-contract-types";
+import type {
   CandidateId,
   ConsensusBoardEntry,
   JudgementDimensions,
   PlayerAction,
-  RelationshipDelta,
-  RoundState,
-} from "@backend-shared/types";
+} from "@sim-shared/types";
 
 export type PressureRole = "player" | "target";
 export type DimensionKey = keyof JudgementDimensions;

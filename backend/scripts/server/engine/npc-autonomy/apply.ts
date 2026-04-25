@@ -2,9 +2,9 @@ import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
 import type {
   AutonomyJudgementChange,
   AutonomyOpinionDelta,
-  JudgementDimensions,
-  PersistedNpcState,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { PersistedNpcState } from "@backend-shared/domain-types";
+import type { JudgementDimensions } from "@sim-shared/types";
 import { candidateLabel, clamp } from "@backend-shared/utils";
 import { AUTONOMY_MOVE_RULES } from "@server/engine/npc-autonomy/config";
 import { buildAutonomyStepSummary } from "@server/engine/npc-autonomy/event";

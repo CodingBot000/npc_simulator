@@ -3,16 +3,18 @@ import {
   NPC_ACTION_LABELS,
 } from "@backend-shared/constants";
 import type {
+  EpisodeExportPaths,
+  InspectorPayload,
+  NpcState,
   InteractionRequestPayload,
   InteractionResponsePayload,
 } from "@backend-shared/api-contract-types";
 import type {
-  EpisodeExportPaths,
-  InspectorPayload,
   InteractionLogEntry,
-  NpcState,
+} from "@backend-shared/persistence-types";
+import type {
   PersistedNpcState,
-} from "@backend-shared/types";
+} from "@backend-shared/domain-types";
 import { formatPlayerConversationText, nowIso } from "@backend-shared/utils";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
 import { simulateNpcAutonomyPhase } from "@server/engine/npc-autonomy";

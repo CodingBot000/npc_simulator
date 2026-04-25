@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { AutonomyRuntimeState } from "@backend-shared/types";
+import type { AutonomyRuntimeState } from "@backend-shared/persistence-types";
 import type { AutonomyRandom } from "@server/engine/npc-autonomy/types";
 
 function hashFraction(seed: string, drawIndex: number) {

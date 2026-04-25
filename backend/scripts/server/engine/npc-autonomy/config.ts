@@ -1,7 +1,7 @@
 import type {
-  AutonomyMoveType,
   JudgementDimensions,
-} from "@backend-shared/types";
+} from "@sim-shared/types";
+import type { AutonomyMoveType } from "@sim-shared/types";
 import type { ScenarioAutonomyConfig } from "@server/scenario/types";
 
 type Range = readonly [number, number];

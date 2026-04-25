@@ -1,11 +1,13 @@
 import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
 import type {
+  EventLogEntry,
+} from "@backend-shared/api-contract-types";
+import type { JudgementState } from "@backend-shared/persistence-types";
+import type { PersistedNpcState } from "@backend-shared/domain-types";
+import type {
   AutonomyMoveType,
   ConsensusBoardEntry,
-  EventLogEntry,
-  JudgementState,
-  PersistedNpcState,
-} from "@backend-shared/types";
+} from "@sim-shared/types";
 import {
   AUTONOMY_STEP_RULES,
   getAutonomyRoundVolatilityScale,

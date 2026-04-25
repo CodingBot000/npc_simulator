@@ -1,12 +1,17 @@
 import { NPC_ACTION_LABELS, PLAYER_ACTION_LABELS } from "@backend-shared/constants";
-import type { GenerateInteractionInput, NormalizedInteractionInput } from "@backend-shared/types";
+import type { InputMode } from "@backend-shared/api-contract-types";
+import type {
+  GenerateInteractionInput,
+  NormalizedInteractionInput,
+} from "@backend-shared/provider-types";
+import type { PlayerAction } from "@sim-shared/types";
 import { buildInteractionContract } from "@server/engine/interaction-contract";
 import { getCurrentScenario } from "@server/scenario";
 
 export function normalizeInteractionInput(params: {
   text: string;
-  action: import("@backend-shared/types").PlayerAction | null;
-  inputMode: import("@backend-shared/types").InputMode;
+  action: PlayerAction | null;
+  inputMode: InputMode;
   targetNpcId?: string | null;
   targetNpcLabel?: string | null;
   targetCandidates?: Array<{ id: string; label: string }>;

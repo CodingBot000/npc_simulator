@@ -4,11 +4,10 @@ import {
   NPC_ACTION_LABELS,
 } from "@backend-shared/constants";
 import type {
-  AllowedActionType,
-  GenerateInteractionInput,
-  ImpactTag,
   LlmInteractionResult,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { GenerateInteractionInput } from "@backend-shared/provider-types";
+import type { AllowedActionType, ImpactTag } from "@sim-shared/types";
 import { buildInteractionContract } from "@server/engine/interaction-contract";
 
 function targetLabel(input: GenerateInteractionInput) {

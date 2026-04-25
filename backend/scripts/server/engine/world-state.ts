@@ -3,11 +3,15 @@ import type { WorldSnapshot } from "@backend-shared/api-contract-types";
 import type {
   ChatMessage,
   EventLogEntry,
-  InteractionLogEntry,
   MemoryEntry,
+  PressureChange,
+  ResolutionState,
   RuntimeStatus,
+} from "@backend-shared/api-contract-types";
+import type {
+  InteractionLogEntry,
   WorldStateFile,
-} from "@backend-shared/types";
+} from "@backend-shared/persistence-types";
 import { formatDimensionDelta, groupBy } from "@backend-shared/utils";
 import { buildConsensusBoard } from "@server/engine/pressure-engine";
 import { buildRuntimeStatus } from "@server/providers/llm-provider";
@@ -58,8 +62,8 @@ export function composeInteractionEventLogEntry(params: {
   selectedActionLabel: string;
   promptSummary: string;
   targetLabel: string | null;
-  pressureChanges: import("@backend-shared/types").PressureChange[];
-  resolution: import("@backend-shared/types").ResolutionState;
+  pressureChanges: PressureChange[];
+  resolution: ResolutionState;
 }) {
   const tone: EventLogEntry["tone"] = params.resolution.resolved
     ? "danger"

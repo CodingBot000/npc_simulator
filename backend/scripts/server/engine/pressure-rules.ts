@@ -15,7 +15,12 @@
  */
 
 import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
-import type { CandidateId, ConsensusBoardEntry, PlayerAction, RelationshipDelta } from "@backend-shared/types";
+import type { RelationshipDelta } from "@backend-shared/api-contract-types";
+import type {
+  CandidateId,
+  ConsensusBoardEntry,
+  PlayerAction,
+} from "@sim-shared/types";
 import { ACCUSATORY_ACTIONS, ACTION_PRESSURE_RULES, BASE_RELATIONSHIP_DELTAS } from "@server/engine/action-rules";
 import { EVALUATOR_REACTION_PROFILES } from "@server/engine/bias-profiles";
 import {

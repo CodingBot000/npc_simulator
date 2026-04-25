@@ -3,19 +3,25 @@ import {
   DEFAULT_PLAYER_LABEL,
 } from "@backend-shared/constants";
 import type {
-  CandidateId,
-  ConsensusBoardEntry,
-  JudgementDimensions,
-  JudgementState,
   NpcState,
-  PersistedNpcState,
-  PlayerAction,
   PressureChange,
   RelationshipDelta,
   ResolutionState,
   RoundState,
   StructuredImpactInference,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type {
+  JudgementState,
+} from "@backend-shared/persistence-types";
+import type {
+  PersistedNpcState,
+} from "@backend-shared/domain-types";
+import type {
+  CandidateId,
+  ConsensusBoardEntry,
+  JudgementDimensions,
+  PlayerAction,
+} from "@sim-shared/types";
 import {
   candidateLabel,
   clamp,

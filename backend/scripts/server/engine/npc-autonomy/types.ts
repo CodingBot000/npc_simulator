@@ -1,15 +1,19 @@
 import type {
   AutonomyPhaseResult,
   AutonomyStepResult,
-  AutonomyMoveType,
-  AutonomyRuntimeState,
-  ConsensusBoardEntry,
   EventLogEntry,
-  JudgementState,
-  PersistedNpcState,
   RoundState,
+} from "@backend-shared/api-contract-types";
+import type {
+  AutonomyRuntimeState,
+  JudgementState,
   WorldStateFile,
-} from "@backend-shared/types";
+} from "@backend-shared/persistence-types";
+import type { PersistedNpcState } from "@backend-shared/domain-types";
+import type {
+  AutonomyMoveType,
+  ConsensusBoardEntry,
+} from "@sim-shared/types";
 import type { ScenarioAutonomyConfig } from "@server/scenario/types";
 
 export interface AutonomyRandom {

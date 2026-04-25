@@ -6,13 +6,13 @@ import {
 import type {
   LlmInteractionResult,
   MemoryEntry,
-  NormalizedInteractionInput,
   PressureChange,
   RetrievalScoreBreakdown,
   RetrievedMemoryEntry,
   RelationshipDelta,
   ResolutionState,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { NormalizedInteractionInput } from "@backend-shared/provider-types";
 import { clamp, extractTags, nowIso, tokenize } from "@backend-shared/utils";
 
 export function retrieveRelevantMemories(

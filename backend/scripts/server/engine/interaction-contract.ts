@@ -7,8 +7,8 @@ import {
 import type {
   InputMode,
   LlmInteractionResult,
-  PlayerAction,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { PlayerAction } from "@sim-shared/types";
 import {
   PLAYER_ACTION_SPECS,
   type PlayerActionSpec,

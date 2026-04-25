@@ -1,11 +1,11 @@
 import { MAX_RETRIEVED_KNOWLEDGE } from "@backend-shared/constants";
 import type {
   EventLogEntry,
-  KnowledgeEvidence,
-  NormalizedInteractionInput,
   RetrievalScoreBreakdown,
   RetrievedKnowledgeEvidence,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { KnowledgeEvidence } from "@backend-shared/domain-types";
+import type { NormalizedInteractionInput } from "@backend-shared/provider-types";
 import { tokenize, uniqueStrings } from "@backend-shared/utils";
 import { retrieveRelevantMemories } from "@server/engine/memory";
 import { getCurrentScenario } from "@server/scenario";
