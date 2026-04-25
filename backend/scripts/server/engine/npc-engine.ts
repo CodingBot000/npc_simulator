@@ -3,11 +3,13 @@ import {
   NPC_ACTION_LABELS,
 } from "@backend-shared/constants";
 import type {
+  InteractionRequestPayload,
+  InteractionResponsePayload,
+} from "@backend-shared/api-contract-types";
+import type {
   EpisodeExportPaths,
   InspectorPayload,
   InteractionLogEntry,
-  InteractionRequestPayload,
-  InteractionResponsePayload,
   NpcState,
   PersistedNpcState,
 } from "@backend-shared/types";

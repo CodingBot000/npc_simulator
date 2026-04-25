@@ -1,11 +1,11 @@
 import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@backend-shared/constants";
+import type { WorldSnapshot } from "@backend-shared/api-contract-types";
 import type {
   ChatMessage,
   EventLogEntry,
   InteractionLogEntry,
   MemoryEntry,
   RuntimeStatus,
-  WorldSnapshot,
   WorldStateFile,
 } from "@backend-shared/types";
 import { formatDimensionDelta, groupBy } from "@backend-shared/utils";
@@ -104,7 +104,7 @@ export function composeRoundEventLogEntry(params: {
     timestamp: new Date().toISOString(),
     title: params.title,
     detail: params.detail,
-    tags: params.tags,
+    tags: [...params.tags],
     npcId: "system",
     tone: params.tone,
   } satisfies EventLogEntry;

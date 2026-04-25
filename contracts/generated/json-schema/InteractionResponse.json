@@ -1,0 +1,1749 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/InteractionResponsePayload",
+  "definitions": {
+    "InteractionResponsePayload": {
+      "type": "object",
+      "properties": {
+        "reply": {
+          "$ref": "#/definitions/ReplyPayload"
+        },
+        "relationshipDelta": {
+          "$ref": "#/definitions/RelationshipDelta"
+        },
+        "pressureChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PressureChange"
+          }
+        },
+        "eventLogEntry": {
+          "$ref": "#/definitions/EventLogEntry"
+        },
+        "inspector": {
+          "$ref": "#/definitions/InspectorPayload"
+        },
+        "resolution": {
+          "$ref": "#/definitions/ResolutionState"
+        },
+        "world": {
+          "$ref": "#/definitions/WorldSnapshot"
+        }
+      },
+      "required": [
+        "reply",
+        "relationshipDelta",
+        "pressureChanges",
+        "eventLogEntry",
+        "inspector",
+        "resolution",
+        "world"
+      ],
+      "additionalProperties": false
+    },
+    "ReplyPayload": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "RelationshipDelta": {
+      "type": "object",
+      "properties": {
+        "trust": {
+          "type": "number"
+        },
+        "affinity": {
+          "type": "number"
+        },
+        "tension": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "trust",
+        "affinity",
+        "tension"
+      ],
+      "additionalProperties": false
+    },
+    "PressureChange": {
+      "type": "object",
+      "properties": {
+        "candidateId": {
+          "$ref": "#/definitions/CandidateId"
+        },
+        "candidateLabel": {
+          "type": "string"
+        },
+        "totalPressureDelta": {
+          "type": "number"
+        },
+        "dimensionDelta": {
+          "type": "object",
+          "properties": {
+            "blame": {
+              "type": "number"
+            },
+            "distrust": {
+              "type": "number"
+            },
+            "hostility": {
+              "type": "number"
+            },
+            "dispensability": {
+              "type": "number"
+            },
+            "utility": {
+              "type": "number"
+            },
+            "sympathy": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "candidateId",
+        "candidateLabel",
+        "totalPressureDelta",
+        "dimensionDelta",
+        "factors",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateId": {
+      "type": "string"
+    },
+    "EventLogEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "npcId": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "info",
+            "success",
+            "warning",
+            "danger"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "title",
+        "detail",
+        "tags",
+        "npcId",
+        "tone"
+      ],
+      "additionalProperties": false
+    },
+    "InspectorPayload": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string"
+        },
+        "episodeId": {
+          "type": "string"
+        },
+        "npcId": {
+          "type": "string"
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replyText": {
+          "type": "string"
+        },
+        "fallbackUsed": {
+          "type": "boolean"
+        },
+        "retrievedMemories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RetrievedMemoryEntry"
+          }
+        },
+        "retrievedKnowledge": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RetrievedKnowledgeEvidence"
+          }
+        },
+        "emotion": {
+          "$ref": "#/definitions/NpcEmotionState"
+        },
+        "intent": {
+          "$ref": "#/definitions/IntentSummary"
+        },
+        "candidateActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CandidateAction"
+          }
+        },
+        "selectedAction": {
+          "$ref": "#/definitions/SelectedAction"
+        },
+        "selectedActionReason": {
+          "type": "string"
+        },
+        "structuredImpact": {
+          "$ref": "#/definitions/StructuredImpactInference"
+        },
+        "relationshipDelta": {
+          "$ref": "#/definitions/RelationshipDelta"
+        },
+        "pressureChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PressureChange"
+          }
+        },
+        "leaderBefore": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ConsensusBoardEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leaderAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ConsensusBoardEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leadingCandidateId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CandidateId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leadingCandidateLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "round": {
+          "type": "number"
+        },
+        "resolution": {
+          "$ref": "#/definitions/ResolutionState"
+        },
+        "llmPromptContextSummary": {
+          "type": "string"
+        },
+        "datasetExportedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exportPaths": {
+          "$ref": "#/definitions/EpisodeExportPaths"
+        },
+        "shadowComparison": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ShadowComparisonPayload"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "autonomyPhase": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AutonomyPhaseResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "timestamp",
+        "episodeId",
+        "npcId",
+        "targetNpcId",
+        "replyText",
+        "retrievedMemories",
+        "retrievedKnowledge",
+        "emotion",
+        "intent",
+        "candidateActions",
+        "selectedAction",
+        "selectedActionReason",
+        "structuredImpact",
+        "relationshipDelta",
+        "pressureChanges",
+        "leaderBefore",
+        "leaderAfter",
+        "leadingCandidateId",
+        "leadingCandidateLabel",
+        "round",
+        "resolution",
+        "llmPromptContextSummary",
+        "datasetExportedAt",
+        "exportPaths",
+        "shadowComparison"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievedMemoryEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "short",
+            "long"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "importance": {
+          "type": "number"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "scoreBreakdown": {
+          "$ref": "#/definitions/RetrievalScoreBreakdown"
+        },
+        "matchReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "importance",
+        "matchReasons",
+        "scope",
+        "score",
+        "scoreBreakdown",
+        "summary",
+        "tags",
+        "timestamp"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievalScoreBreakdown": {
+      "type": "object",
+      "properties": {
+        "tokenOverlap": {
+          "type": "number"
+        },
+        "tagOverlap": {
+          "type": "number"
+        },
+        "recency": {
+          "type": "number"
+        },
+        "importance": {
+          "type": "number"
+        },
+        "priority": {
+          "type": "number"
+        },
+        "npcMatch": {
+          "type": "number"
+        },
+        "targetMatch": {
+          "type": "number"
+        },
+        "eventMatch": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "tokenOverlap",
+        "tagOverlap",
+        "recency",
+        "importance",
+        "priority",
+        "npcMatch",
+        "targetMatch",
+        "eventMatch",
+        "total"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievedKnowledgeEvidence": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sourceType": {
+          "$ref": "#/definitions/KnowledgeEvidenceType"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "relatedNpcIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "priority": {
+          "type": "number"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "public",
+            "private",
+            "conditional"
+          ]
+        },
+        "roundIntroduced": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "score": {
+          "type": "number"
+        },
+        "scoreBreakdown": {
+          "$ref": "#/definitions/RetrievalScoreBreakdown"
+        },
+        "matchReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "matchReasons",
+        "priority",
+        "relatedNpcIds",
+        "roundIntroduced",
+        "score",
+        "scoreBreakdown",
+        "sourceType",
+        "summary",
+        "tags",
+        "title",
+        "visibility"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeEvidenceType": {
+      "type": "string",
+      "enum": [
+        "world_fact",
+        "incident_log",
+        "private_secret",
+        "role_record"
+      ]
+    },
+    "NpcEmotionState": {
+      "type": "object",
+      "properties": {
+        "primary": {
+          "$ref": "#/definitions/EmotionPrimary"
+        },
+        "intensity": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "primary",
+        "intensity",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "EmotionPrimary": {
+      "type": "string",
+      "enum": [
+        "focused",
+        "fearful",
+        "angry",
+        "guilty",
+        "cold",
+        "desperate"
+      ]
+    },
+    "IntentSummary": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "stance": {
+          "type": "string"
+        },
+        "leverage": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "stance",
+        "leverage"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateAction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/AllowedActionType"
+        },
+        "label": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "label",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "AllowedActionType": {
+      "type": "string",
+      "enum": [
+        "accuse",
+        "defend",
+        "deflect",
+        "appeal",
+        "ally",
+        "stall",
+        "probe"
+      ]
+    },
+    "SelectedAction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/AllowedActionType"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "StructuredImpactInference": {
+      "type": "object",
+      "properties": {
+        "impactTags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ImpactTag"
+          }
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "impactTags",
+        "targetNpcId",
+        "confidence",
+        "rationale"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactTag": {
+      "type": "string",
+      "enum": [
+        "player_distrust_up",
+        "player_distrust_down",
+        "player_blame_up",
+        "player_blame_down",
+        "player_sympathy_up",
+        "player_sympathy_down",
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_blame_down",
+        "target_distrust_up",
+        "target_distrust_down",
+        "target_hostility_up",
+        "target_hostility_down",
+        "target_sympathy_up",
+        "target_sympathy_down",
+        "target_utility_down",
+        "target_utility_up",
+        "target_dispensability_up",
+        "target_dispensability_down",
+        "room_pressure_shift",
+        "no_major_shift"
+      ]
+    },
+    "ConsensusBoardEntry": {
+      "type": "object",
+      "properties": {
+        "candidateId": {
+          "$ref": "#/definitions/CandidateId"
+        },
+        "candidateLabel": {
+          "type": "string"
+        },
+        "totalPressure": {
+          "type": "number"
+        },
+        "topVotes": {
+          "type": "number"
+        },
+        "trend": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "flat"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidateId",
+        "candidateLabel",
+        "totalPressure",
+        "topVotes",
+        "trend",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "ResolutionState": {
+      "type": "object",
+      "properties": {
+        "resolved": {
+          "type": "boolean"
+        },
+        "sacrificedNpcId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CandidateId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sacrificedLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolutionType": {
+          "$ref": "#/definitions/ResolutionType"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "resolved",
+        "sacrificedNpcId",
+        "sacrificedLabel",
+        "resolutionType",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "ResolutionType": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "threshold",
+        "consensus",
+        "max_rounds",
+        null
+      ]
+    },
+    "EpisodeExportPaths": {
+      "type": "object",
+      "properties": {
+        "richTrace": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sft": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "review": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "richTrace",
+        "sft",
+        "review"
+      ],
+      "additionalProperties": false
+    },
+    "ShadowComparisonPayload": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "const": "local_mlx"
+        },
+        "status": {
+          "$ref": "#/definitions/ShadowComparisonStatus"
+        },
+        "durationMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sourceRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifactKind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RuntimeArtifactKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rawOutput": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LlmInteractionResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "label",
+        "mode",
+        "status",
+        "durationMs",
+        "sourceRef",
+        "artifactKind",
+        "error",
+        "rawOutput",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "ShadowComparisonStatus": {
+      "type": "string",
+      "enum": [
+        "parsed",
+        "invalid_json",
+        "error"
+      ]
+    },
+    "RuntimeArtifactKind": {
+      "type": "string",
+      "enum": [
+        "mlx_adapter",
+        "mlx_fused_model",
+        "legacy_mlx_adapter"
+      ]
+    },
+    "LlmInteractionResult": {
+      "type": "object",
+      "properties": {
+        "reply": {
+          "$ref": "#/definitions/ReplyPayload"
+        },
+        "emotion": {
+          "$ref": "#/definitions/NpcEmotionState"
+        },
+        "intent": {
+          "$ref": "#/definitions/IntentSummary"
+        },
+        "candidateActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CandidateAction"
+          }
+        },
+        "selectedAction": {
+          "$ref": "#/definitions/SelectedAction"
+        },
+        "structuredImpact": {
+          "$ref": "#/definitions/StructuredImpactInference"
+        }
+      },
+      "required": [
+        "reply",
+        "emotion",
+        "intent",
+        "candidateActions",
+        "selectedAction",
+        "structuredImpact"
+      ],
+      "additionalProperties": false
+    },
+    "AutonomyPhaseResult": {
+      "type": "object",
+      "properties": {
+        "executed": {
+          "type": "boolean"
+        },
+        "round": {
+          "type": "number"
+        },
+        "drawCountBefore": {
+          "type": "number"
+        },
+        "drawCountAfter": {
+          "type": "number"
+        },
+        "leaderBefore": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ConsensusBoardEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leaderAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ConsensusBoardEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boardTopBefore": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConsensusBoardEntry"
+          }
+        },
+        "boardTopAfter": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConsensusBoardEntry"
+          }
+        },
+        "rngSamples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AutonomyRngSample"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AutonomyStepResult"
+          }
+        }
+      },
+      "required": [
+        "executed",
+        "round",
+        "drawCountBefore",
+        "drawCountAfter",
+        "leaderBefore",
+        "leaderAfter",
+        "boardTopBefore",
+        "boardTopAfter",
+        "rngSamples",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "AutonomyRngSample": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "drawIndex": {
+          "type": "number"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "drawIndex",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "AutonomyStepResult": {
+      "type": "object",
+      "properties": {
+        "actorNpcId": {
+          "type": "string"
+        },
+        "actorLabel": {
+          "type": "string"
+        },
+        "moveType": {
+          "$ref": "#/definitions/AutonomyMoveType"
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targetLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "secondaryTargetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "secondaryTargetLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "info",
+            "success",
+            "warning",
+            "danger"
+          ]
+        },
+        "opinionDeltas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AutonomyOpinionDelta"
+          }
+        },
+        "judgementChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AutonomyJudgementChange"
+          }
+        },
+        "rngSamples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AutonomyRngSample"
+          }
+        }
+      },
+      "required": [
+        "actorNpcId",
+        "actorLabel",
+        "moveType",
+        "targetNpcId",
+        "targetLabel",
+        "secondaryTargetNpcId",
+        "secondaryTargetLabel",
+        "rationale",
+        "summary",
+        "tone",
+        "opinionDeltas",
+        "judgementChanges",
+        "rngSamples"
+      ],
+      "additionalProperties": false
+    },
+    "AutonomyMoveType": {
+      "type": "string",
+      "enum": [
+        "pile_on",
+        "shield",
+        "redirect",
+        "freeze"
+      ]
+    },
+    "AutonomyOpinionDelta": {
+      "type": "object",
+      "properties": {
+        "npcId": {
+          "type": "string"
+        },
+        "npcLabel": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "npcId",
+        "npcLabel",
+        "delta"
+      ],
+      "additionalProperties": false
+    },
+    "AutonomyJudgementChange": {
+      "type": "object",
+      "properties": {
+        "candidateId": {
+          "$ref": "#/definitions/CandidateId"
+        },
+        "candidateLabel": {
+          "type": "string"
+        },
+        "dimensionDelta": {
+          "type": "object",
+          "properties": {
+            "blame": {
+              "type": "number"
+            },
+            "distrust": {
+              "type": "number"
+            },
+            "hostility": {
+              "type": "number"
+            },
+            "dispensability": {
+              "type": "number"
+            },
+            "utility": {
+              "type": "number"
+            },
+            "sympathy": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "candidateId",
+        "candidateLabel",
+        "dimensionDelta"
+      ],
+      "additionalProperties": false
+    },
+    "WorldSnapshot": {
+      "type": "object",
+      "properties": {
+        "scenarioId": {
+          "type": "string"
+        },
+        "episodeId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "endedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "datasetExportedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exportPaths": {
+          "$ref": "#/definitions/EpisodeExportPaths"
+        },
+        "presentation": {
+          "$ref": "#/definitions/ScenarioPresentationSnapshot"
+        },
+        "scoring": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ScenarioScoringSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "availableActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AvailableActionDefinition"
+          }
+        },
+        "world": {
+          "$ref": "#/definitions/WorldMeta"
+        },
+        "npcs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NpcState"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EventLogEntry"
+          }
+        },
+        "conversations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ChatMessage"
+            }
+          }
+        },
+        "round": {
+          "$ref": "#/definitions/RoundState"
+        },
+        "consensusBoard": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConsensusBoardEntry"
+          }
+        },
+        "lastInspector": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InspectorPayload"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime": {
+          "$ref": "#/definitions/RuntimeStatus"
+        },
+        "resolution": {
+          "$ref": "#/definitions/ResolutionState"
+        }
+      },
+      "required": [
+        "scenarioId",
+        "episodeId",
+        "startedAt",
+        "endedAt",
+        "datasetExportedAt",
+        "exportPaths",
+        "presentation",
+        "availableActions",
+        "world",
+        "npcs",
+        "events",
+        "conversations",
+        "round",
+        "consensusBoard",
+        "lastInspector",
+        "runtime",
+        "resolution"
+      ],
+      "additionalProperties": false
+    },
+    "ScenarioPresentationSnapshot": {
+      "type": "object",
+      "properties": {
+        "appTitle": {
+          "type": "string"
+        },
+        "npcListTitle": {
+          "type": "string"
+        },
+        "npcListSubtitle": {
+          "type": "string"
+        },
+        "interactionTitle": {
+          "type": "string"
+        },
+        "interactionSubtitle": {
+          "type": "string"
+        },
+        "interactionPlaceholder": {
+          "type": "string"
+        },
+        "boardTitle": {
+          "type": "string"
+        },
+        "boardSubtitle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "appTitle",
+        "npcListTitle",
+        "npcListSubtitle",
+        "interactionTitle",
+        "interactionSubtitle",
+        "interactionPlaceholder",
+        "boardTitle",
+        "boardSubtitle"
+      ],
+      "additionalProperties": false
+    },
+    "ScenarioScoringSnapshot": {
+      "type": "object",
+      "properties": {
+        "minRoundsBeforeResolution": {
+          "type": "number"
+        },
+        "maxRounds": {
+          "type": "number"
+        },
+        "instantConsensusVotes": {
+          "type": "number"
+        },
+        "leadGapThreshold": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "minRoundsBeforeResolution",
+        "maxRounds",
+        "instantConsensusVotes",
+        "leadGapThreshold"
+      ],
+      "additionalProperties": false
+    },
+    "AvailableActionDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/PlayerAction"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "requiresTarget": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "description",
+        "requiresTarget"
+      ],
+      "additionalProperties": false
+    },
+    "PlayerAction": {
+      "type": "string",
+      "enum": [
+        "make_case",
+        "expose",
+        "appeal",
+        "ally",
+        "deflect",
+        "stall",
+        "confess"
+      ]
+    },
+    "WorldMeta": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string"
+        },
+        "time": {
+          "type": "string"
+        },
+        "weather": {
+          "type": "string"
+        },
+        "mood": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "location",
+        "time",
+        "weather",
+        "mood"
+      ],
+      "additionalProperties": false
+    },
+    "NpcState": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "$ref": "#/definitions/NpcPersona"
+        },
+        "emotion": {
+          "$ref": "#/definitions/NpcEmotionState"
+        },
+        "relationship": {
+          "$ref": "#/definitions/RelationshipState"
+        },
+        "goals": {
+          "$ref": "#/definitions/NpcGoalState"
+        },
+        "decision": {
+          "$ref": "#/definitions/NpcDecisionProfile"
+        },
+        "currentLocation": {
+          "type": "string"
+        },
+        "statusLine": {
+          "type": "string"
+        },
+        "memories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MemoryEntry"
+          }
+        }
+      },
+      "required": [
+        "currentLocation",
+        "decision",
+        "emotion",
+        "goals",
+        "memories",
+        "persona",
+        "relationship",
+        "statusLine"
+      ],
+      "additionalProperties": false
+    },
+    "NpcPersona": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/NpcId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        },
+        "traits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dislikes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "tone",
+        "traits",
+        "values",
+        "dislikes",
+        "secrets"
+      ],
+      "additionalProperties": false
+    },
+    "NpcId": {
+      "type": "string"
+    },
+    "RelationshipState": {
+      "type": "object",
+      "properties": {
+        "playerTrust": {
+          "type": "number"
+        },
+        "playerAffinity": {
+          "type": "number"
+        },
+        "playerTension": {
+          "type": "number"
+        },
+        "npcOpinions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "playerTrust",
+        "playerAffinity",
+        "playerTension",
+        "npcOpinions"
+      ],
+      "additionalProperties": false
+    },
+    "NpcGoalState": {
+      "type": "object",
+      "properties": {
+        "currentGoal": {
+          "type": "string"
+        },
+        "currentNeed": {
+          "type": "string"
+        },
+        "opennessToPlayer": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "currentGoal",
+        "currentNeed",
+        "opennessToPlayer"
+      ],
+      "additionalProperties": false
+    },
+    "NpcDecisionProfile": {
+      "type": "object",
+      "properties": {
+        "biasSummary": {
+          "type": "string"
+        },
+        "survivalRationale": {
+          "type": "string"
+        },
+        "redLines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "initialTargets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "biasSummary",
+        "survivalRationale",
+        "redLines",
+        "initialTargets"
+      ],
+      "additionalProperties": false
+    },
+    "MemoryEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "short",
+            "long"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "importance": {
+          "type": "number"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "scope",
+        "summary",
+        "tags",
+        "importance",
+        "timestamp"
+      ],
+      "additionalProperties": false
+    },
+    "ChatMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "npcId": {
+          "type": "string"
+        },
+        "speaker": {
+          "type": "string",
+          "enum": [
+            "player",
+            "npc"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlayerAction"
+            },
+            {
+              "$ref": "#/definitions/AllowedActionType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fallbackUsed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "npcId",
+        "speaker",
+        "text",
+        "timestamp",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "RoundState": {
+      "type": "object",
+      "properties": {
+        "currentRound": {
+          "type": "number"
+        },
+        "minRoundsBeforeResolution": {
+          "type": "number"
+        },
+        "maxRounds": {
+          "type": "number"
+        },
+        "resolutionUnlocked": {
+          "type": "boolean"
+        },
+        "rescueEtaLabel": {
+          "type": "string"
+        },
+        "facilityStatus": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "currentRound",
+        "minRoundsBeforeResolution",
+        "maxRounds",
+        "resolutionUnlocked",
+        "rescueEtaLabel",
+        "facilityStatus"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeStatus": {
+      "type": "object",
+      "properties": {
+        "providerMode": {
+          "$ref": "#/definitions/LlmProviderMode"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerMode",
+        "configured",
+        "label",
+        "detail"
+      ],
+      "additionalProperties": false
+    },
+    "LlmProviderMode": {
+      "type": "string",
+      "enum": [
+        "codex",
+        "openai",
+        "deterministic"
+      ]
+    }
+  }
+}

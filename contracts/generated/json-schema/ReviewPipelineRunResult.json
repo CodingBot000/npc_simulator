@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewPipelineRunResult",
+  "definitions": {
+    "ReviewPipelineRunResult": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "string"
+        },
+        "summaryPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "success",
+        "command",
+        "summaryPath",
+        "stdout",
+        "stderr"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { buildClientApiUrl } from "@/lib/api-client";
-import type { ReviewDashboardData } from "@/lib/review-types";
+import type { ReviewDashboardData } from "@/lib/api-contract";
+import { apiGetReviewDashboard } from "@/lib/api-client";
 import { ReviewDashboard } from "@/components/review/review-dashboard";
 
 function ReviewRouteLoading() {
@@ -64,19 +64,12 @@ export function ReviewRoute() {
       setError(null);
 
       try {
-        const response = await fetch(buildClientApiUrl("/api/review"), {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as
-            | { message?: string }
-            | null;
-          throw new Error(payload?.message ?? "검수 데이터를 불러오지 못했습니다.");
-        }
-
-        setData((await response.json()) as ReviewDashboardData);
+        setData(
+          await apiGetReviewDashboard({
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+        );
       } catch (reviewError) {
         if (controller.signal.aborted) {
           return;

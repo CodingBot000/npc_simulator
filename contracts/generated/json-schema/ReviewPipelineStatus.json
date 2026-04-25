@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewPipelineStatus",
+  "definitions": {
+    "ReviewPipelineStatus": {
+      "type": "object",
+      "properties": {
+        "judgeSummaryPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "humanReviewSummaryPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "llmFirstPassSummaryPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "judgeSummaryPath",
+        "humanReviewSummaryPath",
+        "llmFirstPassSummaryPath"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -4,8 +4,8 @@ info:
   version: 2026-04-15
   description: |
     Current backend-facing contract snapshot after the Spring Boot bridge cut.
-    Response bodies for world and review payloads are intentionally broad in this
-    snapshot because the domain port is still backed by the existing TypeScript engine.
+    Core runtime and review DTOs are sourced from generated JSON Schema so the
+    OpenAPI contract stays aligned with the TypeScript runtime models.
 servers:
   - url: http://localhost:8080
 paths:
@@ -78,15 +78,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  inspector:
-                    oneOf:
-                      - type: "null"
-                      - type: object
-                        additionalProperties: true
-                required:
-                  - inspector
+                $ref: "#/components/schemas/InspectorResponse"
   /api/review:
     get:
       operationId: getReviewDashboard
@@ -111,8 +103,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/ReviewMutationResult"
   /api/review/finalize:
     get:
       operationId: getReviewFinalizeStatus
@@ -276,177 +267,34 @@ paths:
 components:
   schemas:
     InteractionRequest:
-      type: object
-      properties:
-        npcId:
-          type: string
-        targetNpcId:
-          type:
-            - string
-            - "null"
-        inputMode:
-          type: string
-          enum:
-            - free_text
-            - action
-            - combined
-        text:
-          type: string
-        action:
-          type:
-            - string
-            - "null"
-          enum:
-            - make_case
-            - expose
-            - appeal
-            - ally
-            - deflect
-            - stall
-            - confess
-            - "null"
-        playerId:
-          type: string
-      required:
-        - npcId
-        - targetNpcId
-        - inputMode
-        - text
-        - action
-        - playerId
+      $ref: "../generated/json-schema/InteractionRequest.json"
     InteractionResponse:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/InteractionResponse.json"
     WorldSnapshot:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/WorldSnapshot.json"
+    InspectorResponse:
+      $ref: "../generated/json-schema/InspectorResponse.json"
     ReviewDashboardData:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewDashboardData.json"
+    ReviewMutationResult:
+      $ref: "../generated/json-schema/ReviewMutationResult.json"
     ReviewFinalizeStatus:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewFinalizeStatus.json"
     ReviewTrainingStatus:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewTrainingStatus.json"
     ReviewPipelineStatus:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewPipelineStatus.json"
     ReviewPipelineRunResult:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewPipelineRunResult.json"
     ReviewTrainingRequest:
-      type: object
-      properties:
-        kind:
-          type: string
-          enum:
-            - sft
-            - dpo
-      required:
-        - kind
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewTrainingRequest.json"
     ReviewTrainingRunActionRequest:
-      type: object
-      properties:
-        runId:
-          type: string
-        bindingKey:
-          type: string
-      required:
-        - runId
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewTrainingRunActionRequest.json"
     ReviewTrainingDecisionRequest:
-      type: object
-      properties:
-        runId:
-          type: string
-        decision:
-          type: string
-          enum:
-            - accepted
-            - rejected
-        reviewer:
-          type:
-            - string
-            - "null"
-        notes:
-          type: string
-      required:
-        - runId
-        - decision
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewTrainingDecisionRequest.json"
     ReviewPipelineRunRequest:
-      type: object
-      additionalProperties: true
+      $ref: "../generated/json-schema/ReviewPipelineRunRequest.json"
     SystemInfo:
-      type: object
-      properties:
-        service:
-          type: string
-        status:
-          type: string
-        phase:
-          type: string
-        pendingMigrations:
-          type: array
-          items:
-            type: string
-      required:
-        - service
-        - status
-        - phase
-        - pendingMigrations
+      $ref: "../generated/json-schema/SystemInfo.json"
     ReviewDecisionRequest:
-      oneOf:
-        - type: object
-          properties:
-            kind:
-              const: sft
-            reviewId:
-              type: string
-            decision:
-              type:
-                - string
-                - "null"
-              enum:
-                - include
-                - exclude
-                - escalate
-                - "null"
-            reviewer:
-              type:
-                - string
-                - "null"
-            notes:
-              type: string
-          required:
-            - kind
-            - reviewId
-            - decision
-        - type: object
-          properties:
-            kind:
-              const: pair
-            reviewId:
-              type: string
-            decision:
-              type:
-                - string
-                - "null"
-              enum:
-                - include
-                - flip
-                - exclude
-                - escalate
-                - "null"
-            reviewer:
-              type:
-                - string
-                - "null"
-            notes:
-              type: string
-          required:
-            - kind
-            - reviewId
-            - decision
+      $ref: "../generated/json-schema/ReviewDecisionRequest.json"

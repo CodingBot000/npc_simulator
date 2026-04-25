@@ -1,0 +1,739 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewDashboardData",
+  "definitions": {
+    "ReviewDashboardData": {
+      "type": "object",
+      "properties": {
+        "humanRequired": {
+          "$ref": "#/definitions/ReviewDatasetView"
+        },
+        "llmCompleted": {
+          "$ref": "#/definitions/ReviewDatasetView"
+        },
+        "shadowInvalidJson": {
+          "$ref": "#/definitions/ReviewShadowInvalidSummaryView"
+        }
+      },
+      "required": [
+        "humanRequired",
+        "llmCompleted",
+        "shadowInvalidJson"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewDatasetView": {
+      "type": "object",
+      "properties": {
+        "sftItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SftReviewItemView"
+          }
+        },
+        "pairItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PairReviewItemView"
+          }
+        }
+      },
+      "required": [
+        "sftItems",
+        "pairItems"
+      ],
+      "additionalProperties": false
+    },
+    "SftReviewItemView": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "sft"
+        },
+        "reviewId": {
+          "type": "string"
+        },
+        "bucket": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/definitions/SftReviewDecision"
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        },
+        "queueReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "$ref": "#/definitions/ReviewSourceView"
+        },
+        "judge": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewJudgeView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "weightedJudgeScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prompt": {
+          "$ref": "#/definitions/ReviewPromptView"
+        },
+        "candidate": {
+          "$ref": "#/definitions/ReviewCandidateView"
+        },
+        "llmFirstPass": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewLlmFirstPassView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "reviewId",
+        "bucket",
+        "priority",
+        "status",
+        "decision",
+        "reviewer",
+        "reviewedAt",
+        "notes",
+        "queueReason",
+        "source",
+        "judge",
+        "weightedJudgeScore",
+        "prompt",
+        "candidate",
+        "llmFirstPass"
+      ],
+      "additionalProperties": false
+    },
+    "SftReviewDecision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "include",
+        "exclude",
+        "escalate",
+        null
+      ]
+    },
+    "ReviewSourceView": {
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scenarioId": {
+          "type": "string"
+        },
+        "turnIndex": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "npcId": {
+          "type": "string"
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strategyLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exportPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "episodeId",
+        "scenarioId",
+        "turnIndex",
+        "npcId",
+        "targetNpcId",
+        "strategyLabel",
+        "exportPath",
+        "sourceLabel"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewJudgeView": {
+      "type": "object",
+      "properties": {
+        "responseQuality": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "structuredImpactQuality": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "groundingQuality": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "personaConsistency": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "inspectorUsefulness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "responseQuality",
+        "structuredImpactQuality",
+        "groundingQuality",
+        "personaConsistency",
+        "inspectorUsefulness",
+        "verdict",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewPromptView": {
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scenarioId": {
+          "type": "string"
+        },
+        "turnIndex": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "npcId": {
+          "type": "string"
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inputMode": {
+          "type": "string"
+        },
+        "playerText": {
+          "type": "string"
+        },
+        "normalizedInputSummary": {
+          "type": "string"
+        },
+        "promptContextSummary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retrievedMemorySummaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "retrievedKnowledgeTitles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "episodeId",
+        "scenarioId",
+        "turnIndex",
+        "npcId",
+        "targetNpcId",
+        "inputMode",
+        "playerText",
+        "normalizedInputSummary",
+        "promptContextSummary",
+        "retrievedMemorySummaries",
+        "retrievedKnowledgeTitles"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewCandidateView": {
+      "type": "object",
+      "properties": {
+        "rowId": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "weightedScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "replyText": {
+          "type": "string"
+        },
+        "selectedAction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selectedActionReason": {
+          "type": "string"
+        },
+        "impactTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "replyText",
+        "selectedAction",
+        "selectedActionReason",
+        "impactTags",
+        "targetNpcId",
+        "rationale"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewLlmFirstPassView": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suggestedDecision": {
+          "$ref": "#/definitions/LlmSuggestedDecision"
+        },
+        "verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "preferenceStrength": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "responseQuality": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "structuredImpactQuality": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "groundingQuality": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "personaConsistency": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "inspectorUsefulness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "llmError": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "provider",
+        "suggestedDecision",
+        "verdict",
+        "decision",
+        "confidence",
+        "preferenceStrength",
+        "responseQuality",
+        "structuredImpactQuality",
+        "groundingQuality",
+        "personaConsistency",
+        "inspectorUsefulness",
+        "reasons",
+        "llmError"
+      ],
+      "additionalProperties": false
+    },
+    "LlmSuggestedDecision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "include",
+        "flip",
+        "exclude",
+        "escalate",
+        null
+      ]
+    },
+    "PairReviewItemView": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pair"
+        },
+        "reviewId": {
+          "type": "string"
+        },
+        "pairId": {
+          "type": "string"
+        },
+        "priority": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/definitions/PairReviewDecision"
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        },
+        "weightedGap": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pairReason": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt": {
+          "$ref": "#/definitions/ReviewPromptView"
+        },
+        "chosen": {
+          "$ref": "#/definitions/ReviewCandidateView"
+        },
+        "rejected": {
+          "$ref": "#/definitions/ReviewCandidateView"
+        },
+        "llmFirstPass": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewLlmFirstPassView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "reviewId",
+        "pairId",
+        "priority",
+        "status",
+        "decision",
+        "reviewer",
+        "reviewedAt",
+        "notes",
+        "weightedGap",
+        "pairReason",
+        "prompt",
+        "chosen",
+        "rejected",
+        "llmFirstPass"
+      ],
+      "additionalProperties": false
+    },
+    "PairReviewDecision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "include",
+        "flip",
+        "exclude",
+        "escalate",
+        null
+      ]
+    },
+    "ReviewShadowInvalidSummaryView": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "latestExportedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ReviewShadowInvalidCaseView"
+          }
+        }
+      },
+      "required": [
+        "total",
+        "latestExportedAt",
+        "cases"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewShadowInvalidCaseView": {
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scenarioId": {
+          "type": "string"
+        },
+        "turnIndex": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "npcId": {
+          "type": "string"
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "playerText": {
+          "type": "string"
+        },
+        "activeReplyText": {
+          "type": "string"
+        },
+        "shadowLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sourceRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rawOutput": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exportPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exportedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "episodeId",
+        "scenarioId",
+        "turnIndex",
+        "npcId",
+        "targetNpcId",
+        "playerText",
+        "activeReplyText",
+        "shadowLabel",
+        "durationMs",
+        "sourceRef",
+        "error",
+        "rawOutput",
+        "exportPath",
+        "exportedAt"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

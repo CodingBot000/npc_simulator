@@ -6,6 +6,9 @@
     "backend/scripts"
   ],
   "devDependencies": {
+    "openapi-typescript": "^7.10.1",
+    "ts-json-schema-generator": "^2.4.0",
+    "tslib": "^2.8.1",
     "tsx": "^4.20.6"
   },
   "scripts": {
@@ -14,6 +17,7 @@
     "start": "npm --workspace frontend run start",
     "lint": "npm --workspace frontend run lint",
     "typecheck": "npm --workspace frontend run typecheck",
+    "generate:openapi-contracts": "node contracts/scripts/generate-openapi-contracts.mjs",
     "test:autonomy": "npm --workspace @npc-simulator/backend-scripts run test:autonomy",
     "browser:install": "npm --workspace frontend run browser:install",
     "browser:cdp": "npm --workspace frontend run browser:cdp",

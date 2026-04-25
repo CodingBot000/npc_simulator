@@ -6,12 +6,29 @@ import {
   useState,
   useTransition,
 } from "react";
-import { buildClientApiUrl } from "@/lib/api-client";
+import type {
+  ReviewDashboardData,
+  ReviewDecisionRequest,
+  ReviewFinalizeStatus,
+  ReviewMutationResult,
+  ReviewTrainingDecisionRequest,
+  ReviewTrainingRequest,
+  ReviewTrainingRunActionRequest,
+  ReviewTrainingStatus,
+} from "@/lib/api-contract";
+import {
+  apiGetReviewFinalizeStatus,
+  apiGetReviewTrainingStatus,
+  apiPromoteReviewTrainingRun,
+  apiRunReviewFinalize,
+  apiRunReviewTraining,
+  apiRunReviewTrainingEvaluation,
+  apiUpdateReviewDecision,
+  apiUpdateReviewTrainingDecision,
+} from "@/lib/api-client";
 import type {
   PairReviewItemView,
   ReviewCandidateView,
-  ReviewDashboardData,
-  ReviewFinalizeStatusView,
   ReviewDatasetView,
   ReviewKind,
   ReviewShadowInvalidCaseView,
@@ -19,7 +36,6 @@ import type {
   ReviewTrainingBindingKey,
   ReviewTrainingKind,
   ReviewTrainingRunView,
-  ReviewTrainingStatusView,
   SftReviewItemView,
 } from "@/lib/review-types";
 
@@ -713,9 +729,7 @@ function describeTrainingRunStage(run: ReviewTrainingRunView) {
   return "상태 미확인";
 }
 
-function dpoExecutionModeLabel(
-  mode: ReviewTrainingStatusView["dpo"]["executionMode"],
-) {
+function dpoExecutionModeLabel(mode: ReviewTrainingStatus["dpo"]["executionMode"]) {
   switch (mode) {
     case "needs_new_sft":
       return "새 SFT Base 필요";
@@ -735,7 +749,7 @@ function dpoExecutionModeLabel(
 }
 
 function dpoFingerprintRelationLabel(
-  relation: ReviewTrainingStatusView["dpo"]["sftFingerprintRelation"],
+  relation: ReviewTrainingStatus["dpo"]["sftFingerprintRelation"],
 ) {
   switch (relation) {
     case "match":
@@ -1015,35 +1029,32 @@ function CompactReviewCard({
 
     startTransition(async () => {
       setMessage(null);
+      const requestBody: ReviewDecisionRequest =
+        item.kind === "sft"
+          ? {
+              kind: "sft",
+              reviewId: item.reviewId,
+              decision: draftDecision as SftReviewItemView["decision"],
+              reviewer,
+              notes: draftNotes,
+            }
+          : {
+              kind: "pair",
+              reviewId: item.reviewId,
+              decision: draftDecision as PairReviewItemView["decision"],
+              reviewer,
+              notes: draftNotes,
+            };
 
-      const response = await fetch(buildClientApiUrl("/api/review"), {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          kind: item.kind,
-          reviewId: item.reviewId,
-          decision: draftDecision,
-          reviewer,
-          notes: draftNotes,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { message?: string }
-          | null;
-        setMessage(payload?.message ?? "저장하지 못했습니다.");
-        return;
+      try {
+        const payload: ReviewMutationResult = await apiUpdateReviewDecision(
+          requestBody,
+        );
+        onItemSaved(payload.item);
+        setMessage("저장됨");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "저장하지 못했습니다.");
       }
-
-      const payload = (await response.json()) as {
-        kind: ReviewKind;
-        item: ReviewItem;
-      };
-      onItemSaved(payload.item);
-      setMessage("저장됨");
     });
   }
 
@@ -1390,12 +1401,12 @@ export function ReviewDashboard({
   const [sourceMode, setSourceMode] = useState<ReviewSourceMode>("human_required");
   const [kind, setKind] = useState<ReviewKind>("sft");
   const [reviewer, setReviewer] = useState("switch");
-  const [finalizeStatus, setFinalizeStatus] = useState<ReviewFinalizeStatusView | null>(
+  const [finalizeStatus, setFinalizeStatus] = useState<ReviewFinalizeStatus | null>(
     null,
   );
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const finalizePollRef = useRef<number | null>(null);
-  const [trainingStatus, setTrainingStatus] = useState<ReviewTrainingStatusView | null>(
+  const [trainingStatus, setTrainingStatus] = useState<ReviewTrainingStatus | null>(
     null,
   );
   const [trainingError, setTrainingError] = useState<string | null>(null);
@@ -1512,17 +1523,16 @@ export function ReviewDashboard({
     let cancelled = false;
 
     async function loadFinalizeStatus() {
-      const response = await fetch(buildClientApiUrl("/api/review/finalize"), {
-        cache: "no-store",
-      });
+      try {
+        const payload = await apiGetReviewFinalizeStatus({
+          cache: "no-store",
+        });
 
-      if (!response.ok) {
+        if (!cancelled) {
+          setFinalizeStatus(payload);
+        }
+      } catch {
         return;
-      }
-
-      const payload = (await response.json()) as ReviewFinalizeStatusView;
-      if (!cancelled) {
-        setFinalizeStatus(payload);
       }
     }
 
@@ -1543,17 +1553,16 @@ export function ReviewDashboard({
     let cancelled = false;
 
     async function loadTrainingStatus() {
-      const response = await fetch(buildClientApiUrl("/api/review/training"), {
-        cache: "no-store",
-      });
+      try {
+        const payload = await apiGetReviewTrainingStatus({
+          cache: "no-store",
+        });
 
-      if (!response.ok) {
+        if (!cancelled) {
+          setTrainingStatus(payload);
+        }
+      } catch {
         return;
-      }
-
-      const payload = (await response.json()) as ReviewTrainingStatusView;
-      if (!cancelled) {
-        setTrainingStatus(payload);
       }
     }
 
@@ -1629,16 +1638,15 @@ export function ReviewDashboard({
   }
 
   async function refreshFinalizeStatus() {
-    const response = await fetch(buildClientApiUrl("/api/review/finalize"), {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
+    try {
+      setFinalizeStatus(
+        await apiGetReviewFinalizeStatus({
+          cache: "no-store",
+        }),
+      );
+    } catch {
       return;
     }
-
-    const payload = (await response.json()) as ReviewFinalizeStatusView;
-    setFinalizeStatus(payload);
   }
 
   async function handleFinalize() {
@@ -1689,18 +1697,7 @@ export function ReviewDashboard({
     );
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/review/finalize"), {
-        method: "POST",
-      });
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.message ?? "finalize 실행에 실패했습니다.",
-        );
-      }
-
-      setFinalizeStatus(payload as ReviewFinalizeStatusView);
+      setFinalizeStatus(await apiRunReviewFinalize());
     } catch (error) {
       setFinalizeError(
         error instanceof Error ? error.message : "finalize 실행에 실패했습니다.",
@@ -1716,16 +1713,15 @@ export function ReviewDashboard({
   }
 
   async function refreshTrainingStatus() {
-    const response = await fetch(buildClientApiUrl("/api/review/training"), {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
+    try {
+      setTrainingStatus(
+        await apiGetReviewTrainingStatus({
+          cache: "no-store",
+        }),
+      );
+    } catch {
       return;
     }
-
-    const payload = (await response.json()) as ReviewTrainingStatusView;
-    setTrainingStatus(payload);
   }
 
   async function handleTraining(kind: ReviewTrainingKind) {
@@ -1736,20 +1732,8 @@ export function ReviewDashboard({
     });
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/review/training"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ kind }),
-      });
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "학습 실행에 실패했습니다.");
-      }
-
-      const nextStatus = payload as ReviewTrainingStatusView;
+      const requestBody: ReviewTrainingRequest = { kind };
+      const nextStatus = await apiRunReviewTraining(requestBody);
       setTrainingStatus(nextStatus);
       setCurrentActionRunId(nextStatus.activeRun?.runId ?? nextStatus.latestRun?.runId ?? null);
       setPendingTrainingLaunch(null);
@@ -1770,23 +1754,11 @@ export function ReviewDashboard({
     setTrainingError(null);
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/review/training/evaluate"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          runId: currentActionRun.runId,
-          bindingKey: trainingBindingKey,
-        }),
-      });
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "Golden-set Evaluation 실행에 실패했습니다.");
-      }
-
-      const nextStatus = payload as ReviewTrainingStatusView;
+      const requestBody: ReviewTrainingRunActionRequest = {
+        runId: currentActionRun.runId,
+        bindingKey: trainingBindingKey,
+      };
+      const nextStatus = await apiRunReviewTrainingEvaluation(requestBody);
       setTrainingStatus(nextStatus);
       setCurrentActionRunId(currentActionRun.runId);
     } catch (error) {
@@ -1805,25 +1777,13 @@ export function ReviewDashboard({
     setTrainingError(null);
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/review/training/decision"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          runId: currentActionRun.runId,
-          decision,
-          reviewer,
-          notes: "",
-        }),
-      });
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "학습 채택 여부 저장에 실패했습니다.");
-      }
-
-      const nextStatus = payload as ReviewTrainingStatusView;
+      const requestBody: ReviewTrainingDecisionRequest = {
+        runId: currentActionRun.runId,
+        decision,
+        reviewer,
+        notes: "",
+      };
+      const nextStatus = await apiUpdateReviewTrainingDecision(requestBody);
       setTrainingStatus(nextStatus);
       setCurrentActionRunId(currentActionRun.runId);
     } catch (error) {
@@ -1842,23 +1802,11 @@ export function ReviewDashboard({
     setTrainingError(null);
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/review/training/promote"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          runId: currentActionRun.runId,
-          bindingKey: trainingBindingKey,
-        }),
-      });
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "Model Promotion에 실패했습니다.");
-      }
-
-      const nextStatus = payload as ReviewTrainingStatusView;
+      const requestBody: ReviewTrainingRunActionRequest = {
+        runId: currentActionRun.runId,
+        bindingKey: trainingBindingKey,
+      };
+      const nextStatus = await apiPromoteReviewTrainingRun(requestBody);
       setTrainingStatus(nextStatus);
       setCurrentActionRunId(currentActionRun.runId);
     } catch (error) {

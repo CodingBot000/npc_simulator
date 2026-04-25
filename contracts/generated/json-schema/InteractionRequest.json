@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/InteractionRequestPayload",
+  "definitions": {
+    "InteractionRequestPayload": {
+      "type": "object",
+      "properties": {
+        "npcId": {
+          "type": "string"
+        },
+        "targetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inputMode": {
+          "$ref": "#/definitions/InputMode"
+        },
+        "text": {
+          "type": "string"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlayerAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "npcId",
+        "targetNpcId",
+        "inputMode",
+        "text",
+        "action",
+        "playerId"
+      ],
+      "additionalProperties": false
+    },
+    "InputMode": {
+      "type": "string",
+      "enum": [
+        "free_text",
+        "action",
+        "combined"
+      ]
+    },
+    "PlayerAction": {
+      "type": "string",
+      "enum": [
+        "make_case",
+        "expose",
+        "appeal",
+        "ally",
+        "deflect",
+        "stall",
+        "confess"
+      ]
+    }
+  }
+}

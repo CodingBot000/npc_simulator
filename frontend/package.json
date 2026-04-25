@@ -15,6 +15,7 @@
     "browser:capture": "node scripts/browser/capture-via-cdp.mjs --cdp http://127.0.0.1:9222 --url http://localhost:3000 --out-dir ../artifacts/cdp-home"
   },
   "dependencies": {
+    "openapi-fetch": "^0.14.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

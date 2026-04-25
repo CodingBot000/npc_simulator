@@ -176,7 +176,7 @@ export interface EventLogEntry {
   timestamp: string;
   title: string;
   detail: string;
-  tags: readonly string[];
+  tags: string[];
   npcId: string;
   tone: "info" | "success" | "warning" | "danger";
 }

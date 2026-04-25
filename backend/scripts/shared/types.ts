@@ -1,3 +1,9 @@
+import type {
+  InteractionRequestPayload,
+  InteractionResponsePayload,
+  WorldSnapshot,
+} from "./api-contract-types";
+
 export const emotionPrimaries = [
   "focused",
   "fearful",
@@ -176,7 +182,7 @@ export interface EventLogEntry {
   timestamp: string;
   title: string;
   detail: string;
-  tags: readonly string[];
+  tags: string[];
   npcId: string;
   tone: "info" | "success" | "warning" | "danger";
 }
@@ -499,35 +505,11 @@ export interface InteractionLogFile {
   entries: InteractionLogEntry[];
 }
 
-export interface WorldSnapshot {
-  scenarioId: string;
-  episodeId: string;
-  startedAt: string;
-  endedAt: string | null;
-  datasetExportedAt: string | null;
-  exportPaths: EpisodeExportPaths;
-  presentation: ScenarioPresentationSnapshot;
-  scoring?: ScenarioScoringSnapshot | null;
-  availableActions: AvailableActionDefinition[];
-  world: WorldMeta;
-  npcs: NpcState[];
-  events: EventLogEntry[];
-  conversations: Record<string, ChatMessage[]>;
-  round: RoundState;
-  consensusBoard: ConsensusBoardEntry[];
-  lastInspector: InspectorPayload | null;
-  runtime: RuntimeStatus;
-  resolution: ResolutionState;
-}
-
-export interface InteractionRequestPayload {
-  npcId: string;
-  targetNpcId: string | null;
-  inputMode: InputMode;
-  text: string;
-  action: PlayerAction | null;
-  playerId: string;
-}
+export type {
+  InteractionRequestPayload,
+  InteractionResponsePayload,
+  WorldSnapshot,
+} from "./api-contract-types";
 
 export interface NormalizedInteractionInput {
   text: string;
@@ -549,16 +531,6 @@ export interface GenerateInteractionInput {
   retrievedKnowledge: RetrievedKnowledgeEvidence[];
   normalizedInput: NormalizedInteractionInput;
   promptContextSummary: string;
-}
-
-export interface InteractionResponsePayload {
-  reply: ReplyPayload;
-  relationshipDelta: RelationshipDelta;
-  pressureChanges: PressureChange[];
-  eventLogEntry: EventLogEntry;
-  inspector: InspectorPayload;
-  resolution: ResolutionState;
-  world: WorldSnapshot;
 }
 
 export interface LlmProvider {

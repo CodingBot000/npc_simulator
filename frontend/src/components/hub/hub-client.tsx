@@ -9,26 +9,20 @@ import { StickySummaryHeader } from "@/components/hub/sticky-summary-header";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
-import { buildClientApiUrl } from "@/lib/api-client";
-import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
 import type {
-  ChatMessage,
   InteractionResponsePayload,
-  PlayerAction,
+  InteractionRequestPayload,
   WorldSnapshot,
-} from "@/lib/types";
+} from "@/lib/api-contract";
+import { apiGetWorld, apiInteract, apiResetWorld } from "@/lib/api-client";
+import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
+import type { ChatMessage, PlayerAction } from "@/lib/types";
 import {
   formatPlayerConversationText,
   hasScenarioScoring,
   mergeWorldSnapshotScoring,
   nowIso,
 } from "@/lib/utils";
-
-function isApiError(
-  payload: InteractionResponsePayload | WorldSnapshot | { message?: string },
-): payload is { message?: string } {
-  return "message" in payload;
-}
 
 interface HubClientProps {
   initialWorld: WorldSnapshot;
@@ -145,20 +139,13 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
     async function recoverScoring() {
       try {
-        const response = await fetch(buildClientApiUrl("/api/world"), {
+        const payload = await apiGetWorld({
           cache: "no-store",
           signal: controller.signal,
         });
-        const payload = (await response.json()) as
-          | WorldSnapshot
-          | { message?: string };
-
-        if (!response.ok || isApiError(payload)) {
-          return;
-        }
 
         setWorld((current) =>
-          mergeWorldSnapshotScoring(payload as WorldSnapshot, current.scoring),
+          mergeWorldSnapshotScoring(payload, current.scoring),
         );
       } catch {
         // Keep the generic fallback text when recovery fails.
@@ -227,34 +214,15 @@ export function HubClient({ initialWorld }: HubClientProps) {
     });
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/interact"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          npcId: selectedNpc.persona.id,
-          targetNpcId: selectedTargetId,
-          inputMode: payload.inputMode,
-          text: payload.text,
-          action: payload.action,
-          playerId: DEFAULT_PLAYER_ID,
-        }),
-      });
-
-      const data = (await response.json()) as
-        | InteractionResponsePayload
-        | { message?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          isApiError(data)
-            ? data.message || "상호작용 처리에 실패했습니다."
-            : "상호작용 처리에 실패했습니다.",
-        );
-      }
-
-      const responsePayload = data as InteractionResponsePayload;
+      const requestBody: InteractionRequestPayload = {
+        npcId: selectedNpc.persona.id,
+        targetNpcId: selectedTargetId,
+        inputMode: payload.inputMode,
+        text: payload.text,
+        action: payload.action,
+        playerId: DEFAULT_PLAYER_ID,
+      };
+      const responsePayload = await apiInteract(requestBody);
       const updatedConversation =
         responsePayload.world.conversations[selectedNpc.persona.id] ?? [];
       const replyMessage = findLatestNpcReplyMessage(
@@ -297,27 +265,14 @@ export function HubClient({ initialWorld }: HubClientProps) {
     setError(null);
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/reset"), {
-        method: "POST",
-      });
-      const data = (await response.json()) as WorldSnapshot | { message?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          isApiError(data)
-            ? data.message || "상태 초기화에 실패했습니다."
-            : "상태 초기화에 실패했습니다.",
-        );
-      }
+      const data = await apiResetWorld();
 
       setWorld((current) =>
-        mergeWorldSnapshotScoring(data as WorldSnapshot, current.scoring),
+        mergeWorldSnapshotScoring(data, current.scoring),
       );
-      setSelectedNpcId((data as WorldSnapshot).npcs[0]?.persona.id ?? "");
+      setSelectedNpcId(data.npcs[0]?.persona.id ?? "");
       setSelectedTargetId(
-        (data as WorldSnapshot).npcs[1]?.persona.id ??
-          (data as WorldSnapshot).npcs[0]?.persona.id ??
-          null,
+        data.npcs[1]?.persona.id ?? data.npcs[0]?.persona.id ?? null,
       );
       setPendingConversationTurn(null);
       setReplyElapsedByMessageId({});
