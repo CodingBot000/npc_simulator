@@ -1,9 +1,8 @@
 import type { SystemInfo } from "@/lib/api-contract";
 import {
   buildClientApiUrl,
-  getClientApiBaseUrl,
-  getClientApiBaseUrlSource,
 } from "@/lib/api-client";
+import { resolveClientApiBaseUrlConfig } from "@/lib/runtime-config";
 
 export type ApiDiagnosticStatus =
   | "checking"
@@ -27,13 +26,14 @@ export interface ApiDiagnosticsSnapshot {
 }
 
 function createBaseSnapshot(): ApiDiagnosticsSnapshot {
-  const apiBaseUrl = getClientApiBaseUrl();
+  const apiConfig = resolveClientApiBaseUrlConfig();
+  const apiBaseUrl = apiConfig.apiBaseUrl;
   const browserOrigin = window.location.origin;
   const apiOrigin = new URL(apiBaseUrl, window.location.href).origin;
 
   return {
     apiBaseUrl,
-    apiBaseUrlSource: getClientApiBaseUrlSource(),
+    apiBaseUrlSource: apiConfig.source,
     browserOrigin,
     apiOrigin,
     crossOrigin: apiOrigin !== browserOrigin,

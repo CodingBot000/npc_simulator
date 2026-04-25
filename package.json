@@ -23,6 +23,7 @@
     "browser:cdp": "npm --workspace frontend run browser:cdp",
     "browser:cdp:check": "npm --workspace frontend run browser:cdp:check",
     "browser:capture": "npm --workspace frontend run browser:capture",
+    "smoke:separated-deploy": "npm --workspace @npc-simulator/frontend run build && node frontend/scripts/smoke/separated-deployment.mjs",
     "smoke:episode": "node backend/scripts/smoke-episode.mjs",
     "collect:episodes": "node backend/scripts/collect-episodes.mjs",
     "replay:eval": "node backend/scripts/replay-eval-cases.mjs",

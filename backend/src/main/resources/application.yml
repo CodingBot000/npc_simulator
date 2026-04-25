@@ -33,6 +33,14 @@ management:
 npc-simulator:
   storage:
     root: ${BACKEND_STORAGE_ROOT:/srv/npc-simulator/storage}
+  runtime:
+    project-root: ${NPC_SIMULATOR_ROOT:}
+    workdir: ${NPC_SIMULATOR_WORKDIR:}
+    scripts-root: ${NPC_SIMULATOR_SCRIPTS_ROOT:}
+    node-bin-dir: ${NPC_SIMULATOR_NODE_BIN_DIR:}
+    data-root: ${NPC_SIMULATOR_DATA_ROOT:}
+    outputs-root: ${NPC_SIMULATOR_OUTPUTS_ROOT:}
+    venv-root: ${NPC_SIMULATOR_VENV_ROOT:}
   bridge:
     enabled: ${NPC_SIMULATOR_BRIDGE_ENABLED:true}
   cors:

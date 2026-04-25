@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.npcsimulator.infra.bridge.BridgeEnvelope;
 import com.npcsimulator.infra.bridge.NodeBridgeService;
+import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,28 +45,28 @@ public class RuntimeWorldService {
     private final boolean postgresDatasource;
     private final String providerMode;
     private final String openAiApiKey;
-    private final String repoRoot;
+    private final BackendRuntimeLayout runtimeLayout;
 
     public RuntimeWorldService(
         RuntimeWorldRepository runtimeWorldRepository,
         RuntimeScenarioCatalog runtimeScenarioCatalog,
         NodeBridgeService nodeBridgeService,
+        BackendRuntimeLayout runtimeLayout,
         ObjectMapper objectMapper,
         PlatformTransactionManager transactionManager,
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${LLM_PROVIDER_MODE:codex}") String providerMode,
-        @Value("${OPENAI_API_KEY:}") String openAiApiKey,
-        @Value("${NPC_SIMULATOR_ROOT:}") String repoRoot
+        @Value("${OPENAI_API_KEY:}") String openAiApiKey
     ) {
         this.runtimeWorldRepository = runtimeWorldRepository;
         this.runtimeScenarioCatalog = runtimeScenarioCatalog;
         this.nodeBridgeService = nodeBridgeService;
+        this.runtimeLayout = runtimeLayout;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.postgresDatasource = datasourceUrl != null && datasourceUrl.matches("^(?:jdbc:)?postgres(?:ql)?:.*");
         this.providerMode = providerMode;
         this.openAiApiKey = openAiApiKey;
-        this.repoRoot = repoRoot;
     }
 
     public JsonNode getWorld(HttpHeaders headers) {
@@ -316,11 +317,7 @@ public class RuntimeWorldService {
             return candidate.normalize();
         }
 
-        if (repoRoot == null || repoRoot.isBlank()) {
-            return null;
-        }
-
-        return Path.of(repoRoot).resolve(candidate).normalize();
+        return runtimeLayout.resolveProjectPath(candidatePath);
     }
 
     private <T> T withMutationLock(String instanceId, RuntimeMutationCallback<T> callback) {
@@ -552,11 +549,7 @@ public class RuntimeWorldService {
     }
 
     private String resolveLegacyStoragePath(String instanceId) {
-        if (repoRoot == null || repoRoot.isBlank()) {
-            return null;
-        }
-
-        Path base = Path.of(repoRoot).resolve("data");
+        Path base = runtimeLayout.dataRoot();
         if (RuntimeWorldHeaderResolver.DEFAULT_WORLD_INSTANCE_ID.equals(instanceId)) {
             return base.toString();
         }

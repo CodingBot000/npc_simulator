@@ -12,6 +12,9 @@ WORKDIR /workspace
 
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY package.json package-lock.json ./
+COPY tsconfig.json ./tsconfig.json
+COPY contracts ./contracts
+COPY shared ./shared
 COPY frontend ./frontend
 COPY backend/scripts/package.json ./backend/scripts/package.json
 

@@ -20,6 +20,11 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/npc_simulator
 SPRING_PROFILES_ACTIVE=local
 LLM_PROVIDER_MODE=codex
 NPC_SIMULATOR_ROOT=.
+NPC_SIMULATOR_WORKDIR=.
+NPC_SIMULATOR_SCRIPTS_ROOT=./backend/scripts
+NPC_SIMULATOR_NODE_BIN_DIR=./node_modules/.bin
+NPC_SIMULATOR_DATA_ROOT=./data
+NPC_SIMULATOR_OUTPUTS_ROOT=./outputs
 ```
 
 Notes:
@@ -48,6 +53,11 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://db.example.internal:5432/npc_simulator
 SPRING_DATASOURCE_USERNAME=npc_simulator
 SPRING_DATASOURCE_PASSWORD=replace_me
 NPC_SIMULATOR_ROOT=/workspace
+NPC_SIMULATOR_WORKDIR=/workspace
+NPC_SIMULATOR_SCRIPTS_ROOT=/workspace/backend/scripts
+NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
+NPC_SIMULATOR_DATA_ROOT=/workspace/data
+NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com,http://localhost:3000
 LLM_PROVIDER_MODE=openai
 OPENAI_API_KEY=replace_me
@@ -80,6 +90,11 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://db.example.internal:5432/npc_simulator
 SPRING_DATASOURCE_USERNAME=npc_simulator
 SPRING_DATASOURCE_PASSWORD=replace_me
 NPC_SIMULATOR_ROOT=/workspace
+NPC_SIMULATOR_WORKDIR=/workspace
+NPC_SIMULATOR_SCRIPTS_ROOT=/workspace/backend/scripts
+NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
+NPC_SIMULATOR_DATA_ROOT=/workspace/data
+NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com
 LLM_PROVIDER_MODE=openai
 OPENAI_API_KEY=replace_me
@@ -92,7 +107,7 @@ Notes:
 - Frontend and backend are fully separate deployment units
 - Browser CORS should point only at the deployed frontend domain
 - Cloud mode resolves server env from process/platform injection only and does not read `.env.local`
-- Current backend image still needs `NPC_SIMULATOR_ROOT=/workspace` because the Spring backend runs Node-based bridge code from the workspace layout
+- Current backend image still runs Node bridge/scripts from the packaged workspace, but the Java side now reads explicit runtime layout envs (`NPC_SIMULATOR_*_ROOT`, `NPC_SIMULATOR_NODE_BIN_DIR`, `NPC_SIMULATOR_WORKDIR`) instead of assuming only a repo-root layout
 - Training / review artifact execution remains local-first for now
 
 ## Practical rules

@@ -27,6 +27,11 @@ RUN apt-get update \
 
 ENV SPRING_PROFILES_ACTIVE=prod
 ENV NPC_SIMULATOR_ROOT=/workspace
+ENV NPC_SIMULATOR_WORKDIR=/workspace
+ENV NPC_SIMULATOR_SCRIPTS_ROOT=/workspace/backend/scripts
+ENV NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
+ENV NPC_SIMULATOR_DATA_ROOT=/workspace/data
+ENV NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 
 COPY --from=node-deps /workspace/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./

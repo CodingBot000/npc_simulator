@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -70,7 +71,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
-    private final Path repoRoot;
+    private final BackendRuntimeLayout runtimeLayout;
     private final String datasourceUrl;
     private final String datasourceUsername;
     private final String datasourcePassword;
@@ -104,8 +105,8 @@ public class ReviewService {
     public ReviewService(
         ReviewRepository reviewRepository,
         ObjectMapper objectMapper,
+        BackendRuntimeLayout runtimeLayout,
         PlatformTransactionManager transactionManager,
-        @Value("${NPC_SIMULATOR_ROOT:}") String repoRoot,
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${spring.datasource.username:}") String datasourceUsername,
         @Value("${spring.datasource.password:}") String datasourcePassword,
@@ -139,8 +140,8 @@ public class ReviewService {
     ) {
         this.reviewRepository = reviewRepository;
         this.objectMapper = objectMapper;
+        this.runtimeLayout = runtimeLayout;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
-        this.repoRoot = (repoRoot == null || repoRoot.isBlank()) ? null : Path.of(repoRoot);
         this.datasourceUrl = datasourceUrl;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
@@ -2643,9 +2644,9 @@ public class ReviewService {
     private ProcessResult runNodeCommand(List<String> command) {
         try {
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(requiredRepoRoot().toFile());
+            builder.directory(runtimeLayout.workingDirectory().toFile());
             Map<String, String> env = builder.environment();
-            env.putIfAbsent("NPC_SIMULATOR_ROOT", requiredRepoRoot().toString());
+            env.putIfAbsent("NPC_SIMULATOR_ROOT", runtimeLayout.projectRoot().toString());
             if (!blank(datasourceUrl)) {
                 env.put("SPRING_DATASOURCE_URL", datasourceUrl);
             }
@@ -2681,9 +2682,9 @@ public class ReviewService {
     private void startDetachedNodeCommand(List<String> command) {
         try {
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(requiredRepoRoot().toFile());
+            builder.directory(runtimeLayout.workingDirectory().toFile());
             Map<String, String> env = builder.environment();
-            env.putIfAbsent("NPC_SIMULATOR_ROOT", requiredRepoRoot().toString());
+            env.putIfAbsent("NPC_SIMULATOR_ROOT", runtimeLayout.projectRoot().toString());
             if (!blank(datasourceUrl)) {
                 env.put("SPRING_DATASOURCE_URL", datasourceUrl);
             }
@@ -2710,25 +2711,11 @@ public class ReviewService {
     }
 
     private Path tsxBinary() {
-        return resolveRequiredProjectPath(TSX_RELATIVE_PATH);
+        return runtimeLayout.tsxBinary();
     }
 
     private Path requiredRepoRoot() {
-        if (repoRoot != null) {
-            return repoRoot.toAbsolutePath().normalize();
-        }
-
-        Path cwd = Path.of("").toAbsolutePath().normalize();
-        if (Files.exists(cwd.resolve("frontend")) && Files.exists(cwd.resolve("backend"))) {
-            return cwd;
-        }
-
-        Path parent = cwd.getParent();
-        if (parent != null && Files.exists(parent.resolve("frontend")) && Files.exists(parent.resolve("backend"))) {
-            return parent;
-        }
-
-        return cwd;
+        return runtimeLayout.projectRoot();
     }
 
     private Path resolveRequiredProjectPath(String relativePath) {
@@ -2765,7 +2752,37 @@ public class ReviewService {
         if (relativePath == null || relativePath.isBlank()) {
             return null;
         }
-        return requiredRepoRoot().resolve(relativePath).normalize();
+
+        Path directPath = Path.of(relativePath);
+        if (directPath.isAbsolute()) {
+            return directPath.normalize();
+        }
+
+        if ("node_modules/.bin/tsx".equals(relativePath)) {
+            return runtimeLayout.tsxBinary();
+        }
+
+        if (relativePath.startsWith("node_modules/.bin/")) {
+            return runtimeLayout.nodeBinDirectory().resolve(relativePath.substring("node_modules/.bin/".length())).normalize();
+        }
+
+        if (relativePath.startsWith("backend/scripts/")) {
+            return runtimeLayout.resolveScriptsPath(relativePath.substring("backend/scripts/".length()));
+        }
+
+        if (relativePath.startsWith("data/")) {
+            return runtimeLayout.resolveDataPath(relativePath.substring("data/".length()));
+        }
+
+        if (relativePath.startsWith("outputs/")) {
+            return runtimeLayout.resolveOutputsPath(relativePath.substring("outputs/".length()));
+        }
+
+        if (relativePath.startsWith(".venv/")) {
+            return runtimeLayout.resolveVenvPath(relativePath.substring(".venv/".length()));
+        }
+
+        return runtimeLayout.resolveProjectPath(relativePath);
     }
 
     private JsonNode loadJsonFile(Path path) {

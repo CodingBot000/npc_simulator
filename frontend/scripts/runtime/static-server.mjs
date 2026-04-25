@@ -1,15 +1,15 @@
 import { createReadStream, existsSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  createRuntimeConfigScript,
+  resolveFrontendRuntimeConfig,
+  resolveStaticServerSettings,
+} from "./runtime-config.mjs";
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const frontendDir = path.resolve(scriptDir, "../..");
-const distDir = process.env.FRONTEND_DIST_DIR
-  ? path.resolve(process.env.FRONTEND_DIST_DIR)
-  : path.join(frontendDir, "dist");
-const port = Number(process.env.PORT ?? process.env.FRONTEND_PORT ?? "3000");
-const host = process.env.HOST ?? "0.0.0.0";
+const { distDir, host, port } = resolveStaticServerSettings({
+  scriptUrl: import.meta.url,
+});
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -26,23 +26,10 @@ const contentTypes = new Map([
   [".woff2", "font/woff2"],
 ]);
 
-function normalizeBaseUrl(value) {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-}
-
 function writeRuntimeConfig() {
-  const apiBaseUrl = normalizeBaseUrl(
-    process.env.VITE_API_BASE_URL ?? process.env.NPC_SIMULATOR_API_BASE_URL,
-  );
-
   writeFileSync(
     path.join(distDir, "env-config.js"),
-    `window.__NPC_SIMULATOR_CONFIG__ = ${JSON.stringify({ apiBaseUrl })};\n`,
+    createRuntimeConfigScript(resolveFrontendRuntimeConfig()),
   );
 }
 

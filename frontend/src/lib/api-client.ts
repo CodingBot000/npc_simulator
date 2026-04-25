@@ -16,41 +16,14 @@ import type {
   SystemInfo,
   WorldSnapshot,
 } from "@/lib/api-contract";
-
-function normalizeBaseUrl(value: string | undefined | null) {
-  const trimmed = value?.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-}
+import { resolveClientApiBaseUrlConfig } from "@/lib/runtime-config";
 
 export function getClientApiBaseUrlSource() {
-  if (normalizeBaseUrl(window.__NPC_SIMULATOR_CONFIG__?.apiBaseUrl)) {
-    return "runtime_config" as const;
-  }
-
-  if (normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL)) {
-    return "vite_env" as const;
-  }
-
-  return "default_localhost" as const;
+  return resolveClientApiBaseUrlConfig().source;
 }
 
 export function getClientApiBaseUrl() {
-  const baseUrlSource = getClientApiBaseUrlSource();
-
-  if (baseUrlSource === "runtime_config") {
-    return normalizeBaseUrl(window.__NPC_SIMULATOR_CONFIG__?.apiBaseUrl) ?? "http://localhost:8080";
-  }
-
-  if (baseUrlSource === "vite_env") {
-    return normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL) ?? "http://localhost:8080";
-  }
-
-  return "http://localhost:8080";
+  return resolveClientApiBaseUrlConfig().apiBaseUrl;
 }
 
 export function buildClientApiUrl(pathname: string) {
