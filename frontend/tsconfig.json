@@ -16,7 +16,8 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      "@contracts/*": ["../contracts/generated/*"]
+      "@contracts/*": ["../contracts/generated/*"],
+      "@sim-shared/*": ["../shared/simulator-rules/*"]
     }
   },
   "include": [

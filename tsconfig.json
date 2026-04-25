@@ -11,6 +11,9 @@
       "@contracts/*": [
         "./contracts/generated/*"
       ],
+      "@sim-shared/*": [
+        "./shared/simulator-rules/*"
+      ],
       "@backend-shared/*": [
         "./backend/scripts/shared/*"
       ],
@@ -26,6 +29,7 @@
   "include": [
     "backend/scripts/**/*.ts",
     "frontend/src/**/*.ts",
-    "frontend/src/**/*.tsx"
+    "frontend/src/**/*.tsx",
+    "shared/**/*.ts"
   ]
 }
