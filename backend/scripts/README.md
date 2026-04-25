@@ -70,3 +70,15 @@ Lower layers must not import from higher layers.
 - Do not make `contracts` depend on backend runtime code.
 - Do not move frontend concerns into `backend/scripts`.
 - When in doubt, keep the narrower dependency scope.
+
+## Env access rules
+
+- `.env.local` fallback logic belongs only in `server/config.ts` and `server/config/*`.
+- Outside `server/config`, import resolved config values, not `getServerEnv`, `hasServerEnv`, or `getProcessEnv`.
+- Service integrations should read from dedicated config modules such as:
+  - `server/config/database.ts`
+  - `server/config/openai.ts`
+  - `server/config/together-service.ts`
+  - `server/config/runpod-service.ts`
+  - `server/config/training.ts`
+  - `server/config/runpod-deploy.ts`

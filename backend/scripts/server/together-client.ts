@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { getServerEnv } from "@server/config";
-
-const DEFAULT_TOGETHER_API_BASE_URL = "https://api.together.xyz/v1";
+import { togetherServiceConfig } from "@server/config/together-service";
 
 type RawRecord = Record<string, unknown>;
 
@@ -64,12 +62,11 @@ function trimToNull(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
-function togetherApiBaseUrl() {
-  return trimToNull(getServerEnv("TOGETHER_API_BASE_URL")) ?? DEFAULT_TOGETHER_API_BASE_URL;
-}
-
 export async function getEnvValueOrLocalFile(key: string) {
-  return getServerEnv(key);
+  if (key === "TOGETHER_API_KEY") {
+    return togetherServiceConfig.apiKey;
+  }
+  return null;
 }
 
 export async function getTogetherApiKey() {
@@ -101,7 +98,7 @@ async function togetherJsonRequest<T>(pathname: string, init?: RequestInit): Pro
     throw new Error("TOGETHER_API_KEY is required.");
   }
 
-  const response = await fetch(`${togetherApiBaseUrl()}${pathname}`, {
+  const response = await fetch(`${togetherServiceConfig.apiBaseUrl}${pathname}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${apiKey}`,

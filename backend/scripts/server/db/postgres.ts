@@ -1,37 +1,8 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
-import { getServerEnv } from "@server/config";
-
-function stripJdbcPrefix(value: string) {
-  return value.startsWith("jdbc:") ? value.slice("jdbc:".length) : value;
-}
+import { buildPostgresConnectionConfig } from "@server/config/database";
 
 function buildConnectionConfig() {
-  const jdbcUrl =
-    getServerEnv("SPRING_DATASOURCE_URL") || "jdbc:postgresql://localhost:5432/npc_simulator";
-  const parsedUrl = new URL(stripJdbcPrefix(jdbcUrl));
-
-  if (!/^postgres(?:ql)?:$/u.test(parsedUrl.protocol)) {
-    throw new Error(`Unsupported datasource protocol: ${parsedUrl.protocol}`);
-  }
-
-  return {
-    host: parsedUrl.hostname,
-    port: parsedUrl.port ? Number(parsedUrl.port) : 5432,
-    database: parsedUrl.pathname.replace(/^\/+/u, "") || "npc_simulator",
-    user:
-      getServerEnv("SPRING_DATASOURCE_USERNAME") ||
-      decodeURIComponent(parsedUrl.username) ||
-      "npc_simulator",
-    password:
-      getServerEnv("SPRING_DATASOURCE_PASSWORD") ||
-      decodeURIComponent(parsedUrl.password) ||
-      "npc_simulator",
-    max: Number(getServerEnv("NPC_SIMULATOR_DB_POOL_MAX") || "6"),
-    idleTimeoutMillis: Number(getServerEnv("NPC_SIMULATOR_DB_IDLE_TIMEOUT_MS") || "30000"),
-    connectionTimeoutMillis: Number(
-      getServerEnv("NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS") || "10000",
-    ),
-  };
+  return buildPostgresConnectionConfig();
 }
 
 declare global {

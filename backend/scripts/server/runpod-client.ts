@@ -1,7 +1,4 @@
-import { getServerEnv } from "@server/config";
-
-const DEFAULT_RUNPOD_REST_API_BASE_URL = "https://rest.runpod.io/v1";
-const DEFAULT_RUNPOD_SERVERLESS_API_BASE_URL = "https://api.runpod.ai/v2";
+import { runpodServiceConfig } from "@server/config/runpod-service";
 
 type RawRecord = Record<string, unknown>;
 
@@ -75,19 +72,8 @@ function normalizeErrorMessage(payload: unknown, fallback: string) {
   return fallback;
 }
 
-function runpodRestApiBaseUrl() {
-  return trimToNull(getServerEnv("RUNPOD_REST_API_BASE_URL")) ?? DEFAULT_RUNPOD_REST_API_BASE_URL;
-}
-
-function runpodServerlessApiBaseUrl() {
-  return (
-    trimToNull(getServerEnv("RUNPOD_SERVERLESS_API_BASE_URL")) ??
-    DEFAULT_RUNPOD_SERVERLESS_API_BASE_URL
-  );
-}
-
 export function getRunpodApiKey() {
-  return getServerEnv("RUNPOD_API_KEY");
+  return runpodServiceConfig.apiKey;
 }
 
 function buildHeaders(apiKey: string, init?: RequestInit) {
@@ -200,7 +186,7 @@ export function buildRunpodOpenAiBaseUrl(endpointId: string) {
   if (!trimmed) {
     throw new Error("Runpod endpointId is required.");
   }
-  return `${runpodServerlessApiBaseUrl()}/${trimmed}/openai/v1`;
+  return `${runpodServiceConfig.serverlessApiBaseUrl}/${trimmed}/openai/v1`;
 }
 
 function buildRunpodServerlessBaseUrl(endpointId: string) {
@@ -208,12 +194,12 @@ function buildRunpodServerlessBaseUrl(endpointId: string) {
   if (!trimmed) {
     throw new Error("Runpod endpointId is required.");
   }
-  return `${runpodServerlessApiBaseUrl()}/${trimmed}`;
+  return `${runpodServiceConfig.serverlessApiBaseUrl}/${trimmed}`;
 }
 
 export async function listRunpodTemplates() {
   const payload = await runpodJsonRequest<unknown>(
-    `${runpodRestApiBaseUrl()}/templates?includeRunpodTemplates=true&includeEndpointBoundTemplates=true`,
+    `${runpodServiceConfig.restApiBaseUrl}/templates?includeRunpodTemplates=true&includeEndpointBoundTemplates=true`,
     {
       method: "GET",
     },
@@ -238,7 +224,7 @@ export async function createRunpodTemplate(params: {
   ports?: string[];
   readme?: string;
 }) {
-  const payload = await runpodJsonRequest<unknown>(`${runpodRestApiBaseUrl()}/templates`, {
+  const payload = await runpodJsonRequest<unknown>(`${runpodServiceConfig.restApiBaseUrl}/templates`, {
     method: "POST",
     body: JSON.stringify({
       name: params.name,
@@ -272,7 +258,7 @@ export async function updateRunpodTemplate(
   },
 ) {
   const payload = await runpodJsonRequest<unknown>(
-    `${runpodRestApiBaseUrl()}/templates/${encodeURIComponent(templateId)}/update`,
+    `${runpodServiceConfig.restApiBaseUrl}/templates/${encodeURIComponent(templateId)}/update`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -297,7 +283,7 @@ export async function updateRunpodTemplate(
 }
 
 export async function listRunpodEndpoints() {
-  const payload = await runpodJsonRequest<unknown>(`${runpodRestApiBaseUrl()}/endpoints`, {
+  const payload = await runpodJsonRequest<unknown>(`${runpodServiceConfig.restApiBaseUrl}/endpoints`, {
     method: "GET",
   });
   return normalizeListResponse<unknown>(payload)
@@ -313,7 +299,7 @@ export async function findRunpodEndpointByName(name: string) {
 
 export async function getRunpodEndpoint(endpointId: string) {
   const payload = await runpodJsonRequest<unknown>(
-    `${runpodRestApiBaseUrl()}/endpoints/${encodeURIComponent(endpointId)}`,
+    `${runpodServiceConfig.restApiBaseUrl}/endpoints/${encodeURIComponent(endpointId)}`,
     {
       method: "GET",
     },
@@ -334,7 +320,7 @@ export async function createRunpodEndpoint(params: {
   scalerType?: "QUEUE_DELAY" | "REQUEST_COUNT";
   scalerValue?: number;
 }) {
-  const payload = await runpodJsonRequest<unknown>(`${runpodRestApiBaseUrl()}/endpoints`, {
+  const payload = await runpodJsonRequest<unknown>(`${runpodServiceConfig.restApiBaseUrl}/endpoints`, {
     method: "POST",
     body: JSON.stringify({
       templateId: params.templateId,
@@ -375,7 +361,7 @@ export async function updateRunpodEndpoint(
   },
 ) {
   const payload = await runpodJsonRequest<unknown>(
-    `${runpodRestApiBaseUrl()}/endpoints/${encodeURIComponent(endpointId)}`,
+    `${runpodServiceConfig.restApiBaseUrl}/endpoints/${encodeURIComponent(endpointId)}`,
     {
       method: "PATCH",
       body: JSON.stringify({
@@ -404,7 +390,7 @@ export async function updateRunpodEndpoint(
 
 export async function deleteRunpodEndpoint(endpointId: string) {
   return runpodJsonRequest<unknown>(
-    `${runpodRestApiBaseUrl()}/endpoints/${encodeURIComponent(endpointId)}`,
+    `${runpodServiceConfig.restApiBaseUrl}/endpoints/${encodeURIComponent(endpointId)}`,
     {
       method: "DELETE",
     },

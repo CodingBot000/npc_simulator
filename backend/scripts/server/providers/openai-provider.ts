@@ -5,7 +5,7 @@ import type {
 import type {
   LlmInteractionResult,
 } from "@backend-contracts/api";
-import { getServerEnv } from "@server/config";
+import { openAiConfig } from "@server/config/openai";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
 import {
   llmInteractionSchema,
@@ -46,7 +46,7 @@ export class OpenAiProvider implements LlmProvider {
   async generateInteraction(
     input: GenerateInteractionInput,
   ): Promise<LlmInteractionResult> {
-    const apiKey = getServerEnv("OPENAI_API_KEY");
+    const apiKey = openAiConfig.apiKey;
 
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY is required when LLM_PROVIDER_MODE=openai.");

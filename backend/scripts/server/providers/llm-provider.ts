@@ -8,7 +8,8 @@ import {
   emotionPrimaries,
   impactTags,
 } from "@sim-shared/type-sets";
-import { appConfig, hasServerEnv } from "@server/config";
+import { appConfig } from "@server/config";
+import { openAiConfig } from "@server/config/openai";
 import { CodexProvider } from "@server/providers/codex-provider";
 import { DeterministicProvider } from "@server/providers/deterministic-provider";
 import { OpenAiProvider } from "@server/providers/openai-provider";
@@ -152,7 +153,7 @@ let deterministicProvider: DeterministicProvider | null = null;
 
 export function buildRuntimeStatus(): RuntimeStatus {
   if (appConfig.providerMode === "openai") {
-    const configured = hasServerEnv("OPENAI_API_KEY");
+    const configured = openAiConfig.configured;
 
     return {
       providerMode: "openai",

@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PROJECT_ROOT, getServerEnv } from "@server/config";
+import { PROJECT_ROOT } from "@server/config";
+import { runpodDeployConfig } from "@server/config/runpod-deploy";
 import {
   appendTrainingRunEventInDb,
   getLatestSuccessfulTrainingRun,
@@ -44,21 +45,6 @@ const HF_PUBLISH_SCRIPT_PATH = path.join(
   "scripts",
   "publish-peft-adapter-to-hf.py",
 );
-const DEFAULT_RUNPOD_VLLM_IMAGE = "runpod/worker-vllm:stable-cuda12.1.0";
-const DEFAULT_GPU_TYPE_IDS = [
-  "NVIDIA L4",
-  "NVIDIA RTX A5000",
-  "NVIDIA GeForce RTX 3090",
-  "NVIDIA GeForce RTX 4090",
-];
-const DEFAULT_CONTAINER_DISK_GB = 50;
-const DEFAULT_WORKERS_MIN = 0;
-const DEFAULT_WORKERS_MAX = 1;
-const DEFAULT_IDLE_TIMEOUT_SECONDS = 5;
-const DEFAULT_EXECUTION_TIMEOUT_MS = 600_000;
-const DEFAULT_READY_TIMEOUT_MS = 12 * 60_000;
-const DEFAULT_READY_POLL_MS = 5_000;
-
 function trimToNull(value: string | null | undefined) {
   if (typeof value !== "string") {
     return null;
@@ -127,13 +113,18 @@ async function pathExists(targetPath: string | null | undefined) {
   }
 }
 
-async function runCommand(command: string, args: string[]) {
+async function runCommand(
+  command: string,
+  args: string[],
+  envOverrides: Record<string, string | undefined> = {},
+) {
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
       env: {
         ...process.env,
         NPC_SIMULATOR_ROOT: PROJECT_ROOT,
+        ...envOverrides,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -196,12 +187,6 @@ async function publishAdapterToHf(params: {
   publicRepo: boolean;
 }) {
   const pythonBinary = (await pathExists(PYTHON_BINARY_PATH)) ? PYTHON_BINARY_PATH : "python3";
-  const repoPrefix =
-    trimToNull(getServerEnv("RUNPOD_HF_REPO_PREFIX")) ?? "npc-sim";
-  const hfToken = trimToNull(getServerEnv("HF_TOKEN"));
-  if (hfToken) {
-    process.env.HF_TOKEN = hfToken;
-  }
   const args = [
     HF_PUBLISH_SCRIPT_PATH,
     "--adapter-dir",
@@ -209,30 +194,24 @@ async function publishAdapterToHf(params: {
     "--run-id",
     params.runId,
     "--repo-name-prefix",
-    repoPrefix,
+    runpodDeployConfig.hfRepoPrefix,
     params.publicRepo ? "--public" : "--private",
   ];
   if (params.repoId) {
     args.push("--repo-id", params.repoId);
   }
-  const result = await runCommand(pythonBinary, args);
+  const result = await runCommand(pythonBinary, args, {
+    HF_TOKEN: runpodDeployConfig.hfToken ?? undefined,
+  });
   return parseJsonLine<UploadedAdapterInfo>(result.stdout);
 }
 
 function resolveGpuTypeIds() {
-  const raw = trimToNull(getServerEnv("RUNPOD_GPU_TYPE_IDS"));
-  if (!raw) {
-    return DEFAULT_GPU_TYPE_IDS;
-  }
-  return raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  return runpodDeployConfig.gpuTypeIds;
 }
 
 function buildEndpointName(runId: string) {
-  const prefix = trimToNull(getServerEnv("RUNPOD_ENDPOINT_NAME_PREFIX")) ?? "npc-sim";
-  return `${slugify(prefix)}-${slugify(runId)}`;
+  return `${slugify(runpodDeployConfig.endpointNamePrefix)}-${slugify(runId)}`;
 }
 
 function buildTemplateName(runId: string) {
@@ -240,8 +219,7 @@ function buildTemplateName(runId: string) {
 }
 
 function buildServedModelName(runId: string) {
-  const prefix = trimToNull(getServerEnv("RUNPOD_SERVED_MODEL_PREFIX")) ?? "npc-sim";
-  return `${slugify(prefix)}-${slugify(runId)}`;
+  return `${slugify(runpodDeployConfig.servedModelPrefix)}-${slugify(runId)}`;
 }
 
 function buildTemplateEnv(params: {
@@ -265,7 +243,7 @@ function buildTemplateEnv(params: {
     OPENAI_SERVED_MODEL_NAME_OVERRIDE: params.servedModelName,
   };
 
-  const hfToken = trimToNull(getServerEnv("HF_TOKEN"));
+  const hfToken = runpodDeployConfig.hfToken;
   if (hfToken && !params.publicRepo) {
     env.HF_TOKEN = hfToken;
   }
@@ -274,12 +252,8 @@ function buildTemplateEnv(params: {
 }
 
 async function waitForRunpodWorkerReady(params: { endpointId: string }) {
-  const timeoutMs = Number(
-    getServerEnv("RUNPOD_DEPLOY_READY_TIMEOUT_MS") || String(DEFAULT_READY_TIMEOUT_MS),
-  );
-  const pollMs = Number(
-    getServerEnv("RUNPOD_DEPLOY_READY_POLL_MS") || String(DEFAULT_READY_POLL_MS),
-  );
+  const timeoutMs = runpodDeployConfig.readyTimeoutMs;
+  const pollMs = runpodDeployConfig.readyPollMs;
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown = null;
 
@@ -400,8 +374,7 @@ async function main() {
       publicRepo,
     });
 
-    const templateImage =
-      trimToNull(getServerEnv("RUNPOD_VLLM_IMAGE")) ?? DEFAULT_RUNPOD_VLLM_IMAGE;
+    const templateImage = runpodDeployConfig.vllmImage;
     const gpuTypeIds = resolveGpuTypeIds();
     const remoteProviderRef = parseRemoteProviderRef(spec.remoteProvider);
     const existingEndpoint =
@@ -419,7 +392,7 @@ async function main() {
           name: templateName,
           imageName: templateImage,
           env: templateEnv,
-          containerDiskInGb: DEFAULT_CONTAINER_DISK_GB,
+          containerDiskInGb: runpodDeployConfig.containerDiskGb,
           isPublic: false,
           ports: [],
           readme: "",
@@ -428,7 +401,7 @@ async function main() {
           name: templateName,
           imageName: templateImage,
           env: templateEnv,
-          containerDiskInGb: DEFAULT_CONTAINER_DISK_GB,
+          containerDiskInGb: runpodDeployConfig.containerDiskGb,
           isPublic: false,
           ports: [],
           readme: "",
@@ -439,17 +412,13 @@ async function main() {
       templateId: template.id,
       gpuTypeIds,
       gpuCount: 1,
-      workersMin: Number(getServerEnv("RUNPOD_WORKERS_MIN") || String(DEFAULT_WORKERS_MIN)),
-      workersMax: Number(getServerEnv("RUNPOD_WORKERS_MAX") || String(DEFAULT_WORKERS_MAX)),
-      idleTimeout: Number(
-        getServerEnv("RUNPOD_IDLE_TIMEOUT_SECONDS") || String(DEFAULT_IDLE_TIMEOUT_SECONDS),
-      ),
-      executionTimeoutMs: Number(
-        getServerEnv("RUNPOD_EXECUTION_TIMEOUT_MS") || String(DEFAULT_EXECUTION_TIMEOUT_MS),
-      ),
-      flashboot: getServerEnv("RUNPOD_FLASHBOOT") === "false" ? false : true,
+      workersMin: runpodDeployConfig.workersMin,
+      workersMax: runpodDeployConfig.workersMax,
+      idleTimeout: runpodDeployConfig.idleTimeoutSeconds,
+      executionTimeoutMs: runpodDeployConfig.executionTimeoutMs,
+      flashboot: runpodDeployConfig.flashboot,
       scalerType: "QUEUE_DELAY" as const,
-      scalerValue: Number(getServerEnv("RUNPOD_SCALER_VALUE") || "4"),
+      scalerValue: runpodDeployConfig.scalerValue,
     };
     const endpoint = existingEndpoint
       ? await updateRunpodEndpoint(existingEndpoint.id, endpointParams)

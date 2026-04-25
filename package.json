@@ -15,7 +15,7 @@
     "dev": "npm --workspace frontend run dev",
     "build": "npm --workspace frontend run build",
     "start": "npm --workspace frontend run start",
-    "lint": "npm --workspace frontend run lint && npm --workspace @npc-simulator/backend-scripts run lint:layers",
+    "lint": "npm --workspace frontend run lint && npm --workspace @npc-simulator/backend-scripts run lint:layers && npm --workspace @npc-simulator/backend-scripts run lint:env",
     "typecheck": "npm --workspace frontend run typecheck",
     "generate:openapi-contracts": "node contracts/scripts/generate-openapi-contracts.mjs",
     "test:autonomy": "npm --workspace @npc-simulator/backend-scripts run test:autonomy",
