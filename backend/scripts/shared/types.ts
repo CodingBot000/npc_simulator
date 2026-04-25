@@ -48,22 +48,26 @@ import type {
   WorldSnapshot,
 } from "./api-contract-types";
 export type {
-  AutonomyRuntimeState,
-  GenerateInteractionInput,
-  InteractionLogEntry,
-  InteractionLogFile,
-  JudgementState,
   KnowledgeEvidence,
-  LlmProvider,
-  NormalizedInteractionInput,
-  NpcMemoryFile,
   PersistedNpcState,
   PressureImpact,
   Quest,
   QuestStatus,
   QuestUpdate,
-  WorldStateFile,
 } from "./domain-types";
+export type {
+  AutonomyRuntimeState,
+  InteractionLogEntry,
+  InteractionLogFile,
+  JudgementState,
+  NpcMemoryFile,
+  WorldStateFile,
+} from "./persistence-types";
+export type {
+  GenerateInteractionInput,
+  LlmProvider,
+  NormalizedInteractionInput,
+} from "./provider-types";
 import type {
   AllowedActionType as SharedAllowedActionType,
   AutonomyMoveType as SharedAutonomyMoveType,
