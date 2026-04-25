@@ -4,7 +4,7 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@backend-shared/types";
+} from "@backend-shared/persistence-types";
 import { DATA_FILES } from "@backend-shared/constants";
 import { DATA_DIR } from "@server/config";
 import type {

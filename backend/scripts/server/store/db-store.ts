@@ -5,7 +5,7 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@backend-shared/types";
+} from "@backend-shared/persistence-types";
 import { DATA_FILES } from "@backend-shared/constants";
 import { dbQuery, withDbTransaction } from "@server/db/postgres";
 import { getCurrentScenario } from "@server/scenario";

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { GenerateInteractionInput } from "@backend-shared/types";
+import type { GenerateInteractionInput } from "@backend-shared/provider-types";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { dbQuery } from "@server/db/postgres";
 import {

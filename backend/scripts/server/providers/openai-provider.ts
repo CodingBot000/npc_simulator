@@ -1,7 +1,10 @@
 import type {
   GenerateInteractionInput,
+  LlmProvider,
+} from "@backend-shared/provider-types";
+import type {
   LlmInteractionResult,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
 import {
   llmInteractionSchema,
@@ -36,7 +39,7 @@ function extractOutputText(payload: OpenAiResponsesPayload) {
   return textChunks.join("\n").trim();
 }
 
-export class OpenAiProvider {
+export class OpenAiProvider implements LlmProvider {
   readonly mode = "openai" as const;
 
   async generateInteraction(

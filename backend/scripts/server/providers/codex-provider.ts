@@ -4,8 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import type {
   GenerateInteractionInput,
+  LlmProvider,
+} from "@backend-shared/provider-types";
+import type {
   LlmInteractionResult,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
 import { safeJsonParse, stripCodeFence } from "@backend-shared/utils";
 import { PROJECT_ROOT } from "@server/config";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
@@ -65,7 +68,7 @@ function runCommand(
   });
 }
 
-export class CodexProvider {
+export class CodexProvider implements LlmProvider {
   readonly mode = "codex" as const;
 
   async generateInteraction(
