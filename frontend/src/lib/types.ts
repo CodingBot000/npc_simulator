@@ -1,6 +1,11 @@
-import type { components } from "@contracts/openapi-types";
+import type {
+  InteractionRequestPayload as ApiInteractionRequestPayload,
+  InteractionResponsePayload as ApiInteractionResponsePayload,
+  OpenApiSchema,
+  WorldSnapshot as ApiWorldSnapshot,
+} from "@/lib/api-contract";
 
-type Schema = components["schemas"];
+type Schema = OpenApiSchema;
 
 export type EmotionPrimary = Schema["EmotionPrimary"];
 export type AllowedActionType = Schema["AllowedActionType"];
@@ -121,6 +126,6 @@ export interface JudgementDimensions {
 export type ConsensusBoardEntry = Schema["ConsensusBoardEntry"];
 export type ResolutionState = Schema["ResolutionState"];
 export type EpisodeExportPaths = Schema["EpisodeExportPaths"];
-export type WorldSnapshot = Schema["WorldSnapshot"];
-export type InteractionRequestPayload = Schema["InteractionRequestPayload"];
-export type InteractionResponsePayload = Schema["InteractionResponsePayload"];
+export type WorldSnapshot = ApiWorldSnapshot;
+export type InteractionRequestPayload = ApiInteractionRequestPayload;
+export type InteractionResponsePayload = ApiInteractionResponsePayload;

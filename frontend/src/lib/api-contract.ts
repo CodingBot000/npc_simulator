@@ -1,4 +1,4 @@
-import type { operations, paths } from "@contracts/openapi-types";
+import type { components, operations, paths } from "@contracts/openapi-types";
 
 type JsonBody<T> = T extends {
   requestBody: { content: { "application/json": infer Content } };
@@ -13,6 +13,7 @@ type JsonSuccess<T> = T extends {
   : never;
 
 export type OpenApiPaths = paths;
+export type OpenApiSchema = components["schemas"];
 
 export type WorldSnapshot = JsonSuccess<operations["getWorld"]>;
 export type InteractionRequestPayload = JsonBody<operations["interact"]>;

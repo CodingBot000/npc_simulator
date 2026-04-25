@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { ReviewDashboardData } from "@/lib/api-contract";
 import { apiGetReviewDashboard } from "@/lib/api-client";
+import type { ReviewDashboardData } from "@/lib/review-types";
 import { ReviewDashboard } from "@/components/review/review-dashboard";
 
 function ReviewRouteLoading() {

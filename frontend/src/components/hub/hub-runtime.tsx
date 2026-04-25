@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { HubClient } from "@/components/hub/hub-client";
 import { Panel } from "@/components/ui/panel";
-import type { WorldSnapshot } from "@/lib/api-contract";
 import { apiGetWorld } from "@/lib/api-client";
+import type { WorldSnapshot } from "@/lib/types";
 
 function HubLoadingState() {
   return (

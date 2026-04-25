@@ -9,14 +9,15 @@ import { StickySummaryHeader } from "@/components/hub/sticky-summary-header";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
-import type {
-  InteractionResponsePayload,
-  InteractionRequestPayload,
-  WorldSnapshot,
-} from "@/lib/api-contract";
 import { apiGetWorld, apiInteract, apiResetWorld } from "@/lib/api-client";
 import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
-import type { ChatMessage, PlayerAction } from "@/lib/types";
+import type {
+  ChatMessage,
+  InteractionRequestPayload,
+  InteractionResponsePayload,
+  PlayerAction,
+  WorldSnapshot,
+} from "@/lib/types";
 import {
   formatPlayerConversationText,
   hasScenarioScoring,

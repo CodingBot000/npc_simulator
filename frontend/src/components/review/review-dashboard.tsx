@@ -6,16 +6,6 @@ import {
   useState,
   useTransition,
 } from "react";
-import type {
-  ReviewDashboardData,
-  ReviewDecisionRequest,
-  ReviewFinalizeStatus,
-  ReviewMutationResult,
-  ReviewTrainingDecisionRequest,
-  ReviewTrainingRequest,
-  ReviewTrainingRunActionRequest,
-  ReviewTrainingStatus,
-} from "@/lib/api-contract";
 import {
   apiGetReviewFinalizeStatus,
   apiGetReviewTrainingStatus,
@@ -29,13 +19,21 @@ import {
 import type {
   PairReviewItemView,
   ReviewCandidateView,
+  ReviewDashboardData,
+  ReviewDecisionRequest,
   ReviewDatasetView,
+  ReviewFinalizeStatusView,
   ReviewKind,
   ReviewShadowInvalidCaseView,
   ReviewSourceMode,
   ReviewTrainingBindingKey,
+  ReviewTrainingDecisionRequest,
   ReviewTrainingKind,
+  ReviewTrainingRequest,
   ReviewTrainingRunView,
+  ReviewTrainingRunActionRequest,
+  ReviewTrainingStatusView,
+  ReviewMutationResult,
   SftReviewItemView,
 } from "@/lib/review-types";
 
@@ -729,7 +727,7 @@ function describeTrainingRunStage(run: ReviewTrainingRunView) {
   return "상태 미확인";
 }
 
-function dpoExecutionModeLabel(mode: ReviewTrainingStatus["dpo"]["executionMode"]) {
+function dpoExecutionModeLabel(mode: ReviewTrainingStatusView["dpo"]["executionMode"]) {
   switch (mode) {
     case "needs_new_sft":
       return "새 SFT Base 필요";
@@ -749,7 +747,7 @@ function dpoExecutionModeLabel(mode: ReviewTrainingStatus["dpo"]["executionMode"
 }
 
 function dpoFingerprintRelationLabel(
-  relation: ReviewTrainingStatus["dpo"]["sftFingerprintRelation"],
+  relation: ReviewTrainingStatusView["dpo"]["sftFingerprintRelation"],
 ) {
   switch (relation) {
     case "match":
@@ -1401,12 +1399,12 @@ export function ReviewDashboard({
   const [sourceMode, setSourceMode] = useState<ReviewSourceMode>("human_required");
   const [kind, setKind] = useState<ReviewKind>("sft");
   const [reviewer, setReviewer] = useState("switch");
-  const [finalizeStatus, setFinalizeStatus] = useState<ReviewFinalizeStatus | null>(
+  const [finalizeStatus, setFinalizeStatus] = useState<ReviewFinalizeStatusView | null>(
     null,
   );
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const finalizePollRef = useRef<number | null>(null);
-  const [trainingStatus, setTrainingStatus] = useState<ReviewTrainingStatus | null>(
+  const [trainingStatus, setTrainingStatus] = useState<ReviewTrainingStatusView | null>(
     null,
   );
   const [trainingError, setTrainingError] = useState<string | null>(null);

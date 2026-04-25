@@ -1,6 +1,19 @@
-import type { components } from "@contracts/openapi-types";
+import type {
+  OpenApiSchema,
+  ReviewDashboardData as ApiReviewDashboardData,
+  ReviewDecisionRequest as ApiReviewDecisionRequest,
+  ReviewFinalizeStatus as ApiReviewFinalizeStatus,
+  ReviewMutationResult as ApiReviewMutationResult,
+  ReviewPipelineRunRequest as ApiReviewPipelineRunRequest,
+  ReviewPipelineRunResult as ApiReviewPipelineRunResult,
+  ReviewPipelineStatus as ApiReviewPipelineStatus,
+  ReviewTrainingDecisionRequest as ApiReviewTrainingDecisionRequest,
+  ReviewTrainingRequest as ApiReviewTrainingRequest,
+  ReviewTrainingRunActionRequest as ApiReviewTrainingRunActionRequest,
+  ReviewTrainingStatus as ApiReviewTrainingStatus,
+} from "@/lib/api-contract";
 
-type Schema = components["schemas"];
+type Schema = OpenApiSchema;
 
 export type ReviewKind = Schema["ReviewKind"];
 export type ReviewSourceMode = Schema["ReviewSourceMode"];
@@ -26,12 +39,13 @@ export type ReviewShadowInvalidCaseView =
   Schema["ReviewShadowInvalidCaseView"];
 export type ReviewShadowInvalidSummaryView =
   Schema["ReviewShadowInvalidSummaryView"];
-export type ReviewDashboardData = Schema["ReviewDashboardData"];
-export type ReviewMutationResult = Schema["ReviewMutationResult"];
+export type ReviewDashboardData = ApiReviewDashboardData;
+export type ReviewMutationResult = ApiReviewMutationResult;
+export type ReviewDecisionRequest = ApiReviewDecisionRequest;
 export type ReviewFinalizePendingView = Schema["ReviewFinalizePendingView"];
 export type ReviewFinalizeDurationsView =
   Schema["ReviewFinalizeDurationsView"];
-export type ReviewFinalizeStatusView = Schema["ReviewFinalizeStatusView"];
+export type ReviewFinalizeStatusView = ApiReviewFinalizeStatus;
 export type ReviewTrainingDatasetView =
   Schema["ReviewTrainingDatasetView"];
 export type ReviewTrainingPreflightView =
@@ -49,4 +63,12 @@ export type ReviewTrainingDecisionView =
 export type ReviewTrainingPromotionView =
   Schema["ReviewTrainingPromotionView"];
 export type ReviewTrainingRunView = Schema["ReviewTrainingRunView"];
-export type ReviewTrainingStatusView = Schema["ReviewTrainingStatusView"];
+export type ReviewTrainingStatusView = ApiReviewTrainingStatus;
+export type ReviewTrainingRequest = ApiReviewTrainingRequest;
+export type ReviewTrainingRunActionRequest =
+  ApiReviewTrainingRunActionRequest;
+export type ReviewTrainingDecisionRequest =
+  ApiReviewTrainingDecisionRequest;
+export type ReviewPipelineStatus = ApiReviewPipelineStatus;
+export type ReviewPipelineRunRequest = ApiReviewPipelineRunRequest;
+export type ReviewPipelineRunResult = ApiReviewPipelineRunResult;
