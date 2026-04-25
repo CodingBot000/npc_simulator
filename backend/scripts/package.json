@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "lint:layers": "cd ../.. && node backend/scripts/check-layer-boundaries.mjs",
     "test:autonomy": "cd ../.. && node --import tsx --test backend/scripts/server/engine/npc-autonomy/*.test.ts",
     "review:deploy:runpod": "cd ../.. && tsx backend/scripts/review-deploy-runpod.ts",
     "typecheck": "tsc --noEmit -p ../../tsconfig.backend-scripts.json"

@@ -25,6 +25,9 @@
   - API, engine, providers, scenarios, seeds, store, config live here.
 - `runtime/`, `review/`, `api/`
   - Entry points and worker-facing orchestration.
+- `*.ts` at `backend/scripts/` root
+  - Top-level worker and orchestration entry points.
+  - May depend on `runtime/`, `review/`, `api/`, and `server/`.
 
 ## Allowed dependency direction
 
@@ -35,6 +38,7 @@
 - `support` -> `@sim-shared/*`
 - `server` -> may depend on all layers above
 - `runtime`, `review`, `api` -> may depend on the layers above and `server`
+- root `*.ts` entry points -> may depend on the layers above, `server`, and orchestration layers
 
 Lower layers must not import from higher layers.
 
