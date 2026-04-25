@@ -27,12 +27,30 @@ function normalizeBaseUrl(value: string | undefined | null) {
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
 }
 
+export function getClientApiBaseUrlSource() {
+  if (normalizeBaseUrl(window.__NPC_SIMULATOR_CONFIG__?.apiBaseUrl)) {
+    return "runtime_config" as const;
+  }
+
+  if (normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL)) {
+    return "vite_env" as const;
+  }
+
+  return "default_localhost" as const;
+}
+
 export function getClientApiBaseUrl() {
-  return (
-    normalizeBaseUrl(window.__NPC_SIMULATOR_CONFIG__?.apiBaseUrl) ??
-    normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL) ??
-    "http://localhost:8080"
-  );
+  const baseUrlSource = getClientApiBaseUrlSource();
+
+  if (baseUrlSource === "runtime_config") {
+    return normalizeBaseUrl(window.__NPC_SIMULATOR_CONFIG__?.apiBaseUrl) ?? "http://localhost:8080";
+  }
+
+  if (baseUrlSource === "vite_env") {
+    return normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL) ?? "http://localhost:8080";
+  }
+
+  return "http://localhost:8080";
 }
 
 export function buildClientApiUrl(pathname: string) {

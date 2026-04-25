@@ -32,6 +32,9 @@
       "@backend-support/constants": [
         "./backend/scripts/support/constants.ts"
       ],
+      "@backend-support/bootstrap": [
+        "./backend/scripts/support/bootstrap.ts"
+      ],
       "@backend-support/utils": [
         "./backend/scripts/support/utils.ts"
       ],

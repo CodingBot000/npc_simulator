@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   getStringOption,
   parseCliArgs,
@@ -13,11 +12,15 @@ import {
   runDatasetJudge,
   runPreferencePairJudge,
 } from "./_quality-judge-helpers.mjs";
+import {
+  buildScriptSpawnEnv,
+  ensureScriptProjectRoot,
+} from "./_script-runtime.mjs";
 
 const DEFAULT_SFT_INPUT = "data/review/live/human_review_sft_queue.jsonl";
 const DEFAULT_PAIR_INPUT = "data/review/live/human_review_pair_queue.jsonl";
 const DEFAULT_OUTPUT_DIR = "data/review/live";
-const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
 const REVIEW_SYNC_SCRIPT_PATH = path.join(PROJECT_ROOT, "backend", "scripts", "review-sync-queue.ts");
 
 function usage() {
@@ -38,10 +41,7 @@ function runQueueSync(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--import", "tsx", REVIEW_SYNC_SCRIPT_PATH, ...args], {
       cwd: PROJECT_ROOT,
-      env: {
-        ...process.env,
-        NPC_SIMULATOR_ROOT: PROJECT_ROOT,
-      },
+      env: buildScriptSpawnEnv(PROJECT_ROOT),
       stdio: "pipe",
     });
 

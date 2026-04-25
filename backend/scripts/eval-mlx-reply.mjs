@@ -2,6 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import {
+  buildScriptSpawnEnv,
+  ensureScriptProjectRoot,
+} from "./_script-runtime.mjs";
+import {
   getNumberOption,
   getStringOption,
   loadJsonOrJsonl,
@@ -13,6 +17,7 @@ import {
 const DEFAULT_DATASET = "data/train/mlx_sft_compact/valid.jsonl";
 const DEFAULT_MODEL = "mlx-community/Llama-3.1-8B-Instruct-4bit";
 const DEFAULT_OUTPUT_DIR = "data/evals/mlx_reply";
+const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
 
 function usage() {
   printUsage([
@@ -85,8 +90,8 @@ async function runGenerate({ model, adapterPath, systemPrompt, prompt }) {
 
   return new Promise((resolve, reject) => {
     const child = spawn(args[0], args.slice(1), {
-      cwd: process.cwd(),
-      env: process.env,
+      cwd: PROJECT_ROOT,
+      env: buildScriptSpawnEnv(PROJECT_ROOT),
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -190,7 +195,7 @@ async function main() {
       Math.max(results.length, 1),
   };
 
-  await fs.mkdir(path.resolve(process.cwd(), outputDir), { recursive: true });
+  await fs.mkdir(path.resolve(PROJECT_ROOT, outputDir), { recursive: true });
   const outputPath = path.join(outputDir, "mlx_reply_eval.json");
   await writeJsonFile(outputPath, {
     generatedAt: new Date().toISOString(),

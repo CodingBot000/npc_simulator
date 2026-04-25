@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { buildChildProcessEnv } from "@backend-support/bootstrap";
 import { PROJECT_ROOT } from "@server/config";
 import { runpodDeployConfig } from "@server/config/runpod-deploy";
 import {
@@ -121,11 +122,7 @@ async function runCommand(
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
-      env: {
-        ...process.env,
-        NPC_SIMULATOR_ROOT: PROJECT_ROOT,
-        ...envOverrides,
-      },
+      env: buildChildProcessEnv(PROJECT_ROOT, envOverrides),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

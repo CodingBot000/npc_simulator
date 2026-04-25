@@ -50,6 +50,7 @@ Lower layers must not import from higher layers.
   - `@backend-domain`
   - `@backend-persistence`
   - `@backend-provider`
+  - `@backend-support/bootstrap`
   - `@backend-support/constants`
   - `@backend-support/utils`
 - Do not add a new catch-all alias or facade file.
@@ -82,3 +83,6 @@ Lower layers must not import from higher layers.
   - `server/config/runpod-service.ts`
   - `server/config/training.ts`
   - `server/config/runpod-deploy.ts`
+- Root `.mjs` scripts and worker entrypoints must not read `process.env` directly.
+  - Use `backend/scripts/_script-runtime.mjs` for `.mjs` scripts.
+  - Use `@backend-support/bootstrap` for TypeScript worker/bootstrap code.

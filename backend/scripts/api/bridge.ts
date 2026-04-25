@@ -1,21 +1,12 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { postInteractApiResponse } from "@server/api/interaction-api";
-import { postRuntimeInteractWorkerResponse } from "../runtime/interaction-worker";
-import { closeDbPool } from "@server/db/postgres";
-import {
-  getInspectorApiResponse,
-  getWorldApiResponse,
-  resetWorldApiResponse,
-} from "@server/api/world-api";
-import { createSeedStateBundle } from "../runtime/world-bundle";
+import { ensureNpcSimulatorRoot } from "@backend-support/bootstrap";
 
-const repoRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../..",
-);
+ensureNpcSimulatorRoot(import.meta.url, "..", "..", "..");
 
-process.env.NPC_SIMULATOR_ROOT ??= repoRoot;
+const postgresModulePromise = import("@server/db/postgres");
+const interactionApiModulePromise = import("@server/api/interaction-api");
+const interactionWorkerModulePromise = import("../runtime/interaction-worker");
+const worldApiModulePromise = import("@server/api/world-api");
+const worldBundleModulePromise = import("../runtime/world-bundle");
 
 interface BridgeInput {
   headers?: Record<string, string | null | undefined>;
@@ -39,6 +30,21 @@ async function readInput(): Promise<BridgeInput> {
 }
 
 async function main() {
+  const [
+    { postInteractApiResponse },
+    { postRuntimeInteractWorkerResponse },
+    {
+      getInspectorApiResponse,
+      getWorldApiResponse,
+      resetWorldApiResponse,
+    },
+    { createSeedStateBundle },
+  ] = await Promise.all([
+    interactionApiModulePromise,
+    interactionWorkerModulePromise,
+    worldApiModulePromise,
+    worldBundleModulePromise,
+  ]);
   const operation = process.argv[2];
   const input = await readInput();
 
@@ -90,5 +96,6 @@ main()
     process.exitCode = 0;
   })
   .finally(async () => {
+    const { closeDbPool } = await postgresModulePromise;
     await closeDbPool().catch(() => {});
   });

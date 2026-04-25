@@ -1,14 +1,9 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { closeDbPool } from "@server/db/postgres";
-import {
-  syncReviewLlmFirstPassFromFilesToDb,
-  syncReviewQueueFromFilesToDb,
-} from "@server/db/review-db";
+import { ensureNpcSimulatorRoot } from "@backend-support/bootstrap";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+ensureNpcSimulatorRoot(import.meta.url, "..", "..");
 
-process.env.NPC_SIMULATOR_ROOT ??= repoRoot;
+const postgresModulePromise = import("@server/db/postgres");
+const reviewDbModulePromise = import("@server/db/review-db");
 
 function readOption(name: string) {
   const index = process.argv.indexOf(name);
@@ -19,6 +14,10 @@ function readOption(name: string) {
 }
 
 async function main() {
+  const {
+    syncReviewLlmFirstPassFromFilesToDb,
+    syncReviewQueueFromFilesToDb,
+  } = await reviewDbModulePromise;
   const mode = readOption("--mode") ?? "review-queue";
   const params = {
     sftJsonPath: readOption("--sft-json"),
@@ -46,5 +45,6 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    const { closeDbPool } = await postgresModulePromise;
     await closeDbPool().catch(() => {});
   });

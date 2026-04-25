@@ -1,10 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  ensureScriptProjectRoot,
+  getScriptEnv,
+} from "./_script-runtime.mjs";
 
-const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:3000";
+const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
+const baseUrl = getScriptEnv("SMOKE_BASE_URL", PROJECT_ROOT) || "http://localhost:3000";
 const instanceId =
-  process.env.SMOKE_INSTANCE_ID || `smoke-${crypto.randomUUID().slice(0, 8)}`;
-const projectRoot = process.cwd();
+  getScriptEnv("SMOKE_INSTANCE_ID", PROJECT_ROOT) ||
+  `smoke-${crypto.randomUUID().slice(0, 8)}`;
 const instanceHeader = "x-world-instance-id";
 
 async function requestJson(pathname, init = {}) {
@@ -50,7 +55,7 @@ function totalPressureDelta(outcome) {
 
 async function assertExportExists(relativePath) {
   assert(relativePath, "dataset export path is missing");
-  const fullPath = path.join(projectRoot, relativePath);
+  const fullPath = path.join(PROJECT_ROOT, relativePath);
   await fs.access(fullPath);
   return fullPath;
 }

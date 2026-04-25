@@ -80,6 +80,7 @@ const aliasToLayer = new Map([
   ["@backend-domain", "domain"],
   ["@backend-persistence", "persistence"],
   ["@backend-provider", "provider"],
+  ["@backend-support/bootstrap", "support"],
   ["@backend-support/constants", "support"],
   ["@backend-support/utils", "support"],
   ["@server/", "server"],
