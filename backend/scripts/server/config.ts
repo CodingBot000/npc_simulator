@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { LlmProviderMode, RuntimeArtifactKind } from "@backend-shared/types";
+import type {
+  LlmProviderMode,
+  RuntimeArtifactKind,
+} from "@backend-shared/api-contract-types";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
   "unsloth/Meta-Llama-3.1-8B-Instruct";
@@ -192,12 +195,15 @@ function parseRuntimeArtifactKind(
   return defaultValue;
 }
 
-const providerMode =
-  getServerEnv("LLM_PROVIDER_MODE") === "openai"
-    ? "openai"
-    : getServerEnv("LLM_PROVIDER_MODE") === "deterministic"
-      ? "deterministic"
-      : "codex";
+function parseProviderMode(): LlmProviderMode {
+  const rawValue = getServerEnv("LLM_PROVIDER_MODE");
+  if (rawValue === "openai" || rawValue === "deterministic") {
+    return rawValue;
+  }
+  return "codex";
+}
+
+const providerMode = parseProviderMode();
 const localReplyAdapterMode = parseLocalReplyAdapterMode();
 const localReplyModelFamily = parseLocalReplyModelFamily();
 const localReplyUsePromoted = parseBooleanEnv(
@@ -206,8 +212,8 @@ const localReplyUsePromoted = parseBooleanEnv(
 );
 
 export const appConfig = {
-  providerMode: providerMode as LlmProviderMode,
-  localReplyAdapterMode: localReplyAdapterMode as LocalReplyAdapterMode,
+  providerMode,
+  localReplyAdapterMode,
   models: {
     interactionModel:
       getServerEnv("INTERACTION_MODEL") ||
@@ -229,7 +235,7 @@ export const appConfig = {
       getServerEnv("PREMIUM_FALLBACK_MODEL") || "gpt-5.4-mini",
   },
   localReply: {
-    family: localReplyModelFamily as LocalReplyModelFamily,
+    family: localReplyModelFamily,
     usePromoted: localReplyUsePromoted,
     mlxModel: getServerEnv("LOCAL_REPLY_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL,
     maxTokens: Number(getServerEnv("LOCAL_REPLY_MAX_TOKENS") || "160"),
@@ -239,7 +245,7 @@ export const appConfig = {
     llamaPromptFormat: parseLocalReplyPromptFormat(
       "LOCAL_REPLY_LLAMA_PROMPT_FORMAT",
       "scene_state_min",
-    ) as LocalReplyPromptFormat,
+    ),
   },
   shadowCompare: {
     enabled: parseBooleanEnv("SHADOW_COMPARE_ENABLED", false),
