@@ -1,14 +1,16 @@
 import type {
-  AutonomyMoveType,
   EventLogEntry,
-  JudgementState,
-  KnowledgeEvidence,
   MemoryEntry,
-  PersistedNpcState,
   ResolutionState,
   RoundState,
   WorldMeta,
-} from "@backend-shared/types";
+} from "@backend-shared/api-contract-types";
+import type { JudgementState } from "@backend-shared/persistence-types";
+import type {
+  KnowledgeEvidence,
+  PersistedNpcState,
+} from "@backend-shared/domain-types";
+import type { AutonomyMoveType, PlayerAction } from "@sim-shared/types";
 
 export interface ScenarioPrompt {
   systemContext: string;
@@ -27,7 +29,7 @@ export interface ScenarioPresentation {
 }
 
 export interface ScenarioActionDefinition {
-  id: import("@backend-shared/types").PlayerAction;
+  id: PlayerAction;
   label: string;
   description: string;
   requiresTarget: boolean;

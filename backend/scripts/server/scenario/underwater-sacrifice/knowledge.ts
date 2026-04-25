@@ -1,5 +1,5 @@
 import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
-import type { KnowledgeEvidence } from "@backend-shared/types";
+import type { KnowledgeEvidence } from "@backend-shared/domain-types";
 
 export const underwaterKnowledge: KnowledgeEvidence[] = [
   {

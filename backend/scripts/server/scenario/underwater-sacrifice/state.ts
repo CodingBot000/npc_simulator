@@ -1,4 +1,7 @@
-import type { ResolutionState, RoundState } from "@backend-shared/types";
+import type {
+  ResolutionState,
+  RoundState,
+} from "@backend-shared/api-contract-types";
 import type { ScenarioSeeds } from "@server/scenario/types";
 
 export const underwaterInitialRoundState: RoundState = {
