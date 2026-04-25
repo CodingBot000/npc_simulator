@@ -1,7 +1,7 @@
 import type {
   NpcState,
   RetrievedKnowledgeEvidence,
-} from "./api-contract-types";
+} from "@backend-contracts/api";
 import type { JudgementDimensions } from "@sim-shared/types";
 
 export type KnowledgeEvidence = Omit<

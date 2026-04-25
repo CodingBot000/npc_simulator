@@ -15,25 +15,25 @@
         "./shared/simulator-rules/*"
       ],
       "@backend-contracts/api": [
-        "./backend/scripts/shared/api-contract-types.ts"
+        "./backend/scripts/contracts/api.ts"
       ],
       "@backend-contracts/review": [
-        "./backend/scripts/shared/review-contract-types.ts"
+        "./backend/scripts/contracts/review.ts"
       ],
       "@backend-persistence": [
-        "./backend/scripts/shared/persistence-types.ts"
+        "./backend/scripts/persistence/index.ts"
       ],
       "@backend-provider": [
-        "./backend/scripts/shared/provider-types.ts"
+        "./backend/scripts/provider/index.ts"
       ],
       "@backend-domain": [
-        "./backend/scripts/shared/domain-types.ts"
+        "./backend/scripts/domain/index.ts"
       ],
       "@backend-support/constants": [
-        "./backend/scripts/shared/constants.ts"
+        "./backend/scripts/support/constants.ts"
       ],
       "@backend-support/utils": [
-        "./backend/scripts/shared/utils.ts"
+        "./backend/scripts/support/utils.ts"
       ],
       "@server/*": [
         "./backend/scripts/server/*"

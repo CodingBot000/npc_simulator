@@ -16,8 +16,8 @@ import type {
   StructuredImpactInference,
   WorldMeta,
   WorldSnapshot,
-} from "./api-contract-types";
-import type { PersistedNpcState } from "./domain-types";
+} from "@backend-contracts/api";
+import type { PersistedNpcState } from "@backend-domain";
 import type {
   AllowedActionType,
   CandidateId,
