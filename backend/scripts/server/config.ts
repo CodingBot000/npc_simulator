@@ -3,7 +3,7 @@ import path from "node:path";
 import type {
   LlmProviderMode,
   RuntimeArtifactKind,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
   "unsloth/Meta-Llama-3.1-8B-Instruct";

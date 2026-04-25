@@ -1,9 +1,9 @@
-import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type {
   EventLogEntry,
-} from "@backend-shared/api-contract-types";
-import type { JudgementState } from "@backend-shared/persistence-types";
-import type { PersistedNpcState } from "@backend-shared/domain-types";
+} from "@backend-contracts/api";
+import type { JudgementState } from "@backend-persistence";
+import type { PersistedNpcState } from "@backend-domain";
 import type {
   AutonomyMoveType,
   ConsensusBoardEntry,

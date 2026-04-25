@@ -3,11 +3,11 @@ import {
   DEFAULT_PLAYER_LABEL,
   PLAYER_ACTION_DESCRIPTIONS,
   PLAYER_ACTION_LABELS,
-} from "@backend-shared/constants";
+} from "@backend-support/constants";
 import type {
   InputMode,
   LlmInteractionResult,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type { PlayerAction } from "@sim-shared/types";
 import {
   PLAYER_ACTION_SPECS,

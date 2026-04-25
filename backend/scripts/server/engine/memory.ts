@@ -2,7 +2,7 @@ import {
   MAX_LONG_MEMORIES,
   MAX_RETRIEVED_MEMORIES,
   MAX_SHORT_MEMORIES,
-} from "@backend-shared/constants";
+} from "@backend-support/constants";
 import type {
   LlmInteractionResult,
   MemoryEntry,
@@ -11,9 +11,9 @@ import type {
   RetrievedMemoryEntry,
   RelationshipDelta,
   ResolutionState,
-} from "@backend-shared/api-contract-types";
-import type { NormalizedInteractionInput } from "@backend-shared/provider-types";
-import { clamp, extractTags, nowIso, tokenize } from "@backend-shared/utils";
+} from "@backend-contracts/api";
+import type { NormalizedInteractionInput } from "@backend-provider";
+import { clamp, extractTags, nowIso, tokenize } from "@backend-support/utils";
 
 export function retrieveRelevantMemories(
   memories: MemoryEntry[],

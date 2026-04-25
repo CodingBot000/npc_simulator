@@ -1,8 +1,8 @@
 import { z } from "zod";
 import {
   type RuntimeStatus,
-} from "@backend-shared/api-contract-types";
-import type { LlmProvider } from "@backend-shared/provider-types";
+} from "@backend-contracts/api";
+import type { LlmProvider } from "@backend-provider";
 import {
   allowedActionTypes,
   emotionPrimaries,

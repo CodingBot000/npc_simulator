@@ -1,12 +1,12 @@
-import { MAX_RETRIEVED_KNOWLEDGE } from "@backend-shared/constants";
+import { MAX_RETRIEVED_KNOWLEDGE } from "@backend-support/constants";
 import type {
   EventLogEntry,
   RetrievalScoreBreakdown,
   RetrievedKnowledgeEvidence,
-} from "@backend-shared/api-contract-types";
-import type { KnowledgeEvidence } from "@backend-shared/domain-types";
-import type { NormalizedInteractionInput } from "@backend-shared/provider-types";
-import { tokenize, uniqueStrings } from "@backend-shared/utils";
+} from "@backend-contracts/api";
+import type { KnowledgeEvidence } from "@backend-domain";
+import type { NormalizedInteractionInput } from "@backend-provider";
+import { tokenize, uniqueStrings } from "@backend-support/utils";
 import { retrieveRelevantMemories } from "@server/engine/memory";
 import { getCurrentScenario } from "@server/scenario";
 

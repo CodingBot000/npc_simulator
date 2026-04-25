@@ -1,8 +1,8 @@
-import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type {
   RelationshipDelta,
   StructuredImpactInference,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   CandidateId,
   ImpactTag,

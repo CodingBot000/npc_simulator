@@ -1,10 +1,10 @@
 import type {
   GenerateInteractionInput,
   LlmProvider,
-} from "@backend-shared/provider-types";
+} from "@backend-provider";
 import type {
   LlmInteractionResult,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import { buildFallbackInteractionResult } from "@server/engine/fallback-interaction";
 
 export class DeterministicProvider implements LlmProvider {

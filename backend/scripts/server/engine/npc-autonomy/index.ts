@@ -1,4 +1,4 @@
-import type { AutonomyPhaseResult } from "@backend-shared/api-contract-types";
+import type { AutonomyPhaseResult } from "@backend-contracts/api";
 import { applyAutonomyStep } from "@server/engine/npc-autonomy/apply";
 import { buildAutonomyEventLogEntry } from "@server/engine/npc-autonomy/event";
 import {

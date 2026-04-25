@@ -2,11 +2,11 @@ import {
   DEFAULT_PLAYER_ID,
   DEFAULT_PLAYER_LABEL,
   NPC_ACTION_LABELS,
-} from "@backend-shared/constants";
+} from "@backend-support/constants";
 import type {
   LlmInteractionResult,
-} from "@backend-shared/api-contract-types";
-import type { GenerateInteractionInput } from "@backend-shared/provider-types";
+} from "@backend-contracts/api";
+import type { GenerateInteractionInput } from "@backend-provider";
 import type { AllowedActionType, ImpactTag } from "@sim-shared/types";
 import { buildInteractionContract } from "@server/engine/interaction-contract";
 

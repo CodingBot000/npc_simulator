@@ -1,4 +1,4 @@
-import type { WorldStateFile } from "@backend-shared/persistence-types";
+import type { WorldStateFile } from "@backend-persistence";
 import { createAutonomyRuntimeState } from "@server/engine/npc-autonomy/random";
 import { getCurrentScenario } from "@server/scenario";
 

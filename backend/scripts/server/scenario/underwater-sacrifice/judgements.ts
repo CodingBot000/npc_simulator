@@ -1,5 +1,5 @@
-import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
-import type { JudgementState } from "@backend-shared/persistence-types";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
+import type { JudgementState } from "@backend-persistence";
 import type { JudgementDimensions } from "@sim-shared/types";
 
 function judgementScore(dimensions: JudgementDimensions) {

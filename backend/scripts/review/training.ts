@@ -10,7 +10,7 @@ import type {
   ReviewTrainingRuntimeArtifactKind,
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
-} from "@backend-shared/review-contract-types";
+} from "@backend-contracts/review";
 import {
   DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL,
   DEFAULT_LOCAL_REPLY_MLX_MODEL,

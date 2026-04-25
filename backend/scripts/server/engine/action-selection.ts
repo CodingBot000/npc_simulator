@@ -1,12 +1,12 @@
-import { NPC_ACTION_LABELS } from "@backend-shared/constants";
+import { NPC_ACTION_LABELS } from "@backend-support/constants";
 import type {
   CandidateAction,
   LlmInteractionResult,
   SelectedAction,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import { impactTags } from "@sim-shared/type-sets";
 import type { ImpactTag } from "@sim-shared/types";
-import { clamp } from "@backend-shared/utils";
+import { clamp } from "@backend-support/utils";
 
 function normalizeCandidateActions(
   candidateActions: CandidateAction[],

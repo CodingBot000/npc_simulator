@@ -1,7 +1,7 @@
 import type {
   AutonomyStepResult,
   EventLogEntry,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type { AutonomyMoveType } from "@sim-shared/types";
 
 function buildSummary(params: {

@@ -1,11 +1,11 @@
 import type {
   EpisodeExportPaths,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@backend-shared/persistence-types";
+} from "@backend-persistence";
 import { createAutonomyRuntimeState } from "@server/engine/npc-autonomy/random";
 import { getCurrentScenario } from "@server/scenario";
 

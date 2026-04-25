@@ -17,7 +17,7 @@ import type {
   ReviewTrainingStatusView,
   SftReviewDecision,
   SftReviewItemView,
-} from "@backend-shared/review-contract-types";
+} from "@backend-contracts/review";
 import { DATA_DIR, PROJECT_ROOT } from "@server/config";
 import { dbQuery, withDbTransaction } from "@server/db/postgres";
 

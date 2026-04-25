@@ -6,14 +6,14 @@ import {
   emotionPrimaries,
   impactTags,
 } from "@sim-shared/type-sets";
-import type { GenerateInteractionInput } from "@backend-shared/provider-types";
+import type { GenerateInteractionInput } from "@backend-provider";
 import type {
   LlmInteractionResult,
   RuntimeArtifactKind,
   ShadowComparisonPayload,
   ShadowComparisonStatus,
-} from "@backend-shared/api-contract-types";
-import { safeJsonParse, stripCodeFence } from "@backend-shared/utils";
+} from "@backend-contracts/api";
+import { safeJsonParse, stripCodeFence } from "@backend-support/utils";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
 import { buildNpcInteractionMessages } from "@server/engine/intent";

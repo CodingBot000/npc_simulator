@@ -2,7 +2,7 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@backend-shared/persistence-types";
+} from "@backend-persistence";
 import {
   createSeedInteractionLog,
   createSeedMemoryFile,

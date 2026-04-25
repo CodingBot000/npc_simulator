@@ -3,13 +3,13 @@ import type {
   AutonomyStepResult,
   EventLogEntry,
   RoundState,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   AutonomyRuntimeState,
   JudgementState,
   WorldStateFile,
-} from "@backend-shared/persistence-types";
-import type { PersistedNpcState } from "@backend-shared/domain-types";
+} from "@backend-persistence";
+import type { PersistedNpcState } from "@backend-domain";
 import type {
   AutonomyMoveType,
   ConsensusBoardEntry,

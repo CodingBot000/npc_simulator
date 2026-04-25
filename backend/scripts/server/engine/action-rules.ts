@@ -15,7 +15,7 @@
  * Last updated: 2026-04-09
  */
 
-import type { RelationshipDelta } from "@backend-shared/api-contract-types";
+import type { RelationshipDelta } from "@backend-contracts/api";
 import type { PlayerAction } from "@sim-shared/types";
 import type { PressureActionRule } from "@server/engine/pressure-rule-types";
 

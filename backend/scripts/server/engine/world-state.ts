@@ -1,5 +1,5 @@
-import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@backend-shared/constants";
-import type { WorldSnapshot } from "@backend-shared/api-contract-types";
+import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@backend-support/constants";
+import type { WorldSnapshot } from "@backend-contracts/api";
 import type {
   ChatMessage,
   EventLogEntry,
@@ -7,12 +7,12 @@ import type {
   PressureChange,
   ResolutionState,
   RuntimeStatus,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   InteractionLogEntry,
   WorldStateFile,
-} from "@backend-shared/persistence-types";
-import { formatDimensionDelta, groupBy } from "@backend-shared/utils";
+} from "@backend-persistence";
+import { formatDimensionDelta, groupBy } from "@backend-support/utils";
 import { buildConsensusBoard } from "@server/engine/pressure-engine";
 import { buildRuntimeStatus } from "@server/providers/llm-provider";
 import { getCurrentScenario } from "@server/scenario";

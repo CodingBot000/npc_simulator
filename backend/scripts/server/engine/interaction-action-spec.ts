@@ -1,7 +1,7 @@
 import {
   PLAYER_ACTION_DESCRIPTIONS,
   PLAYER_ACTION_LABELS,
-} from "@backend-shared/constants";
+} from "@backend-support/constants";
 import type { PlayerAction } from "@sim-shared/types";
 
 export interface PlayerActionSpec {

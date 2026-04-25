@@ -1,21 +1,21 @@
 import {
   DEFAULT_PLAYER_ID,
   NPC_ACTION_LABELS,
-} from "@backend-shared/constants";
+} from "@backend-support/constants";
 import type {
   EpisodeExportPaths,
   InspectorPayload,
   NpcState,
   InteractionRequestPayload,
   InteractionResponsePayload,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   InteractionLogEntry,
-} from "@backend-shared/persistence-types";
+} from "@backend-persistence";
 import type {
   PersistedNpcState,
-} from "@backend-shared/domain-types";
-import { formatPlayerConversationText, nowIso } from "@backend-shared/utils";
+} from "@backend-domain";
+import { formatPlayerConversationText, nowIso } from "@backend-support/utils";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
 import { simulateNpcAutonomyPhase } from "@server/engine/npc-autonomy";
 import {

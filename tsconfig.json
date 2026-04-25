@@ -14,8 +14,26 @@
       "@sim-shared/*": [
         "./shared/simulator-rules/*"
       ],
-      "@backend-shared/*": [
-        "./backend/scripts/shared/*"
+      "@backend-contracts/api": [
+        "./backend/scripts/shared/api-contract-types.ts"
+      ],
+      "@backend-contracts/review": [
+        "./backend/scripts/shared/review-contract-types.ts"
+      ],
+      "@backend-persistence": [
+        "./backend/scripts/shared/persistence-types.ts"
+      ],
+      "@backend-provider": [
+        "./backend/scripts/shared/provider-types.ts"
+      ],
+      "@backend-domain": [
+        "./backend/scripts/shared/domain-types.ts"
+      ],
+      "@backend-support/constants": [
+        "./backend/scripts/shared/constants.ts"
+      ],
+      "@backend-support/utils": [
+        "./backend/scripts/shared/utils.ts"
       ],
       "@server/*": [
         "./backend/scripts/server/*"

@@ -1,7 +1,7 @@
 import {
   DEFAULT_PLAYER_ID,
   DEFAULT_PLAYER_LABEL,
-} from "@backend-shared/constants";
+} from "@backend-support/constants";
 import type {
   NpcState,
   PressureChange,
@@ -9,13 +9,13 @@ import type {
   ResolutionState,
   RoundState,
   StructuredImpactInference,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   JudgementState,
-} from "@backend-shared/persistence-types";
+} from "@backend-persistence";
 import type {
   PersistedNpcState,
-} from "@backend-shared/domain-types";
+} from "@backend-domain";
 import type {
   CandidateId,
   ConsensusBoardEntry,
@@ -26,7 +26,7 @@ import {
   candidateLabel,
   clamp,
   pressureSummary,
-} from "@backend-shared/utils";
+} from "@backend-support/utils";
 import { buildPressureAdjustment, buildRelationshipDeltaForNpc } from "@server/engine/pressure-rules";
 import {
   buildRelationshipDeltaFromImpact,

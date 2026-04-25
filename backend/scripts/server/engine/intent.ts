@@ -1,9 +1,9 @@
-import { NPC_ACTION_LABELS, PLAYER_ACTION_LABELS } from "@backend-shared/constants";
-import type { InputMode } from "@backend-shared/api-contract-types";
+import { NPC_ACTION_LABELS, PLAYER_ACTION_LABELS } from "@backend-support/constants";
+import type { InputMode } from "@backend-contracts/api";
 import type {
   GenerateInteractionInput,
   NormalizedInteractionInput,
-} from "@backend-shared/provider-types";
+} from "@backend-provider";
 import type { PlayerAction } from "@sim-shared/types";
 import { buildInteractionContract } from "@server/engine/interaction-contract";
 import { getCurrentScenario } from "@server/scenario";

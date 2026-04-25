@@ -4,12 +4,12 @@ import type {
   ResolutionState,
   RoundState,
   WorldMeta,
-} from "@backend-shared/api-contract-types";
-import type { JudgementState } from "@backend-shared/persistence-types";
+} from "@backend-contracts/api";
+import type { JudgementState } from "@backend-persistence";
 import type {
   KnowledgeEvidence,
   PersistedNpcState,
-} from "@backend-shared/domain-types";
+} from "@backend-domain";
 import type { AutonomyMoveType, PlayerAction } from "@sim-shared/types";
 
 export interface ScenarioPrompt {

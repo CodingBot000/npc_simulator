@@ -14,8 +14,8 @@
  * Last updated: 2026-04-09
  */
 
-import { DEFAULT_PLAYER_ID } from "@backend-shared/constants";
-import type { RelationshipDelta } from "@backend-shared/api-contract-types";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
+import type { RelationshipDelta } from "@backend-contracts/api";
 import type {
   CandidateId,
   ConsensusBoardEntry,

@@ -5,11 +5,11 @@ import path from "node:path";
 import type {
   GenerateInteractionInput,
   LlmProvider,
-} from "@backend-shared/provider-types";
+} from "@backend-provider";
 import type {
   LlmInteractionResult,
-} from "@backend-shared/api-contract-types";
-import { safeJsonParse, stripCodeFence } from "@backend-shared/utils";
+} from "@backend-contracts/api";
+import { safeJsonParse, stripCodeFence } from "@backend-support/utils";
 import { PROJECT_ROOT } from "@server/config";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
 import {

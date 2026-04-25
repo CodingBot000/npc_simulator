@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { ReviewFinalizeStatusView } from "@backend-shared/review-contract-types";
+import type { ReviewFinalizeStatusView } from "@backend-contracts/review";
 import { PROJECT_ROOT } from "@server/config";
 import {
   createFinalizeRunInDb,

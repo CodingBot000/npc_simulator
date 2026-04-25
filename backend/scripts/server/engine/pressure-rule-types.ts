@@ -16,7 +16,7 @@
 import type {
   RelationshipDelta,
   RoundState,
-} from "@backend-shared/api-contract-types";
+} from "@backend-contracts/api";
 import type {
   CandidateId,
   ConsensusBoardEntry,
