@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { runStructuredLlmJudge } from "../_quality-judge-helpers.mjs";
+import { buildModelExecutionChildEnv } from "@backend-support/bootstrap";
 import { appConfig, PROJECT_ROOT } from "@server/config";
 import { closeDbPool, dbQuery } from "@server/db/postgres";
 import {
@@ -521,7 +522,7 @@ async function runGenerate(params: {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(LOCAL_MLX_BINARY, args, {
       cwd: PROJECT_ROOT,
-      env: process.env,
+      env: buildModelExecutionChildEnv(PROJECT_ROOT),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

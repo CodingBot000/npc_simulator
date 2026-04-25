@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { ReviewFinalizeStatusView } from "@backend-contracts/review";
+import { buildBackendRuntimeChildEnv } from "@backend-support/bootstrap";
 import { PROJECT_ROOT } from "@server/config";
 import {
   createFinalizeRunInDb,
@@ -16,7 +17,7 @@ function runNodeScript(args: string[]) {
       const startedAt = Date.now();
       const child = spawn(process.execPath, args, {
         cwd: PROJECT_ROOT,
-        env: process.env,
+        env: buildBackendRuntimeChildEnv(PROJECT_ROOT),
       });
 
       let stdout = "";

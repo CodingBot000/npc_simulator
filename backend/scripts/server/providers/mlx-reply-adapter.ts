@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { GenerateInteractionInput } from "@backend-provider";
+import { buildModelExecutionChildEnv } from "@backend-support/bootstrap";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { databaseConfig } from "@server/config/database";
 import { dbQuery } from "@server/db/postgres";
@@ -634,7 +635,7 @@ async function runMlxGenerate(args: string[]) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(LOCAL_MLX_BINARY, args, {
       cwd: PROJECT_ROOT,
-      env: process.env,
+      env: buildModelExecutionChildEnv(PROJECT_ROOT),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

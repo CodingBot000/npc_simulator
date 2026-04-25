@@ -11,6 +11,7 @@ import type {
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
 } from "@backend-contracts/review";
+import { buildBackendRuntimeChildEnv } from "@backend-support/bootstrap";
 import {
   PROJECT_ROOT,
 } from "@server/config";
@@ -846,10 +847,7 @@ export async function runReviewTraining(payload: {
 
   const worker = spawn(TSX_BINARY_PATH, [WORKER_SCRIPT_PATH, "--run-id", spec.runUid], {
     cwd: PROJECT_ROOT,
-    env: {
-      ...process.env,
-      NPC_SIMULATOR_ROOT: PROJECT_ROOT,
-    },
+    env: buildBackendRuntimeChildEnv(PROJECT_ROOT),
     detached: true,
     stdio: "ignore",
   });
@@ -890,11 +888,9 @@ async function runLoggedCommand(params: {
     };
     const child = spawn(params.command, params.args, {
       cwd: PROJECT_ROOT,
-      env: {
-        ...process.env,
-        NPC_SIMULATOR_ROOT: PROJECT_ROOT,
+      env: buildBackendRuntimeChildEnv(PROJECT_ROOT, {
         TOKENIZERS_PARALLELISM: "true",
-      },
+      }),
     });
 
     child.stdout.on("data", (chunk) => {

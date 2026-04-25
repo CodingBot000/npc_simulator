@@ -20,6 +20,10 @@ function isConfigBoundaryFile(relativeFilePath) {
   );
 }
 
+function isAllowedProcessEnvFile(relativeFilePath) {
+  return relativeFilePath === "support/bootstrap.ts";
+}
+
 async function collectFiles(dirPath) {
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
   const files = [];
@@ -91,6 +95,15 @@ async function main() {
     if (sourceText.includes("@server/config/runtime-context")) {
       failures.push(
         `${relativeFilePath}: runtime-context import is forbidden outside server/config.`,
+      );
+    }
+
+    if (
+      sourceText.includes("process.env") &&
+      !isAllowedProcessEnvFile(relativeFilePath)
+    ) {
+      failures.push(
+        `${relativeFilePath}: direct process.env usage is forbidden outside server/config and support/bootstrap.ts.`,
       );
     }
 

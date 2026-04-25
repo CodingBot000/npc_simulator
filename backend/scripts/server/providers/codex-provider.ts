@@ -9,6 +9,7 @@ import type {
 import type {
   LlmInteractionResult,
 } from "@backend-contracts/api";
+import { buildCodexCliChildEnv } from "@backend-support/bootstrap";
 import { safeJsonParse, stripCodeFence } from "@backend-support/utils";
 import { PROJECT_ROOT } from "@server/config";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
@@ -32,7 +33,7 @@ function runCommand(
   return new Promise<CommandResult>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
-      env: process.env,
+      env: buildCodexCliChildEnv(PROJECT_ROOT),
     });
 
     let stdout = "";
