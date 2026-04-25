@@ -3,20 +3,18 @@ import type {
   InteractionRequestPayload,
   InteractionResponsePayload,
   WorldSnapshot as RuntimeWorldSnapshot,
-} from "../../frontend/src/lib/types";
+} from "./runtime-contract-types";
 import type {
   PairReviewItemView,
   ReviewDashboardData as ReviewDashboardDataView,
   ReviewFinalizeStatusView,
   ReviewKind,
   ReviewSourceMode,
-  ReviewTrainingBackend,
   ReviewTrainingBindingKey,
-  ReviewTrainingExecutionMode,
   ReviewTrainingKind,
   ReviewTrainingStatusView,
   SftReviewItemView,
-} from "../../frontend/src/lib/review-types";
+} from "./review-contract-types";
 
 export type InteractionRequest = InteractionRequestPayload;
 export type InteractionResponse = InteractionResponsePayload;
@@ -89,9 +87,6 @@ export interface SystemInfo {
   phase: string;
   pendingMigrations: string[];
 }
-
-export type ReviewTrainingBackendValue = ReviewTrainingBackend;
-export type ReviewTrainingExecutionModeValue = ReviewTrainingExecutionMode;
 
 export type ContractInteractionRequest = InteractionRequestPayload;
 export type ContractInteractionResponse = InteractionResponsePayload;
