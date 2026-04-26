@@ -52,6 +52,13 @@ export interface ScenarioScoringConfig {
   leadGapThreshold: number;
 }
 
+export interface ScenarioRuntimeMetadata {
+  id: string;
+  presentation: ScenarioPresentation;
+  actions: ScenarioActionDefinition[];
+  scoring: ScenarioScoringConfig;
+}
+
 export interface ScenarioAutonomyRoundVolatility {
   fromRound: number;
   toRound: number;

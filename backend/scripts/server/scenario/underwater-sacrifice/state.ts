@@ -3,11 +3,14 @@ import type {
   RoundState,
 } from "@backend-contracts/api";
 import type { ScenarioSeeds } from "@server/scenario/types";
+import { underwaterSacrificeMetadata } from "@server/scenario/underwater-sacrifice/metadata";
+
+const initialScoring = underwaterSacrificeMetadata.scoring;
 
 export const underwaterInitialRoundState: RoundState = {
   currentRound: 0,
-  minRoundsBeforeResolution: 4,
-  maxRounds: 7,
+  minRoundsBeforeResolution: initialScoring.minRoundsBeforeResolution,
+  maxRounds: initialScoring.maxRounds,
   resolutionUnlocked: false,
   rescueEtaLabel: "구조선 통신 불안정, ETA 24분",
   facilityStatus: "중앙 압력실 침수 진행, 밸브실 수동 유지 필요",

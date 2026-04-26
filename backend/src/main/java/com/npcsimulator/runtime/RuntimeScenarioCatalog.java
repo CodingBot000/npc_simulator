@@ -2,110 +2,101 @@ package com.npcsimulator.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.List;
-import java.util.Map;
+import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RuntimeScenarioCatalog {
 
-    private static final RuntimeScenarioMetadata UNDERWATER_SACRIFICE = new RuntimeScenarioMetadata(
-        "underwater-sacrifice",
-        Map.of(
-            "appTitle", "펠라지아-9 탈출 협상",
-            "npcListTitle", "지금 말 걸 사람",
-            "npcListSubtitle", "누구를 움직일지 먼저 고르고, 그 입에서 다른 사람 이름이 나오게 만들어라.",
-            "interactionTitle", "한 턴 시작하기",
-            "interactionSubtitle", "한 사람을 설득해 다른 누군가를 더 위험하게 만들거나, 자신에게 몰린 시선을 흩뜨린다.",
-            "interactionPlaceholder", "예: 마지막 중단 결정을 미룬 쪽이 누구였는지부터 다시 짚어봅시다.",
-            "boardTitle", "현재 가장 위험한 사람",
-            "boardSubtitle", "지금 방 안에서 가장 많이 몰리고 있는 사람부터 읽어라."
-        ),
-        List.of(
-            Map.of(
-                "id", "make_case",
-                "label", "책임 묻기",
-                "description", "타겟이 왜 희생되어야 하는지 논리부터 세운다.",
-                "requiresTarget", true
-            ),
-            Map.of(
-                "id", "expose",
-                "label", "사실 확인",
-                "description", "타겟에게 불리한 기록과 사실을 꺼내 몰아세운다.",
-                "requiresTarget", true
-            ),
-            Map.of(
-                "id", "appeal",
-                "label", "양심 흔들기",
-                "description", "죄책감과 연민을 자극해 상대의 판단을 흔든다.",
-                "requiresTarget", false
-            ),
-            Map.of(
-                "id", "ally",
-                "label", "편들기",
-                "description", "현재 대화상대와 한편이 되어 타겟을 고립시킨다.",
-                "requiresTarget", true
-            ),
-            Map.of(
-                "id", "deflect",
-                "label", "화살 돌리기",
-                "description", "당신에게 온 책임과 시선을 타겟에게 돌린다.",
-                "requiresTarget", true
-            ),
-            Map.of(
-                "id", "stall",
-                "label", "시간 끌기",
-                "description", "판단을 미루고 다음 라운드까지 버틴다.",
-                "requiresTarget", false
-            ),
-            Map.of(
-                "id", "confess",
-                "label", "작게 인정하기",
-                "description", "내 잘못을 먼저 인정해 나에게 몰린 압박을 낮춘다.",
-                "requiresTarget", false
-            )
-        ),
-        Map.of(
-            "minRoundsBeforeResolution", 4,
-            "maxRounds", 7,
-            "instantConsensusVotes", 3,
-            "leadGapThreshold", 140
-        )
-    );
-
     private final ObjectMapper objectMapper;
+    private final BackendRuntimeLayout runtimeLayout;
 
-    public RuntimeScenarioCatalog(ObjectMapper objectMapper) {
+    public RuntimeScenarioCatalog(
+        ObjectMapper objectMapper,
+        BackendRuntimeLayout runtimeLayout
+    ) {
         this.objectMapper = objectMapper;
+        this.runtimeLayout = runtimeLayout;
     }
 
     public RuntimeScenarioMetadata getById(String scenarioId) {
-        if (UNDERWATER_SACRIFICE.id().equals(scenarioId)) {
-            return UNDERWATER_SACRIFICE;
+        Path metadataPath = runtimeLayout
+            .scriptsRoot()
+            .resolve("server")
+            .resolve("scenario")
+            .resolve(scenarioId)
+            .resolve("metadata.json")
+            .normalize();
+
+        if (!Files.exists(metadataPath)) {
+            throw new RuntimeApiException(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unsupported runtime scenario: " + scenarioId
+            );
         }
 
-        throw new RuntimeApiException(
-            org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
-            "Unsupported runtime scenario: " + scenarioId
-        );
+        try {
+            JsonNode metadata = objectMapper.readTree(Files.readString(metadataPath));
+            JsonNode presentation = requiredObject(metadata, "presentation", scenarioId);
+            JsonNode actions = requiredArray(metadata, "actions", scenarioId);
+            JsonNode scoring = requiredObject(metadata, "scoring", scenarioId);
+            String resolvedScenarioId = requiredText(metadata, "id", scenarioId);
+
+            return new RuntimeScenarioMetadata(
+                resolvedScenarioId,
+                presentation.deepCopy(),
+                actions.deepCopy(),
+                scoring.deepCopy()
+            );
+        } catch (IOException error) {
+            throw new RuntimeApiException(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                "Failed to load runtime scenario metadata: " + scenarioId,
+                error
+            );
+        }
     }
 
-    public JsonNode presentationNode(RuntimeScenarioMetadata metadata) {
-        return objectMapper.valueToTree(metadata.presentation());
+    private JsonNode requiredObject(JsonNode source, String fieldName, String scenarioId) {
+        JsonNode node = source.path(fieldName);
+        if (!node.isObject()) {
+            throw new RuntimeApiException(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                "Invalid runtime scenario metadata: missing object field '" + fieldName + "' for " + scenarioId
+            );
+        }
+        return node;
     }
 
-    public JsonNode actionsNode(RuntimeScenarioMetadata metadata) {
-        return objectMapper.valueToTree(metadata.availableActions());
+    private JsonNode requiredArray(JsonNode source, String fieldName, String scenarioId) {
+        JsonNode node = source.path(fieldName);
+        if (!node.isArray()) {
+            throw new RuntimeApiException(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                "Invalid runtime scenario metadata: missing array field '" + fieldName + "' for " + scenarioId
+            );
+        }
+        return node;
     }
 
-    public JsonNode scoringNode(RuntimeScenarioMetadata metadata) {
-        return objectMapper.valueToTree(metadata.scoring());
+    private String requiredText(JsonNode source, String fieldName, String scenarioId) {
+        JsonNode node = source.path(fieldName);
+        if (!node.isTextual() || node.asText().isBlank()) {
+            throw new RuntimeApiException(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                "Invalid runtime scenario metadata: missing text field '" + fieldName + "' for " + scenarioId
+            );
+        }
+        return node.asText();
     }
 
     public record RuntimeScenarioMetadata(
         String id,
-        Map<String, Object> presentation,
-        List<Map<String, Object>> availableActions,
-        Map<String, Object> scoring
+        JsonNode presentation,
+        JsonNode availableActions,
+        JsonNode scoring
     ) {}
 }

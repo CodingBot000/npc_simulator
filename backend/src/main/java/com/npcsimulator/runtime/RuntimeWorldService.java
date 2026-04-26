@@ -378,9 +378,9 @@ public class RuntimeWorldService {
         snapshot.set("endedAt", copyField(worldState, "endedAt"));
         snapshot.set("datasetExportedAt", copyField(worldState, "datasetExportedAt"));
         snapshot.set("exportPaths", copyField(worldState, "exportPaths"));
-        snapshot.set("presentation", runtimeScenarioCatalog.presentationNode(scenario));
-        snapshot.set("scoring", runtimeScenarioCatalog.scoringNode(scenario));
-        snapshot.set("availableActions", runtimeScenarioCatalog.actionsNode(scenario));
+        snapshot.set("presentation", scenario.presentation().deepCopy());
+        snapshot.set("scoring", scenario.scoring().deepCopy());
+        snapshot.set("availableActions", scenario.availableActions().deepCopy());
         snapshot.set("world", copyField(worldState, "world"));
         snapshot.set("npcs", buildNpcArray(worldState, memoryFile));
         snapshot.set("events", buildEventArray(worldState));
