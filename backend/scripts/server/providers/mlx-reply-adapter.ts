@@ -2,8 +2,12 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { GenerateInteractionInput } from "@backend-provider";
-import { buildModelExecutionChildEnv } from "@backend-support/bootstrap";
+import {
+  buildCodexCliChildEnv,
+  buildModelExecutionChildEnv,
+} from "@backend-support/bootstrap";
 import { PROJECT_ROOT, appConfig } from "@server/config";
+import { openAiConfig } from "@server/config/openai";
 import { databaseConfig } from "@server/config/database";
 import { dbQuery } from "@server/db/postgres";
 import {
@@ -52,7 +56,7 @@ const NPC_DISPLAY_LABELS: Record<string, string> = {
 type PromptFormat = "raw_json" | "situation_card" | "direct_scene";
 type ScenePromptFormat = PromptFormat | "scene_state_min";
 type RuntimeArtifactKind = "mlx_adapter" | "mlx_fused_model" | "legacy_mlx_adapter";
-type LocalAdapterConfig = {
+type LocalReplyBackendConfig = {
   backend: "local";
   path: string;
   promptFormat: ScenePromptFormat;
@@ -75,11 +79,28 @@ type RunpodAdapterConfig = {
   promptFormat: ScenePromptFormat;
 };
 
-type ResolvedAdapterConfig = LocalAdapterConfig | TogetherAdapterConfig | RunpodAdapterConfig;
+type CodexReplyConfig = {
+  backend: "codex";
+  promptFormat: ScenePromptFormat;
+  models: string[];
+};
+
+type OpenAiReplyConfig = {
+  backend: "openai_api";
+  promptFormat: ScenePromptFormat;
+  models: string[];
+};
+
+type ResolvedAdapterConfig =
+  | LocalReplyBackendConfig
+  | TogetherAdapterConfig
+  | RunpodAdapterConfig
+  | CodexReplyConfig
+  | OpenAiReplyConfig;
 const LEGACY_QWEN_REPLY_MLX_MODEL =
   "mlx-community/Qwen2.5-7B-Instruct-4bit";
 
-const LEGACY_QWEN_ADAPTER_CONFIGS: Record<string, LocalAdapterConfig> = {
+const LEGACY_QWEN_ADAPTER_CONFIGS: Record<string, LocalReplyBackendConfig> = {
   doctor: {
     backend: "local",
     path: path.join(PROJECT_ROOT, "outputs", "qwen25-7b-doctor-role-v2"),
@@ -103,7 +124,7 @@ const LEGACY_QWEN_ADAPTER_CONFIGS: Record<string, LocalAdapterConfig> = {
   },
 };
 
-const LLAMA_ADAPTER_CONFIGS: Record<string, LocalAdapterConfig> = {
+const LLAMA_ADAPTER_CONFIGS: Record<string, LocalReplyBackendConfig> = {
   doctor: {
     backend: "local",
     path: appConfig.localReply.llamaRuntimePath,
@@ -201,9 +222,12 @@ async function fileExists(filePath: string) {
   }
 }
 
-function getAdapterConfigForNpc(npcId: string) {
+function getLocalPresetConfigForNpc(
+  npcId: string,
+  family: "llama" | "qwen" = appConfig.localReply.family,
+) {
   const preset =
-    ADAPTER_CONFIG_PRESETS[appConfig.localReply.family] ??
+    ADAPTER_CONFIG_PRESETS[family] ??
     ADAPTER_CONFIG_PRESETS.llama;
   return preset[npcId] ?? preset.default;
 }
@@ -213,7 +237,10 @@ function supportsPromotedAdapterLookup() {
 }
 
 async function getPromotedAdapterConfigForNpc(npcId: string) {
-  if (!appConfig.localReply.usePromoted || !supportsPromotedAdapterLookup()) {
+  if (
+    !(appConfig.finalReply.backend === "promoted" || appConfig.localReply.usePromoted) ||
+    !supportsPromotedAdapterLookup()
+  ) {
     return null;
   }
 
@@ -251,7 +278,7 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
 
     const row = result.rows[0];
     const promptBinding = row.promoted_binding_key ?? npcId;
-    const baseConfig = getAdapterConfigForNpc(promptBinding);
+    const baseConfig = getLocalPresetConfigForNpc(promptBinding);
     const remoteProviderRef = parseRemoteProviderRef(row?.remote_provider);
     if (row?.remote_model_name && remoteProviderRef?.kind === "runpod") {
       return {
@@ -293,9 +320,68 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
   }
 }
 
+function getFinalReplyModelCandidates() {
+  return Array.from(
+    new Set(
+      [
+        appConfig.finalReply.models.primary,
+        appConfig.finalReply.models.fallback,
+      ].filter(Boolean),
+    ),
+  );
+}
+
 async function resolveAdapterConfigForNpc(npcId: string) {
-  const promotedConfig = await getPromotedAdapterConfigForNpc(npcId);
-  return promotedConfig ?? getAdapterConfigForNpc(npcId);
+  switch (appConfig.finalReply.backend) {
+    case "off":
+      return null;
+    case "local_llama":
+      return getLocalPresetConfigForNpc(npcId, "llama");
+    case "local_qwen":
+      return getLocalPresetConfigForNpc(npcId, "qwen");
+    case "promoted":
+      return getPromotedAdapterConfigForNpc(npcId);
+    case "codex":
+      return {
+        backend: "codex",
+        promptFormat: appConfig.finalReply.promptFormat,
+        models: getFinalReplyModelCandidates(),
+      } as const;
+    case "openai_api":
+      return {
+        backend: "openai_api",
+        promptFormat: appConfig.finalReply.promptFormat,
+        models: getFinalReplyModelCandidates(),
+      } as const;
+    case "together":
+      if (!appConfig.finalReply.remote.modelName) {
+        return null;
+      }
+      return {
+        backend: "together",
+        model: appConfig.finalReply.remote.modelName,
+        provider: appConfig.finalReply.remote.provider,
+        promptFormat: appConfig.finalReply.promptFormat,
+      } as const;
+    case "runpod": {
+      const remoteProviderRef = parseRemoteProviderRef(
+        appConfig.finalReply.remote.provider,
+      );
+      if (
+        remoteProviderRef?.kind !== "runpod" ||
+        !appConfig.finalReply.remote.modelName
+      ) {
+        return null;
+      }
+      return {
+        backend: "runpod",
+        endpointId: remoteProviderRef.endpointId,
+        model: appConfig.finalReply.remote.modelName,
+        provider: appConfig.finalReply.remote.provider,
+        promptFormat: appConfig.finalReply.promptFormat,
+      } as const;
+    }
+  }
 }
 
 async function hasMlxBinary() {
@@ -685,7 +771,7 @@ async function runTogetherGenerate(params: {
         content: params.prompt,
       },
     ],
-    maxTokens: appConfig.localReply.maxTokens,
+    maxTokens: appConfig.finalReply.maxTokens,
     temperature: 0.7,
   });
   return extractTogetherChatText(response) ?? "";
@@ -710,10 +796,178 @@ async function runRunpodGenerate(params: {
         content: params.prompt,
       },
     ],
-    maxTokens: appConfig.localReply.maxTokens,
+    maxTokens: appConfig.finalReply.maxTokens,
     temperature: 0.7,
   });
   return extractRunpodVllmText(response) ?? "";
+}
+
+interface OpenAiTextResponsePayload {
+  error?: { message?: string };
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  }>;
+}
+
+function extractOpenAiOutputText(payload: OpenAiTextResponsePayload) {
+  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
+    return payload.output_text.trim();
+  }
+
+  const textChunks =
+    payload.output
+      ?.flatMap((entry) => entry.content ?? [])
+      .filter((entry) => entry.type === "output_text" && typeof entry.text === "string")
+      .map((entry) => entry.text!.trim())
+      .filter(Boolean) ?? [];
+
+  return textChunks.join("\n").trim();
+}
+
+async function runCodexGenerate(params: {
+  models: string[];
+  npcId: string;
+  promptFormat: ScenePromptFormat;
+  prompt: string;
+}) {
+  let lastError: Error | null = null;
+
+  for (const model of params.models) {
+    try {
+      const text = await new Promise<string>((resolve, reject) => {
+        const child = spawn(
+          "codex",
+          [
+            "exec",
+            "--skip-git-repo-check",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "-C",
+            PROJECT_ROOT,
+            "-m",
+            model,
+            "-",
+          ],
+          {
+            cwd: PROJECT_ROOT,
+            env: buildCodexCliChildEnv(PROJECT_ROOT),
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+
+        let stdout = "";
+        let stderr = "";
+        const timeout = setTimeout(() => {
+          child.kill("SIGTERM");
+          reject(new Error(`codex exec timed out after 120000ms for model=${model}`));
+        }, 120000);
+
+        child.stdout.on("data", (chunk) => {
+          stdout += chunk.toString();
+        });
+        child.stderr.on("data", (chunk) => {
+          stderr += chunk.toString();
+        });
+        child.on("error", (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+        child.on("close", (code) => {
+          clearTimeout(timeout);
+          if (code !== 0) {
+            reject(
+              new Error(
+                stderr.trim() || stdout.trim() || `codex exec failed for model=${model}.`,
+              ),
+            );
+            return;
+          }
+          resolve(stdout.trim());
+        });
+
+        child.stdin.write(
+          `${resolveSystemPrompt(params.npcId, params.promptFormat)}\n\n${params.prompt}`,
+        );
+        child.stdin.end();
+      });
+
+      if (text) {
+        return text;
+      }
+
+      lastError = new Error(`codex reply output was empty for model=${model}.`);
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("Codex final reply generation failed.");
+    }
+  }
+
+  throw lastError ?? new Error("Codex final reply generation failed.");
+}
+
+async function runOpenAiGenerate(params: {
+  models: string[];
+  npcId: string;
+  promptFormat: ScenePromptFormat;
+  prompt: string;
+}) {
+  const apiKey = openAiConfig.apiKey;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is required when FINAL_REPLY_BACKEND=openai_api.");
+  }
+
+  let lastError: Error | null = null;
+
+  for (const model of params.models) {
+    try {
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          input: [
+            {
+              role: "system",
+              content: resolveSystemPrompt(params.npcId, params.promptFormat),
+            },
+            {
+              role: "user",
+              content: params.prompt,
+            },
+          ],
+          max_output_tokens: appConfig.finalReply.maxTokens,
+        }),
+      });
+
+      const payload = (await response.json()) as OpenAiTextResponsePayload;
+      if (!response.ok) {
+        throw new Error(payload.error?.message || `OpenAI response request failed for model=${model}.`);
+      }
+
+      const outputText = extractOpenAiOutputText(payload);
+      if (outputText) {
+        return outputText;
+      }
+
+      lastError = new Error(`OpenAI final reply output was empty for model=${model}.`);
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("OpenAI final reply generation failed.");
+    }
+  }
+
+  throw lastError ?? new Error("OpenAI final reply generation failed.");
 }
 
 function canonicalizeReplyForGuard(text: string) {
@@ -737,11 +991,11 @@ function looksRepeatedRecentReply(text: string, input: GenerateInteractionInput)
   return recentNpcReplies.some((entry) => entry === candidate);
 }
 
-export async function maybeGenerateReplyWithLocalAdapter(
+export async function maybeGenerateFinalReply(
   input: GenerateInteractionInput,
 ) {
-  const mode = appConfig.localReplyAdapterMode;
-  if (mode === "off") {
+  const mode = appConfig.finalReply.mode;
+  if (mode === "off" || appConfig.finalReply.backend === "off") {
     return null;
   }
 
@@ -751,18 +1005,43 @@ export async function maybeGenerateReplyWithLocalAdapter(
   }
 
   const adapterConfig = await resolveAdapterConfigForNpc(input.npc.persona.id);
+  if (!adapterConfig) {
+    if (mode === "on") {
+      throw new Error(
+        `FINAL_REPLY_BACKEND=${appConfig.finalReply.backend} is configured but no runnable target is available.`,
+      );
+    }
+    return null;
+  }
+
   const prompt = buildPrompt(input, adapterConfig.promptFormat);
   let text: string;
   let sourceRef: string;
 
-  if (adapterConfig.backend === "together") {
+  if (adapterConfig.backend === "codex") {
+    text = await runCodexGenerate({
+      models: adapterConfig.models,
+      npcId: input.npc.persona.id,
+      promptFormat: adapterConfig.promptFormat,
+      prompt,
+    });
+    sourceRef = `codex:${adapterConfig.models.join(",")}`;
+  } else if (adapterConfig.backend === "openai_api") {
+    text = await runOpenAiGenerate({
+      models: adapterConfig.models,
+      npcId: input.npc.persona.id,
+      promptFormat: adapterConfig.promptFormat,
+      prompt,
+    });
+    sourceRef = `openai:${adapterConfig.models.join(",")}`;
+  } else if (adapterConfig.backend === "together") {
     text = await runTogetherGenerate({
       model: adapterConfig.model,
       npcId: input.npc.persona.id,
       promptFormat: adapterConfig.promptFormat,
       prompt,
     });
-    sourceRef = adapterConfig.model;
+    sourceRef = `together:${adapterConfig.model}`;
   } else if (adapterConfig.backend === "runpod") {
     text = await runRunpodGenerate({
       endpointId: adapterConfig.endpointId,
@@ -771,7 +1050,7 @@ export async function maybeGenerateReplyWithLocalAdapter(
       promptFormat: adapterConfig.promptFormat,
       prompt,
     });
-    sourceRef = `${adapterConfig.endpointId}:${adapterConfig.model}`;
+    sourceRef = `runpod:${adapterConfig.endpointId}:${adapterConfig.model}`;
   } else {
     const binaryAvailable = await hasMlxBinary();
     if (!binaryAvailable) {
@@ -803,7 +1082,7 @@ export async function maybeGenerateReplyWithLocalAdapter(
             "--prompt",
             prompt,
             "--max-tokens",
-            String(appConfig.localReply.maxTokens),
+            String(appConfig.finalReply.maxTokens),
           ]
         : [
             "--model",
@@ -815,7 +1094,7 @@ export async function maybeGenerateReplyWithLocalAdapter(
             "--prompt",
             prompt,
             "--max-tokens",
-            String(appConfig.localReply.maxTokens),
+            String(appConfig.finalReply.maxTokens),
           ],
     );
     sourceRef = adapterPath;
@@ -843,3 +1122,5 @@ export async function maybeGenerateReplyWithLocalAdapter(
     adapterPath: sourceRef,
   };
 }
+
+export const maybeGenerateReplyWithLocalAdapter = maybeGenerateFinalReply;

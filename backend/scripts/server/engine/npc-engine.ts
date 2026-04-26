@@ -46,7 +46,7 @@ import {
   composeRoundEventLogEntry,
 } from "@server/engine/world-state";
 import { buildFallbackInteractionResult } from "@server/engine/fallback-interaction";
-import { maybeGenerateReplyWithLocalAdapter } from "@server/providers/mlx-reply-adapter";
+import { maybeGenerateFinalReply } from "@server/providers/mlx-reply-adapter";
 import { retrieveEvidenceBundle } from "@server/engine/retrieval";
 import { buildRuntimeStatus, getLlmProvider } from "@server/providers/llm-provider";
 import { maybeGenerateShadowComparison } from "@server/providers/shadow-compare";
@@ -301,7 +301,7 @@ export async function runInteractionTurn(
   }
 
   try {
-    const rewrittenReply = await maybeGenerateReplyWithLocalAdapter(generationInput);
+    const rewrittenReply = await maybeGenerateFinalReply(generationInput);
     if (rewrittenReply?.text) {
       llmResult = {
         ...llmResult,
