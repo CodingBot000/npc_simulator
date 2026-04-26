@@ -21,8 +21,13 @@ RUN ./gradlew --no-daemon bootJar
 FROM node:22-trixie-slim
 WORKDIR /workspace
 
+ARG INSTALL_CODEX_CLI=false
+ARG CODEX_CLI_NPM_SPEC=@openai/codex@0.125.0
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
+  && if [ "$INSTALL_CODEX_CLI" = "true" ]; then npm install -g "$CODEX_CLI_NPM_SPEC"; fi \
+  && mkdir -p /root/.codex-docker \
   && rm -rf /var/lib/apt/lists/*
 
 ENV SPRING_PROFILES_ACTIVE=prod

@@ -24,6 +24,7 @@ public class NodeBridgeService {
     private final ObjectMapper objectMapper;
     private final BackendRuntimeLayout runtimeLayout;
     private final boolean bridgeEnabled;
+    private final long bridgeTimeoutSeconds;
     private final String datasourceUrl;
     private final String datasourceUsername;
     private final String datasourcePassword;
@@ -31,6 +32,7 @@ public class NodeBridgeService {
     public NodeBridgeService(
         BackendRuntimeLayout runtimeLayout,
         @Value("${npc-simulator.bridge.enabled:true}") boolean bridgeEnabled,
+        @Value("${npc-simulator.bridge.timeout-seconds:420}") long bridgeTimeoutSeconds,
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${spring.datasource.username:}") String datasourceUsername,
         @Value("${spring.datasource.password:}") String datasourcePassword
@@ -38,6 +40,7 @@ public class NodeBridgeService {
         this.objectMapper = JsonMapper.builder().findAndAddModules().build();
         this.runtimeLayout = runtimeLayout;
         this.bridgeEnabled = bridgeEnabled;
+        this.bridgeTimeoutSeconds = Math.max(1L, bridgeTimeoutSeconds);
         this.datasourceUrl = datasourceUrl;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
@@ -82,10 +85,10 @@ public class NodeBridgeService {
 
             CompletableFuture<String> stdoutFuture = readStream(process.getInputStream());
             CompletableFuture<String> stderrFuture = readStream(process.getErrorStream());
-            boolean finished = process.waitFor(2, TimeUnit.MINUTES);
+            boolean finished = process.waitFor(bridgeTimeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
-                process.destroyForcibly();
-                throw new IllegalStateException("Node bridge timed out.");
+                destroyProcessTree(process);
+                throw new IllegalStateException("Node bridge timed out after " + bridgeTimeoutSeconds + "s.");
             }
 
             String stdout = stdoutFuture.get(5, TimeUnit.SECONDS).trim();
@@ -124,6 +127,11 @@ public class NodeBridgeService {
                 throw new IllegalStateException("Failed to read node bridge stream", error);
             }
         });
+    }
+
+    private void destroyProcessTree(Process process) {
+        process.toHandle().descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
     }
 
     private List<String> buildCommand(Path tsxPath, Path scriptPath, String operation) {

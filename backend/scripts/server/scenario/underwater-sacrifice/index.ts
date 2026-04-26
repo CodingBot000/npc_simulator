@@ -43,7 +43,7 @@ export const underwaterSacrificeScenario: ScenarioDefinition = {
     {
       id: "make_case",
       label: "책임 묻기",
-      description: "타겟이 왜 남아야 하는지 논리부터 세운다.",
+      description: "타겟이 왜 희생되어야 하는지 논리부터 세운다.",
       requiresTarget: true,
     },
     {

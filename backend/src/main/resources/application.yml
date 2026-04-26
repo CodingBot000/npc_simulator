@@ -43,5 +43,6 @@ npc-simulator:
     venv-root: ${NPC_SIMULATOR_VENV_ROOT:}
   bridge:
     enabled: ${NPC_SIMULATOR_BRIDGE_ENABLED:true}
+    timeout-seconds: ${NPC_SIMULATOR_BRIDGE_TIMEOUT_SECONDS:420}
   cors:
     allowed-origins: ${NPC_SIMULATOR_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}

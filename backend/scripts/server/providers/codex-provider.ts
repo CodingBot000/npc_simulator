@@ -112,6 +112,7 @@ export class CodexProvider implements LlmProvider {
         "codex",
         [
           "exec",
+          "--ephemeral",
           "--skip-git-repo-check",
           "--dangerously-bypass-approvals-and-sandbox",
           "-C",

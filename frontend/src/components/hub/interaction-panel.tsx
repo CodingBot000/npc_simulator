@@ -13,7 +13,7 @@ import { Panel } from "@/components/ui/panel";
 
 interface InteractionPanelProps {
   npc: NpcState;
-  conversation: ChatMessage[];
+  conversation: ConversationMessage[];
   draft: string;
   busy: boolean;
   waitingForReply: boolean;
@@ -35,6 +35,9 @@ interface InteractionPanelProps {
 }
 
 type PlayInputMode = "intent_only" | "free_text" | "combined";
+type ConversationMessage = ChatMessage & {
+  deliveryStatus?: "failed";
+};
 
 function roundStatus(round: RoundState) {
   if (round.currentRound === 0) {
@@ -75,6 +78,41 @@ function formatElapsedDuration(elapsedMs: number) {
   }
 
   return `${totalSeconds}초`;
+}
+
+function formatReplyRewriteSource(source: string | null | undefined) {
+  const normalized = source?.trim().toLowerCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes("llama")) {
+    return "llama";
+  }
+
+  if (normalized.includes("qwen")) {
+    return "qwen";
+  }
+
+  if (/gpt[-_]?5\.4/u.test(normalized)) {
+    return "gpt5.4";
+  }
+
+  if (/gpt[-_\w.]*nano/u.test(normalized)) {
+    return "gpt-nano";
+  }
+
+  if (/gpt[-_\w.]*mini/u.test(normalized)) {
+    return "gpt-mini";
+  }
+
+  const gptVersion = normalized.match(/gpt[-_]?(\d+(?:\.\d+)?)/u);
+  if (gptVersion) {
+    return `gpt${gptVersion[1]}`;
+  }
+
+  return null;
 }
 
 function GuideAlertModal({
@@ -436,33 +474,55 @@ export function InteractionPanel({
                 </div>
               ) : (
                 <>
-                  {conversation.map((message) => (
-                    <article
-                      key={message.id}
-                      className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
-                        message.speaker === "player"
-                          ? "ml-auto bg-[var(--teal-soft)] text-[var(--teal)]"
-                          : "bg-[var(--panel-strong)] text-foreground"
-                      }`}
-                    >
-                      <p className="text-sm leading-7">{message.text}</p>
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
-                          {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
-                          {formatConversationTimestamp(message.timestamp)}
-                          {message.speaker === "npc" &&
-                          replyElapsedByMessageId[message.id] !== undefined
-                            ? ` · 응답 ${formatElapsedDuration(replyElapsedByMessageId[message.id])}`
-                            : ""}
-                        </p>
-                        {message.speaker === "npc" && message.fallbackUsed ? (
-                          <span className="ml-auto rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
-                            fallback
-                          </span>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
+                  {conversation.map((message) => {
+                    const replyRewriteLabel =
+                      message.speaker === "npc"
+                        ? formatReplyRewriteSource(message.replyRewriteSource)
+                        : null;
+                    const failed = message.deliveryStatus === "failed";
+
+                    return (
+                      <article
+                        key={message.id}
+                        className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
+                          message.speaker === "player"
+                            ? "ml-auto bg-[var(--teal-soft)] text-[var(--teal)]"
+                            : failed
+                              ? "bg-rose-100/80 text-[var(--danger)]"
+                              : "bg-[var(--panel-strong)] text-foreground"
+                        }`}
+                      >
+                        <p className="text-sm leading-7">{message.text}</p>
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                          <p className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
+                            {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
+                            {formatConversationTimestamp(message.timestamp)}
+                            {message.speaker === "npc" &&
+                            replyElapsedByMessageId[message.id] !== undefined
+                              ? ` · 응답 ${formatElapsedDuration(replyElapsedByMessageId[message.id])}`
+                              : ""}
+                          </p>
+                          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                            {failed ? (
+                              <span className="rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
+                                생성 실패
+                              </span>
+                            ) : null}
+                            {message.speaker === "npc" && message.fallbackUsed ? (
+                              <span className="rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
+                                fallback
+                              </span>
+                            ) : null}
+                            {replyRewriteLabel ? (
+                              <span className="rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                                {replyRewriteLabel}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
                   {waitingForReply ? (
                     <article
                       aria-live="polite"

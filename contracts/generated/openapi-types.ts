@@ -450,6 +450,7 @@ export interface components {
             timestamp: string;
             action: components["schemas"]["PlayerAction"] | components["schemas"]["AllowedActionType"] | null;
             fallbackUsed?: boolean;
+            replyRewriteSource?: string | null;
         };
         RoundState: {
             currentRound: number;
@@ -566,6 +567,7 @@ export interface components {
         RuntimeArtifactKind: "mlx_adapter" | "mlx_fused_model" | "legacy_mlx_adapter";
         ReplyPayload: {
             text: string;
+            rewriteSource?: string | null;
         };
         LlmInteractionResult: {
             reply: components["schemas"]["ReplyPayload"];
@@ -646,6 +648,7 @@ export interface components {
             targetNpcId: string | null;
             replyText: string;
             fallbackUsed?: boolean;
+            replyRewriteSource?: string | null;
             retrievedMemories: components["schemas"]["RetrievedMemoryEntry"][];
             retrievedKnowledge: components["schemas"]["RetrievedKnowledgeEvidence"][];
             emotion: components["schemas"]["NpcEmotionState"];

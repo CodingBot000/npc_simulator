@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -215,7 +216,16 @@ public class RuntimeWorldService {
     }
 
     private JsonNode invokeBridgeBody(String operation, HttpHeaders headers, Object body) {
-        BridgeEnvelope result = nodeBridgeService.invoke(operation, headers, body);
+        BridgeEnvelope result;
+        try {
+            result = nodeBridgeService.invoke(operation, headers, body);
+        } catch (IllegalStateException error) {
+            throw new RuntimeApiException(
+                bridgeFailureStatus(error),
+                bridgeFailureMessage(error),
+                error
+            );
+        }
 
         try {
             JsonNode payload = objectMapper.readTree(result.bodyJson());
@@ -236,6 +246,26 @@ public class RuntimeWorldService {
                 error
             );
         }
+    }
+
+    private HttpStatus bridgeFailureStatus(IllegalStateException error) {
+        String message = error.getMessage();
+        if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
+            return HttpStatus.GATEWAY_TIMEOUT;
+        }
+
+        return HttpStatus.BAD_GATEWAY;
+    }
+
+    private String bridgeFailureMessage(IllegalStateException error) {
+        String message = error.getMessage();
+        if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
+            return "답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도하거나 NPC_SIMULATOR_BRIDGE_TIMEOUT_SECONDS 값을 늘려주세요.";
+        }
+
+        return message == null || message.isBlank()
+            ? "Runtime bridge request failed."
+            : message;
     }
 
     private JsonNode requestInteractionWorker(JsonNode request, RuntimeWorldBundle bundle) {
@@ -451,6 +481,11 @@ public class RuntimeWorldService {
         message.put("speaker", "npc");
         message.put("text", extractText(entry, "replyText", ""));
         message.put("timestamp", extractText(entry, "timestamp", ""));
+        message.put("fallbackUsed", entry.path("fallbackUsed").asBoolean(false));
+        String replyRewriteSource = extractText(entry, "replyRewriteSource", "");
+        if (!replyRewriteSource.isBlank()) {
+            message.put("replyRewriteSource", replyRewriteSource);
+        }
         JsonNode action = entry.get("selectedAction");
         message.set("action", action == null ? NullNode.instance : action.deepCopy());
         return message;

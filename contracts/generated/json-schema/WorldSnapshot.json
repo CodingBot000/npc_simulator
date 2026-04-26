@@ -599,6 +599,12 @@
         },
         "fallbackUsed": {
           "type": "boolean"
+        },
+        "replyRewriteSource": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -718,6 +724,12 @@
         },
         "fallbackUsed": {
           "type": "boolean"
+        },
+        "replyRewriteSource": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "retrievedMemories": {
           "type": "array",
@@ -1416,6 +1428,12 @@
       "properties": {
         "text": {
           "type": "string"
+        },
+        "rewriteSource": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

@@ -134,10 +134,18 @@ function parseRuntimeArtifactKind(
 
 function parseProviderMode(): LlmProviderMode {
   const rawValue = getServerEnv("LLM_PROVIDER_MODE");
+  if (rawValue === "codex") {
+    if (serverRuntimeContext.isCloudMode) {
+      throw new Error(
+        "LLM_PROVIDER_MODE=codex is not allowed in cloud mode. Use openai or deterministic.",
+      );
+    }
+    return rawValue;
+  }
   if (rawValue === "openai" || rawValue === "deterministic") {
     return rawValue;
   }
-  return "codex";
+  return serverRuntimeContext.isCloudMode ? "openai" : "codex";
 }
 
 function resolveRunpodRemoteProvider(endpointId: string | null) {
@@ -150,6 +158,12 @@ function parseFinalReplyBackend(params: {
   usePromoted: boolean;
 }): FinalReplyBackend {
   const rawValue = getServerEnv("FINAL_REPLY_BACKEND");
+
+  if (rawValue === "codex" && serverRuntimeContext.isCloudMode) {
+    throw new Error(
+      "FINAL_REPLY_BACKEND=codex is not allowed in cloud mode. Use openai_api, together, runpod, or off.",
+    );
+  }
 
   if (
     rawValue === "off" ||

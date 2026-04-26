@@ -38,6 +38,7 @@ export interface InteractionLogEntry {
   playerId: string;
   inputMode: InputMode;
   fallbackUsed?: boolean;
+  replyRewriteSource?: string | null;
   roundBefore?: number;
   roundAfter?: number;
   playerText: string;

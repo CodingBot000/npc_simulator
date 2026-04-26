@@ -35,6 +35,10 @@ interface PendingConversationTurn {
   startedAtMs: number;
 }
 
+type LocalConversationMessage = ChatMessage & {
+  deliveryStatus?: "failed";
+};
+
 function findLatestNpcReplyMessage(
   conversation: ChatMessage[],
   replyText: string,
@@ -76,6 +80,8 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
   const [pendingConversationTurn, setPendingConversationTurn] =
     useState<PendingConversationTurn | null>(null);
+  const [localConversationMessagesByNpcId, setLocalConversationMessagesByNpcId] =
+    useState<Record<string, LocalConversationMessage[]>>({});
   const [replyElapsedByMessageId, setReplyElapsedByMessageId] = useState<
     Record<string, number>
   >({});
@@ -110,10 +116,13 @@ export function HubClient({ initialWorld }: HubClientProps) {
     pendingConversationTurn?.npcId === selectedNpc.persona.id
       ? [pendingConversationTurn.playerMessage]
       : [];
+  const localConversationForSelectedNpc =
+    localConversationMessagesByNpcId[selectedNpc.persona.id] ?? [];
   const conversation = [
     ...baseConversation,
+    ...localConversationForSelectedNpc,
     ...pendingConversationForSelectedNpc,
-  ];
+  ].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
   const waitingForSelectedNpcReply =
     interactionBusy && pendingConversationTurn?.npcId === selectedNpc.persona.id;
   const stickyConsensusEntries = world.consensusBoard.slice(0, world.npcs.length + 1);
@@ -193,6 +202,18 @@ export function HubClient({ initialWorld }: HubClientProps) {
         ? targetOptions.find((option) => option.id === selectedTargetId)?.label ??
           DEFAULT_PLAYER_LABEL
         : null;
+    const pendingPlayerMessage: ChatMessage = {
+      id: `pending-${crypto.randomUUID()}`,
+      npcId: selectedNpc.persona.id,
+      speaker: "player",
+      text: formatPlayerConversationText({
+        text: payload.text,
+        action: payload.action,
+        targetLabel: pendingTargetLabel,
+      }),
+      timestamp,
+      action: payload.action,
+    };
     setBusy(true);
     setInteractionBusy(true);
     setError(null);
@@ -200,18 +221,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
     setPendingConversationTurn({
       npcId: selectedNpc.persona.id,
       startedAtMs: requestStartedAtMs,
-      playerMessage: {
-        id: `pending-${crypto.randomUUID()}`,
-        npcId: selectedNpc.persona.id,
-        speaker: "player",
-        text: formatPlayerConversationText({
-          text: payload.text,
-          action: payload.action,
-          targetLabel: pendingTargetLabel,
-        }),
-        timestamp,
-        action: payload.action,
-      },
+      playerMessage: pendingPlayerMessage,
     });
 
     try {
@@ -249,12 +259,39 @@ export function HubClient({ initialWorld }: HubClientProps) {
       setPendingConversationTurn(null);
       setDraft("");
     } catch (fetchError) {
-      setPendingConversationTurn(null);
-      setError(
+      const failedReplyId = `failed-${crypto.randomUUID()}`;
+      const failedAt = nowIso();
+      const errorMessage =
         fetchError instanceof Error
           ? fetchError.message
-          : "상호작용 처리에 실패했습니다.",
-      );
+          : "상호작용 처리에 실패했습니다.";
+
+      setLocalConversationMessagesByNpcId((current) => {
+        const existing = current[selectedNpc.persona.id] ?? [];
+        const failedMessages: LocalConversationMessage[] = [
+          pendingPlayerMessage,
+          {
+            id: failedReplyId,
+            npcId: selectedNpc.persona.id,
+            speaker: "npc",
+            text: `답변 생성에 실패했습니다. ${errorMessage}`,
+            timestamp: failedAt,
+            action: null,
+            deliveryStatus: "failed",
+          },
+        ];
+
+        return {
+          ...current,
+          [selectedNpc.persona.id]: [...existing, ...failedMessages].slice(-10),
+        };
+      });
+      setReplyElapsedByMessageId((current) => ({
+        ...current,
+        [failedReplyId]: Date.now() - requestStartedAtMs,
+      }));
+      setPendingConversationTurn(null);
+      setError(errorMessage);
     } finally {
       setInteractionBusy(false);
       setBusy(false);
@@ -276,6 +313,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
         data.npcs[1]?.persona.id ?? data.npcs[0]?.persona.id ?? null,
       );
       setPendingConversationTurn(null);
+      setLocalConversationMessagesByNpcId({});
       setReplyElapsedByMessageId({});
       setLastOutcome(null);
       setDraft("");

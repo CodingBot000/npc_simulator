@@ -42,6 +42,12 @@
         "fallbackUsed": {
           "type": "boolean"
         },
+        "replyRewriteSource": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "retrievedMemories": {
           "type": "array",
           "items": {
@@ -851,6 +857,12 @@
       "properties": {
         "text": {
           "type": "string"
+        },
+        "rewriteSource": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

@@ -6,4 +6,4 @@ Original prompt: 현재 코드 구조가 바뀟었다.
 - Found that this was the wrong fit for the narrow right-column card: `DetailSections` is a modal-oriented 3-column layout with a fixed 300px aside.
 - Replaced the inline usage with `InlineDetailCards`, a stacked 3-card layout that shows the same information in the main `현재 상황` panel while keeping the original modal layout unchanged.
 - `frontend` lint check passed for `src/components/npc/npc-card.tsx`.
-- Local dev verification is partially blocked because the frontend expects an API at `NEXT_PUBLIC_API_BASE_URL` / `http://localhost:8080`, and `/api/world` was 404 in the current local run.
+- Local dev verification was partially blocked because the frontend needed a reachable backend API base URL. Current frontend 기준 변수는 `VITE_API_BASE_URL` 또는 runtime `env-config.js`이며, 당시 로컬 실행에서는 `/api/world`가 404였다.

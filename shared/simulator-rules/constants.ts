@@ -25,7 +25,7 @@ export const PLAYER_ACTION_LABELS: Record<PlayerAction, string> = {
 };
 
 export const PLAYER_ACTION_DESCRIPTIONS: Record<PlayerAction, string> = {
-  make_case: "타겟이 왜 남아야 하는지 논리부터 세운다.",
+  make_case: "타겟이 왜 희생되어야 하는지 논리부터 세운다.",
   expose: "타겟에게 불리한 기록과 사실을 꺼내 몰아세운다.",
   appeal: "죄책감과 연민을 자극해 상대의 판단을 흔든다.",
   ally: "현재 대화상대와 한편이 되어 타겟을 고립시킨다.",

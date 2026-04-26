@@ -198,6 +198,7 @@ export interface StructuredImpactInference {
 
 export interface ReplyPayload {
   text: string;
+  rewriteSource?: string | null;
 }
 
 export interface LlmInteractionResult {
@@ -297,6 +298,7 @@ export interface InspectorPayload {
   targetNpcId: string | null;
   replyText: string;
   fallbackUsed?: boolean;
+  replyRewriteSource?: string | null;
   retrievedMemories: RetrievedMemoryEntry[];
   retrievedKnowledge: RetrievedKnowledgeEvidence[];
   emotion: NpcEmotionState;
@@ -328,6 +330,7 @@ export interface ChatMessage {
   timestamp: string;
   action: PlayerAction | AllowedActionType | null;
   fallbackUsed?: boolean;
+  replyRewriteSource?: string | null;
 }
 
 export interface RuntimeStatus {

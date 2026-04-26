@@ -834,7 +834,7 @@ async function runCodexGenerate(params: {
   npcId: string;
   promptFormat: ScenePromptFormat;
   prompt: string;
-}) {
+}): Promise<{ text: string; model: string }> {
   let lastError: Error | null = null;
 
   for (const model of params.models) {
@@ -844,6 +844,7 @@ async function runCodexGenerate(params: {
           "codex",
           [
             "exec",
+            "--ephemeral",
             "--skip-git-repo-check",
             "--dangerously-bypass-approvals-and-sandbox",
             "-C",
@@ -896,7 +897,7 @@ async function runCodexGenerate(params: {
       });
 
       if (text) {
-        return text;
+        return { text, model };
       }
 
       lastError = new Error(`codex reply output was empty for model=${model}.`);
@@ -916,7 +917,7 @@ async function runOpenAiGenerate(params: {
   npcId: string;
   promptFormat: ScenePromptFormat;
   prompt: string;
-}) {
+}): Promise<{ text: string; model: string }> {
   const apiKey = openAiConfig.apiKey;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is required when FINAL_REPLY_BACKEND=openai_api.");
@@ -955,7 +956,7 @@ async function runOpenAiGenerate(params: {
 
       const outputText = extractOpenAiOutputText(payload);
       if (outputText) {
-        return outputText;
+        return { text: outputText, model };
       }
 
       lastError = new Error(`OpenAI final reply output was empty for model=${model}.`);
@@ -1017,23 +1018,26 @@ export async function maybeGenerateFinalReply(
   const prompt = buildPrompt(input, adapterConfig.promptFormat);
   let text: string;
   let sourceRef: string;
+  let adapterPath: string | null = null;
 
   if (adapterConfig.backend === "codex") {
-    text = await runCodexGenerate({
+    const generated = await runCodexGenerate({
       models: adapterConfig.models,
       npcId: input.npc.persona.id,
       promptFormat: adapterConfig.promptFormat,
       prompt,
     });
-    sourceRef = `codex:${adapterConfig.models.join(",")}`;
+    text = generated.text;
+    sourceRef = `codex:${generated.model}`;
   } else if (adapterConfig.backend === "openai_api") {
-    text = await runOpenAiGenerate({
+    const generated = await runOpenAiGenerate({
       models: adapterConfig.models,
       npcId: input.npc.persona.id,
       promptFormat: adapterConfig.promptFormat,
       prompt,
     });
-    sourceRef = `openai:${adapterConfig.models.join(",")}`;
+    text = generated.text;
+    sourceRef = `openai:${generated.model}`;
   } else if (adapterConfig.backend === "together") {
     text = await runTogetherGenerate({
       model: adapterConfig.model,
@@ -1060,7 +1064,7 @@ export async function maybeGenerateFinalReply(
       return null;
     }
 
-    const adapterPath = adapterConfig.path;
+    adapterPath = adapterConfig.path;
     const adapterAvailable = await hasRuntimeArtifact(
       adapterPath,
       adapterConfig.runtimeKind,
@@ -1097,7 +1101,7 @@ export async function maybeGenerateFinalReply(
             String(appConfig.finalReply.maxTokens),
           ],
     );
-    sourceRef = adapterPath;
+    sourceRef = `local:${adapterConfig.mlxModel ?? appConfig.localReply.family}`;
   }
 
   const normalized = text.trim();
@@ -1119,7 +1123,8 @@ export async function maybeGenerateFinalReply(
 
   return {
     text: cleaned,
-    adapterPath: sourceRef,
+    adapterPath,
+    sourceRef,
   };
 }
 

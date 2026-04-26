@@ -22,7 +22,7 @@ Current stage-1 limitation:
 
 - `together` and `runpod` are supported as final reply backends
 - they are **not** yet promoted to full structured providers
-- cloud deployment should treat `codex` as a local-only testing path, not as the default runtime
+- cloud runtime rejects `LLM_PROVIDER_MODE=codex` and `FINAL_REPLY_BACKEND=codex`
 
 ## 1. Local frontend + local docker backend + local Postgres
 
@@ -94,7 +94,7 @@ SHADOW_COMPARE_ENABLED=false
 Notes:
 
 - `http://localhost:3000` must remain in backend CORS while local browser access is needed
-- Cloud backend should not rely on local CLI auth as its primary runtime path
+- Cloud runtime bridge requests fail fast if `LLM_PROVIDER_MODE=codex` or `FINAL_REPLY_BACKEND=codex`
 - Final reply rewrite should use API/hosted model backends in cloud
 - Local artifact-based inference is kept off by default in cloud unless the server image explicitly includes those artifacts
 
@@ -139,6 +139,7 @@ Notes:
 - Frontend and backend are fully separate deployment units
 - Browser CORS should point only at the deployed frontend domain
 - Cloud mode resolves server env from process/platform injection only and does not read `.env.local`
+- Cloud runtime bridge requests fail fast if `LLM_PROVIDER_MODE=codex` or `FINAL_REPLY_BACKEND=codex`
 - Current backend image still runs Node bridge/scripts from the packaged workspace, but the Java side now reads explicit runtime layout envs (`NPC_SIMULATOR_*_ROOT`, `NPC_SIMULATOR_NODE_BIN_DIR`, `NPC_SIMULATOR_WORKDIR`) instead of assuming only a repo-root layout
 - Training / review artifact execution remains local-first for now
 

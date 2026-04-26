@@ -86,6 +86,7 @@ function recentConversationForNpc(
         timestamp: entry.timestamp,
         action: entry.selectedAction,
         fallbackUsed: entry.fallbackUsed ?? false,
+        replyRewriteSource: entry.replyRewriteSource ?? null,
       },
     ]);
 }
@@ -258,6 +259,7 @@ export async function runInteractionTurn(
   });
   const shadowComparisonPromise = maybeGenerateShadowComparison(generationInput);
   let fallbackUsed = provider.mode === "deterministic";
+  let replyRewriteSource: string | null = null;
   let llmResult;
 
   try {
@@ -303,10 +305,12 @@ export async function runInteractionTurn(
   try {
     const rewrittenReply = await maybeGenerateFinalReply(generationInput);
     if (rewrittenReply?.text) {
+      replyRewriteSource = rewrittenReply.sourceRef ?? rewrittenReply.adapterPath ?? null;
       llmResult = {
         ...llmResult,
         reply: {
           text: rewrittenReply.text,
+          rewriteSource: replyRewriteSource,
         },
       };
     }
@@ -320,6 +324,7 @@ export async function runInteractionTurn(
     ...llmResult,
     reply: {
       text: sanitizeReplyText(llmResult.reply.text),
+      rewriteSource: replyRewriteSource,
     },
   };
   const shadowComparison = await shadowComparisonPromise;
@@ -442,6 +447,7 @@ export async function runInteractionTurn(
     targetNpcId: effectiveTargetNpcId,
     replyText: llmResult.reply.text,
     fallbackUsed,
+    replyRewriteSource,
     retrievedMemories,
     retrievedKnowledge,
     emotion: llmResult.emotion,
@@ -473,6 +479,7 @@ export async function runInteractionTurn(
     playerId: request.playerId,
     inputMode: request.inputMode,
     fallbackUsed,
+    replyRewriteSource,
     roundBefore,
     roundAfter: worldState.round.currentRound,
     playerText: formatPlayerConversationText({
@@ -530,7 +537,10 @@ export async function runInteractionTurn(
       interactionLog,
     },
     cleanupExportPaths: committedExportPaths,
-    reply: llmResult.reply,
+    reply: {
+      ...llmResult.reply,
+      rewriteSource: replyRewriteSource,
+    },
     relationshipDelta,
     pressureChanges: pressureUpdate.pressureChanges,
     eventLogEntry,
