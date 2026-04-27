@@ -15,10 +15,12 @@
  */
 
 import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
-import type { RelationshipDelta } from "@backend-contracts/api";
 import type {
   CandidateId,
   ConsensusBoardEntry,
+  RelationshipDelta,
+} from "@backend-contracts/api";
+import type {
   PlayerAction,
 } from "@sim-shared/types";
 import { ACCUSATORY_ACTIONS, ACTION_PRESSURE_RULES, BASE_RELATIONSHIP_DELTAS } from "@server/engine/action-rules";

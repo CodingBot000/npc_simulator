@@ -59,6 +59,13 @@ export interface ScenarioRuntimeMetadata {
   scoring: ScenarioScoringConfig;
 }
 
+export interface ScenarioRuntimeMetadataSeed {
+  id: string;
+  presentation: ScenarioPresentation;
+  actionIds: PlayerAction[];
+  scoring: ScenarioScoringConfig;
+}
+
 export interface ScenarioAutonomyRoundVolatility {
   fromRound: number;
   toRound: number;

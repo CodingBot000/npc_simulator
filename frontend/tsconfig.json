@@ -17,7 +17,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@contracts/*": ["../contracts/generated/*"],
-      "@sim-shared/*": ["../shared/simulator-rules/*"]
+      "@sim-shared/*": ["../shared/simulator-rules/*"],
+      "@sim-presentation/*": ["../shared/simulator-presentation/*"]
     }
   },
   "include": [

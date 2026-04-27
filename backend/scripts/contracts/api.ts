@@ -10,6 +10,7 @@ export type WorldSnapshot = Schema["WorldSnapshot"];
 export type InspectorResponse = Schema["InspectorResponse"];
 
 export type NpcId = Schema["NpcId"];
+export type CandidateId = Schema["CandidateId"];
 export type ResolutionType = Schema["ResolutionType"];
 export type AutonomyMoveType = Schema["AutonomyMoveType"];
 export type ImpactTag = Schema["ImpactTag"];
@@ -52,5 +53,6 @@ export type RuntimeStatus = Schema["RuntimeStatus"];
 export type ScenarioPresentationSnapshot = Schema["ScenarioPresentationSnapshot"];
 export type ScenarioScoringSnapshot = Schema["ScenarioScoringSnapshot"];
 export type AvailableActionDefinition = Schema["AvailableActionDefinition"];
+export type ConsensusBoardEntry = Schema["ConsensusBoardEntry"];
 export type WorldMeta = Schema["WorldMeta"];
 export type EpisodeExportPaths = Schema["EpisodeExportPaths"];

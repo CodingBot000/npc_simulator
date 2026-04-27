@@ -1,12 +1,12 @@
 import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type {
+  ConsensusBoardEntry,
   EventLogEntry,
 } from "@backend-contracts/api";
 import type { JudgementState } from "@backend-persistence";
 import type { PersistedNpcState } from "@backend-domain";
 import type {
   AutonomyMoveType,
-  ConsensusBoardEntry,
 } from "@sim-shared/types";
 import {
   AUTONOMY_STEP_RULES,

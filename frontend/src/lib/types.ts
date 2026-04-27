@@ -14,8 +14,6 @@ export {
 import type {
   AllowedActionType as SharedAllowedActionType,
   AutonomyMoveType as SharedAutonomyMoveType,
-  CandidateId as SharedCandidateId,
-  ConsensusBoardEntry as SharedConsensusBoardEntry,
   EmotionPrimary as SharedEmotionPrimary,
   ImpactTag as SharedImpactTag,
   JudgementDimensions as SharedJudgementDimensions,
@@ -33,7 +31,7 @@ export type InputMode = Schema["InputMode"];
 export type LlmProviderMode = Schema["LlmProviderMode"];
 
 export type NpcId = Schema["NpcId"];
-export type CandidateId = SharedCandidateId;
+export type CandidateId = Schema["CandidateId"];
 export type ResolutionType = Schema["ResolutionType"];
 
 export type NpcPersona = Schema["NpcPersona"];
@@ -73,7 +71,7 @@ export type AvailableActionDefinition = Schema["AvailableActionDefinition"];
 export type WorldMeta = Schema["WorldMeta"];
 export type RoundState = Schema["RoundState"];
 export type JudgementDimensions = SharedJudgementDimensions;
-export type ConsensusBoardEntry = SharedConsensusBoardEntry;
+export type ConsensusBoardEntry = Schema["ConsensusBoardEntry"];
 export type ResolutionState = Schema["ResolutionState"];
 export type EpisodeExportPaths = Schema["EpisodeExportPaths"];
 export type WorldSnapshot = ApiWorldSnapshot;

@@ -14,12 +14,12 @@
  */
 
 import type {
+  CandidateId,
+  ConsensusBoardEntry,
   RelationshipDelta,
   RoundState,
 } from "@backend-contracts/api";
 import type {
-  CandidateId,
-  ConsensusBoardEntry,
   JudgementDimensions,
   PlayerAction,
 } from "@sim-shared/types";

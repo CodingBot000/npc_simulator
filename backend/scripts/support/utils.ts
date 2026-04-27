@@ -1,17 +1,19 @@
 export {
-  actionLabel,
-  candidateLabel,
   clamp,
   containsAny,
   extractTags,
-  formatDelta,
-  formatDimensionDelta,
-  formatPlayerConversationText,
   groupBy,
   nowIso,
-  pressureSummary,
   safeJsonParse,
   stripCodeFence,
   tokenize,
   uniqueStrings,
 } from "@sim-shared/utils";
+export {
+  actionLabel,
+  candidateLabel,
+  formatDelta,
+  formatDimensionDelta,
+  formatPlayerConversationText,
+  pressureSummary,
+} from "@sim-presentation/formatters";

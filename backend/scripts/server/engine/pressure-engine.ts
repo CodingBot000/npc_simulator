@@ -3,6 +3,8 @@ import {
   DEFAULT_PLAYER_LABEL,
 } from "@backend-support/constants";
 import type {
+  CandidateId,
+  ConsensusBoardEntry,
   NpcState,
   PressureChange,
   RelationshipDelta,
@@ -17,8 +19,6 @@ import type {
   PersistedNpcState,
 } from "@backend-domain";
 import type {
-  CandidateId,
-  ConsensusBoardEntry,
   JudgementDimensions,
   PlayerAction,
 } from "@sim-shared/types";

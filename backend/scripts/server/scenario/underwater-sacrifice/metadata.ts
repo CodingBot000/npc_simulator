@@ -1,5 +1,14 @@
 import rawMetadata from "@server/scenario/underwater-sacrifice/metadata.json";
-import type { ScenarioRuntimeMetadata } from "@server/scenario/types";
+import type {
+  ScenarioRuntimeMetadata,
+  ScenarioRuntimeMetadataSeed,
+} from "@server/scenario/types";
+import { buildScenarioActionDefinitions } from "@sim-presentation/player-actions";
 
 export const underwaterSacrificeMetadata =
-  rawMetadata as ScenarioRuntimeMetadata;
+  {
+    ...(rawMetadata as ScenarioRuntimeMetadataSeed),
+    actions: buildScenarioActionDefinitions(
+      (rawMetadata as ScenarioRuntimeMetadataSeed).actionIds,
+    ),
+  } satisfies ScenarioRuntimeMetadata;

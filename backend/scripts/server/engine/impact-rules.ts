@@ -1,10 +1,10 @@
 import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type {
+  CandidateId,
   RelationshipDelta,
   StructuredImpactInference,
 } from "@backend-contracts/api";
 import type {
-  CandidateId,
   ImpactTag,
   JudgementDimensions,
 } from "@sim-shared/types";

@@ -9,6 +9,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@contracts": fileURLToPath(new URL("../contracts/generated", import.meta.url)),
       "@sim-shared": fileURLToPath(new URL("../shared/simulator-rules", import.meta.url)),
+      "@sim-presentation": fileURLToPath(
+        new URL("../shared/simulator-presentation", import.meta.url),
+      ),
     },
   },
   server: {

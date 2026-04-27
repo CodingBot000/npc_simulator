@@ -1,5 +1,6 @@
 import type {
   ChatMessage,
+  ConsensusBoardEntry,
   EventLogEntry,
   InteractionRequestPayload,
   LlmInteractionResult,
@@ -11,7 +12,7 @@ import type {
   WorldMeta,
 } from "@backend-contracts/api";
 import type { PersistedNpcState } from "@backend-domain";
-import type { ConsensusBoardEntry, PlayerAction } from "@sim-shared/types";
+import type { PlayerAction } from "@sim-shared/types";
 
 export interface NormalizedInteractionInput {
   text: string;

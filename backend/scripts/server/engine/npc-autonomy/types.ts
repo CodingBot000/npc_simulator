@@ -1,6 +1,7 @@
 import type {
   AutonomyPhaseResult,
   AutonomyStepResult,
+  ConsensusBoardEntry,
   EventLogEntry,
   RoundState,
 } from "@backend-contracts/api";
@@ -12,7 +13,6 @@ import type {
 import type { PersistedNpcState } from "@backend-domain";
 import type {
   AutonomyMoveType,
-  ConsensusBoardEntry,
 } from "@sim-shared/types";
 import type { ScenarioAutonomyConfig } from "@server/scenario/types";
 

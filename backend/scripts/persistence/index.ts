@@ -1,6 +1,8 @@
 import type {
   AutonomyPhaseResult,
   CandidateAction,
+  CandidateId,
+  ConsensusBoardEntry,
   EpisodeExportPaths,
   EventLogEntry,
   InputMode,
@@ -20,8 +22,6 @@ import type {
 import type { PersistedNpcState } from "@backend-domain";
 import type {
   AllowedActionType,
-  CandidateId,
-  ConsensusBoardEntry,
   JudgementDimensions,
   PlayerAction,
 } from "@sim-shared/types";

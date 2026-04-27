@@ -7,8 +7,6 @@ export type AllowedActionType = Schema["AllowedActionType"];
 export type PlayerAction = Schema["PlayerAction"];
 export type AutonomyMoveType = Schema["AutonomyMoveType"];
 export type ImpactTag = Schema["ImpactTag"];
-export type CandidateId = Schema["CandidateId"];
-export type ConsensusBoardEntry = Schema["ConsensusBoardEntry"];
 
 export interface JudgementDimensions {
   blame: number;

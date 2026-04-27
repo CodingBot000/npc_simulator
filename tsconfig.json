@@ -14,6 +14,9 @@
       "@sim-shared/*": [
         "./shared/simulator-rules/*"
       ],
+      "@sim-presentation/*": [
+        "./shared/simulator-presentation/*"
+      ],
       "@backend-contracts/api": [
         "./backend/scripts/contracts/api.ts"
       ],
