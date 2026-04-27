@@ -89,6 +89,7 @@ const DERIVE_MLX_RUNTIME_SCRIPT_PATH = path.join(
 const TRAINING_EXECUTION_MODE = reviewTrainingConfig.executionMode;
 const TRAINING_BASE_MODEL = reviewTrainingConfig.baseModels.active;
 const LOCAL_REPLY_MLX_MODEL = reviewTrainingConfig.baseModels.localReplyMlx;
+const CANONICAL_MODEL_FAMILY = reviewTrainingConfig.baseModels.canonicalFamily;
 const TOGETHER_REMOTE_PROVIDER = reviewTrainingConfig.together.remoteProvider;
 const TOGETHER_POLL_INTERVAL_MS = reviewTrainingConfig.together.pollIntervalMs;
 const TOGETHER_TRAINING_SUFFIX_PREFIX = reviewTrainingConfig.together.suffixPrefix;
@@ -114,6 +115,7 @@ interface TrainingRunSpec {
   runUid: string;
   kind: ReviewTrainingKind;
   trainingBackend: ReviewTrainingBackend;
+  canonicalModelFamily: string;
   fingerprint: string;
   sourceFingerprint: string;
   sourceSnapshotId: number | null;
@@ -148,6 +150,7 @@ type TrainingArtifactSpec = {
   runUid?: string;
   runId?: string;
   kind: ReviewTrainingKind;
+  canonicalModelFamily: string;
   trainingBackend?: ReviewTrainingBackend | null;
   sourceDatasetVersion: string | null;
   sourceFingerprint: string;
@@ -170,6 +173,7 @@ function trainingArtifactMetadata(spec: TrainingArtifactSpec, artifactPhase: str
   return {
     runId: trainingRunId(spec),
     kind: spec.kind,
+    canonicalModelFamily: spec.canonicalModelFamily,
     trainingBackend: spec.trainingBackend ?? null,
     artifactPhase,
     baseModel: spec.baseModel,
@@ -736,6 +740,8 @@ async function buildRunSpec(params: {
             DERIVE_MLX_RUNTIME_SCRIPT_PATH,
             "--model",
             TRAINING_BASE_MODEL,
+            "--canonical-model-family",
+            CANONICAL_MODEL_FAMILY,
             "--runtime-base-model",
             LOCAL_REPLY_MLX_MODEL,
             "--adapter-dir",
@@ -760,6 +766,7 @@ async function buildRunSpec(params: {
     runUid,
     kind: params.kind,
     trainingBackend: TRAINING_EXECUTION_MODE,
+    canonicalModelFamily: CANONICAL_MODEL_FAMILY,
     fingerprint,
     sourceFingerprint,
     sourceSnapshotId: snapshot?.snapshotId ?? null,
@@ -818,6 +825,7 @@ export async function runReviewTraining(payload: {
     runUid: spec.runUid,
     kind: spec.kind,
     trainingBackend: spec.trainingBackend,
+    canonicalModelFamily: spec.canonicalModelFamily,
     state: "running",
     currentStep: "build_dataset",
     message:
@@ -1118,6 +1126,7 @@ async function runTogetherTrainingWorker(
       const trainingResult = {
         generatedAt: finishedAt,
         runId: spec.runId,
+        canonicalModelFamily: spec.canonicalModelFamily,
         trainingBackend: spec.trainingBackend,
         provider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
         baseModel: spec.baseModel,

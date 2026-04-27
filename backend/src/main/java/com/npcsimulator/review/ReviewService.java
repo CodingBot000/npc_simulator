@@ -54,18 +54,14 @@ public class ReviewService {
     private static final String JUDGE_REVIEW_SUMMARY_PATH = "data/evals/judged/judge-summary.json";
     private static final String HUMAN_REVIEW_SUMMARY_PATH = "data/review/live/human_review_summary.json";
     private static final String LLM_FIRST_PASS_SUMMARY_PATH = "data/review/live/llm_first_pass_summary.json";
+    private static final String CANONICAL_MODEL_FAMILIES_PATH =
+        "server/config/canonical-model-families.json";
     private static final String EPISODE_EXPORT_DIR = "data/datasets/episodes";
     private static final String FINALIZE_SFT_KEEP_INPUT = "data/evals/filtered-live/keep_sft.jsonl";
     private static final String FINALIZE_SFT_OUTPUT_DIR = "data/train/sft/live";
     private static final String FINALIZE_PREFERENCE_INPUT = "data/evals/preference/candidate_pairs_live_gap1.jsonl";
     private static final String FINALIZE_PREFERENCE_OUTPUT_DIR = "data/train/preference/live";
     private static final int SHADOW_INVALID_CASE_LIMIT = 8;
-    private static final String DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
-        "unsloth/Meta-Llama-3.1-8B-Instruct";
-    private static final String DEFAULT_LOCAL_REPLY_MLX_MODEL =
-        "mlx-community/Llama-3.1-8B-Instruct-4bit";
-    private static final String DEFAULT_REMOTE_TRAINING_BASE_MODEL =
-        "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
     private static final String TOGETHER_REMOTE_PROVIDER = "together";
 
     private final ReviewRepository reviewRepository;
@@ -75,6 +71,7 @@ public class ReviewService {
     private final String datasourceUrl;
     private final String datasourceUsername;
     private final String datasourcePassword;
+    private final String canonicalModelFamily;
     private final String trainingExecutionMode;
     private final String trainingEvalMode;
     private final String localTrainingBaseModel;
@@ -110,6 +107,7 @@ public class ReviewService {
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${spring.datasource.username:}") String datasourceUsername,
         @Value("${spring.datasource.password:}") String datasourcePassword,
+        @Value("${CANONICAL_MODEL_FAMILY:}") String configuredCanonicalModelFamily,
         @Value("${TRAINING_EXECUTION_MODE:}") String trainingExecutionMode,
         @Value("${LOCAL_TRAINING_EXECUTION_MODE:}") String legacyTrainingExecutionMode,
         @Value("${LOCAL_TRAINING_EVAL_MODE:golden}") String trainingEvalMode,
@@ -145,13 +143,26 @@ public class ReviewService {
         this.datasourceUrl = datasourceUrl;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
+        CanonicalModelDefaults canonicalModelDefaults = resolveCanonicalModelDefaults(configuredCanonicalModelFamily);
+        this.canonicalModelFamily = canonicalModelDefaults.familyId();
         this.trainingExecutionMode = normalizeTrainingExecutionMode(
             firstNonBlank(trainingExecutionMode, legacyTrainingExecutionMode)
         );
         this.trainingEvalMode = trainingEvalMode == null ? "golden" : trainingEvalMode.trim().toLowerCase();
-        this.localTrainingBaseModel = resolveLocalTrainingBaseModel(localTrainingBaseModel, legacyTrainingBaseModel);
-        this.localReplyMlxModel = resolveLocalReplyMlxModel(localReplyMlxModel);
-        this.remoteTrainingBaseModel = resolveRemoteTrainingBaseModel(remoteTrainingBaseModel, legacyTrainingBaseModel);
+        this.localTrainingBaseModel = resolveLocalTrainingBaseModel(
+            localTrainingBaseModel,
+            legacyTrainingBaseModel,
+            canonicalModelDefaults
+        );
+        this.localReplyMlxModel = resolveLocalReplyMlxModel(
+            localReplyMlxModel,
+            canonicalModelDefaults
+        );
+        this.remoteTrainingBaseModel = resolveRemoteTrainingBaseModel(
+            remoteTrainingBaseModel,
+            legacyTrainingBaseModel,
+            canonicalModelDefaults
+        );
         this.trainingBaseModel = resolveTrainingBaseModel(
             this.localTrainingBaseModel,
             this.remoteTrainingBaseModel,
@@ -608,6 +619,7 @@ public class ReviewService {
                 spec.runUid(),
                 spec.kind(),
                 spec.trainingBackend(),
+                spec.canonicalModelFamily(),
                 "running",
                 "build_dataset",
                 "sft".equals(spec.kind()) ? "SFT 학습 데이터셋 준비 중" : "DPO 학습 데이터셋 준비 중",
@@ -1755,6 +1767,8 @@ public class ReviewService {
                 trainingResultPath.toString(),
                 "--dataset-dir",
                 datasetDir.toString(),
+                "--canonical-model-family",
+                canonicalModelFamily,
                 "--run-id",
                 runUid
             ));
@@ -1777,6 +1791,8 @@ public class ReviewService {
                     runtimeArtifactKind,
                     "--manifest-path",
                     trainingResultPath.toString(),
+                    "--canonical-model-family",
+                    canonicalModelFamily,
                     "--run-id",
                     runUid
                 )
@@ -1899,6 +1915,8 @@ public class ReviewService {
                     resolveRequiredProjectPath(DERIVE_MLX_RUNTIME_SCRIPT).toString(),
                     "--model",
                     trainingBaseModel,
+                    "--canonical-model-family",
+                    canonicalModelFamily,
                     "--runtime-base-model",
                     localReplyMlxModel,
                     "--adapter-dir",
@@ -1917,6 +1935,7 @@ public class ReviewService {
             runUid,
             kind,
             trainingBackend,
+            canonicalModelFamily,
             fingerprint,
             sourceFingerprint,
             snapshot.get().datasetVersion(),
@@ -1971,7 +1990,66 @@ public class ReviewService {
         return "local_peft";
     }
 
-    private static String resolveLocalTrainingBaseModel(String configuredLocalBaseModel, String legacyBaseModel) {
+    private CanonicalModelDefaults resolveCanonicalModelDefaults(String configuredFamilyId) {
+        Path catalogPath = runtimeLayout.resolveScriptsPath(CANONICAL_MODEL_FAMILIES_PATH);
+        if (catalogPath == null || !Files.exists(catalogPath)) {
+            throw new ReviewApiException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "canonical model catalog not found: " + CANONICAL_MODEL_FAMILIES_PATH
+            );
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(Files.readString(catalogPath, StandardCharsets.UTF_8));
+            String defaultFamilyId = extractText(root, "defaultFamily");
+            if (blank(defaultFamilyId)) {
+                throw new ReviewApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "canonical model catalog missing defaultFamily"
+                );
+            }
+
+            String familyId = blank(configuredFamilyId) ? defaultFamilyId : configuredFamilyId.trim();
+            ObjectNode families = object(root.get("families"));
+            ObjectNode familyNode = object(families.get(familyId));
+            if (familyNode.isEmpty()) {
+                throw new ReviewApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "unsupported CANONICAL_MODEL_FAMILY: " + familyId
+                );
+            }
+
+            return new CanonicalModelDefaults(
+                familyId,
+                requireText(familyNode, "localTrainingBaseModelId"),
+                requireText(familyNode, "localReplyMlxModelId"),
+                requireText(familyNode, "remoteTrainingBaseModelId")
+            );
+        } catch (IOException error) {
+            throw new ReviewApiException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "failed to load canonical model catalog",
+                error
+            );
+        }
+    }
+
+    private String requireText(ObjectNode node, String fieldName) {
+        String value = extractText(node, fieldName);
+        if (blank(value)) {
+            throw new ReviewApiException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "canonical model catalog missing field: " + fieldName
+            );
+        }
+        return value;
+    }
+
+    private static String resolveLocalTrainingBaseModel(
+        String configuredLocalBaseModel,
+        String legacyBaseModel,
+        CanonicalModelDefaults canonicalDefaults
+    ) {
         String configuredBaseModel = configuredLocalBaseModel;
         if (configuredBaseModel == null || configuredBaseModel.isBlank()) {
             configuredBaseModel = legacyBaseModel;
@@ -1979,17 +2057,24 @@ public class ReviewService {
         if (configuredBaseModel != null && !configuredBaseModel.isBlank()) {
             return configuredBaseModel.trim();
         }
-        return DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL;
+        return canonicalDefaults.localTrainingBaseModelId();
     }
 
-    private static String resolveLocalReplyMlxModel(String configuredRuntimeBaseModel) {
+    private static String resolveLocalReplyMlxModel(
+        String configuredRuntimeBaseModel,
+        CanonicalModelDefaults canonicalDefaults
+    ) {
         if (configuredRuntimeBaseModel != null && !configuredRuntimeBaseModel.isBlank()) {
             return configuredRuntimeBaseModel.trim();
         }
-        return DEFAULT_LOCAL_REPLY_MLX_MODEL;
+        return canonicalDefaults.localReplyMlxModelId();
     }
 
-    private static String resolveRemoteTrainingBaseModel(String configuredRemoteBaseModel, String legacyBaseModel) {
+    private static String resolveRemoteTrainingBaseModel(
+        String configuredRemoteBaseModel,
+        String legacyBaseModel,
+        CanonicalModelDefaults canonicalDefaults
+    ) {
         String configuredBaseModel = configuredRemoteBaseModel;
         if (configuredBaseModel == null || configuredBaseModel.isBlank()) {
             configuredBaseModel = legacyBaseModel;
@@ -1997,7 +2082,7 @@ public class ReviewService {
         if (configuredBaseModel != null && !configuredBaseModel.isBlank()) {
             return configuredBaseModel.trim();
         }
-        return DEFAULT_REMOTE_TRAINING_BASE_MODEL;
+        return canonicalDefaults.remoteTrainingBaseModelId();
     }
 
     private static String resolveTrainingBaseModel(
@@ -2535,6 +2620,7 @@ public class ReviewService {
         ObjectNode metadata = objectMapper.createObjectNode();
         metadata.put("runId", spec.runUid());
         metadata.put("kind", spec.kind());
+        metadata.put("canonicalModelFamily", spec.canonicalModelFamily());
         metadata.put("artifactPhase", artifactPhase);
         metadata.put("baseModel", spec.baseModel());
         metadata.put("trainingBackend", spec.trainingBackend());
@@ -3173,6 +3259,7 @@ public class ReviewService {
         String runUid,
         String kind,
         String trainingBackend,
+        String canonicalModelFamily,
         String fingerprint,
         String sourceFingerprint,
         String sourceDatasetVersion,
@@ -3195,6 +3282,13 @@ public class ReviewService {
         String adapterPath,
         String remoteProvider,
         String remoteModelName
+    ) {}
+
+    private record CanonicalModelDefaults(
+        String familyId,
+        String localTrainingBaseModelId,
+        String localReplyMlxModelId,
+        String remoteTrainingBaseModelId
     ) {}
 
     private record ProcessResult(String stdout, String stderr, long durationMs) {}

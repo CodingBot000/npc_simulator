@@ -339,6 +339,7 @@ public class ReviewRepository {
         String runUid,
         String kind,
         String trainingBackend,
+        String canonicalModelFamily,
         String state,
         String currentStep,
         String message,
@@ -363,6 +364,7 @@ public class ReviewRepository {
     ) {
         Long parentRunId = parentRunUid == null ? null : findTrainingRunIdByUid(parentRunUid);
         ObjectNode params = objectMapper.createObjectNode();
+        params.put("canonicalModelFamily", canonicalModelFamily);
         params.put("sourceDatasetVersion", sourceDatasetVersion);
         params.put("parentRunUid", parentRunUid);
         params.put("logPath", logPath);

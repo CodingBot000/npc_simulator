@@ -4,6 +4,10 @@ import type {
   RuntimeArtifactKind,
 } from "@backend-contracts/api";
 import {
+  canonicalModelCatalog,
+  canonicalModelConfig,
+} from "@server/config/canonical-models";
+import {
   DATA_DIR,
   PROJECT_ROOT,
   serverRuntimeContext,
@@ -15,11 +19,14 @@ import {
 } from "@server/config/env-loader";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
-  "unsloth/Meta-Llama-3.1-8B-Instruct";
+  canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
+    .localTrainingBaseModelId;
 export const DEFAULT_LOCAL_REPLY_MLX_MODEL =
-  "mlx-community/Llama-3.1-8B-Instruct-4bit";
+  canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
+    .localReplyMlxModelId;
 export const DEFAULT_REMOTE_TRAINING_BASE_MODEL =
-  "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
+  canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
+    .remoteTrainingBaseModelId;
 export const DEFAULT_SHADOW_COMPARE_LABEL = "Local Llama Shadow";
 
 type FinalReplyMode = "off" | "on" | "auto";
@@ -96,9 +103,7 @@ function parseFinalReplyMode(): FinalReplyMode {
 }
 
 function parseLocalReplyModelFamily(): LocalReplyModelFamily {
-  return getServerEnv("LOCAL_REPLY_MODEL_FAMILY") === "qwen"
-    ? "qwen"
-    : "llama";
+  return canonicalModelConfig.localReplyRuntimeFamily;
 }
 
 function parseLocalReplyPromptFormat(
@@ -226,6 +231,13 @@ export const appConfig = {
   runtime: serverRuntimeContext,
   providerMode,
   localReplyAdapterMode: finalReplyMode,
+  canonicalModel: {
+    familyId: canonicalModelConfig.familyId,
+    displayName: canonicalModelConfig.family.displayName,
+    localTrainingBaseModelId: canonicalModelConfig.localTrainingBaseModelId,
+    localReplyMlxModelId: canonicalModelConfig.localReplyMlxModelId,
+    remoteTrainingBaseModelId: canonicalModelConfig.remoteTrainingBaseModelId,
+  },
   models: {
     interactionModel:
       getServerEnv("INTERACTION_MODEL") ||
@@ -276,7 +288,7 @@ export const appConfig = {
   localReply: {
     family: localReplyModelFamily,
     usePromoted: localReplyUsePromoted,
-    mlxModel: getServerEnv("LOCAL_REPLY_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL,
+    mlxModel: canonicalModelConfig.localReplyMlxModelId,
     maxTokens: Number(getServerEnv("LOCAL_REPLY_MAX_TOKENS") || "160"),
     llamaRuntimePath:
       resolveProjectPath(getServerEnv("LOCAL_REPLY_LLAMA_RUNTIME_PATH")) ||
@@ -296,7 +308,9 @@ export const appConfig = {
       "SHADOW_COMPARE_RUNTIME_ARTIFACT_KIND",
       "mlx_fused_model",
     ),
-    mlxModel: getServerEnv("SHADOW_COMPARE_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL,
+    mlxModel:
+      getServerEnv("SHADOW_COMPARE_MLX_MODEL") ||
+      canonicalModelConfig.localReplyMlxModelId,
     maxTokens: Number(getServerEnv("SHADOW_COMPARE_MAX_TOKENS") || "360"),
   },
   npcAutonomy: {

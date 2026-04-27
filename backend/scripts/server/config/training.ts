@@ -1,10 +1,8 @@
 import type { ReviewTrainingBackend } from "@backend-contracts/review";
 import {
-  DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL,
-  DEFAULT_LOCAL_REPLY_MLX_MODEL,
-  DEFAULT_REMOTE_TRAINING_BASE_MODEL,
   getServerEnv,
 } from "@server/config";
+import { canonicalModelConfig } from "@server/config/canonical-models";
 
 export interface LocalTrainingArgs {
   batchSize: number;
@@ -30,17 +28,13 @@ const executionMode: ReviewTrainingBackend =
       : "local_peft";
 
 const localCanonicalTrainingBaseModel =
-  getServerEnv("LOCAL_CANONICAL_TRAINING_BASE_MODEL") ||
-  LEGACY_CANONICAL_TRAINING_BASE_MODEL ||
-  DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL;
+  canonicalModelConfig.localTrainingBaseModelId;
 
 const localReplyMlxModel =
-  getServerEnv("LOCAL_REPLY_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL;
+  canonicalModelConfig.localReplyMlxModelId;
 
 const remoteTrainingBaseModel =
-  getServerEnv("REMOTE_TRAINING_BASE_MODEL") ||
-  LEGACY_CANONICAL_TRAINING_BASE_MODEL ||
-  DEFAULT_REMOTE_TRAINING_BASE_MODEL;
+  canonicalModelConfig.remoteTrainingBaseModelId;
 
 const sftTrainingArgs: LocalTrainingArgs = {
   batchSize: Number(getServerEnv("LOCAL_TRAINING_SFT_BATCH_SIZE") || "1"),
@@ -68,6 +62,8 @@ const dpoTrainingArgs: LocalTrainingArgs & { beta: string } = {
 export const reviewTrainingConfig = {
   executionMode,
   baseModels: {
+    canonicalFamily: canonicalModelConfig.familyId,
+    canonicalFamilyDisplayName: canonicalModelConfig.family.displayName,
     legacyCanonical: LEGACY_CANONICAL_TRAINING_BASE_MODEL,
     localCanonical: localCanonicalTrainingBaseModel,
     localReplyMlx: localReplyMlxModel,

@@ -37,6 +37,7 @@ SPRING_PROFILES_ACTIVE=local
 LLM_PROVIDER_MODE=codex
 FINAL_REPLY_MODE=off
 FINAL_REPLY_BACKEND=off
+CANONICAL_MODEL_FAMILY=llama31_8b_instruct
 NPC_SIMULATOR_ROOT=.
 NPC_SIMULATOR_WORKDIR=.
 NPC_SIMULATOR_SCRIPTS_ROOT=./backend/scripts
@@ -49,6 +50,10 @@ Notes:
 
 - Frontend browser talks to `http://localhost:8080`
 - Backend may use local CLI-oriented provider flows
+- Training base model, MLX runtime model, and remote training model now derive from
+  `CANONICAL_MODEL_FAMILY` by default
+- Leave `LOCAL_CANONICAL_TRAINING_BASE_MODEL`, `REMOTE_TRAINING_BASE_MODEL`,
+  `LOCAL_REPLY_MLX_MODEL` unset unless a specific runtime must diverge
 - Local final reply testing can mix:
   - `LLM_PROVIDER_MODE=codex` + `FINAL_REPLY_BACKEND=local_llama`
   - `LLM_PROVIDER_MODE=codex` + `FINAL_REPLY_BACKEND=openai_api`
@@ -81,6 +86,7 @@ NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
 NPC_SIMULATOR_DATA_ROOT=/workspace/data
 NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com,http://localhost:3000
+CANONICAL_MODEL_FAMILY=llama31_8b_instruct
 LLM_PROVIDER_MODE=openai
 FINAL_REPLY_MODE=auto
 FINAL_REPLY_BACKEND=together
@@ -123,6 +129,7 @@ NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
 NPC_SIMULATOR_DATA_ROOT=/workspace/data
 NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com
+CANONICAL_MODEL_FAMILY=llama31_8b_instruct
 LLM_PROVIDER_MODE=openai
 FINAL_REPLY_MODE=auto
 FINAL_REPLY_BACKEND=runpod
