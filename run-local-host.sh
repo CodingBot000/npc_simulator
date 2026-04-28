@@ -21,7 +21,7 @@ Usage: ./run-local-host.sh [--backend-only] [--skip-postgres]
 
 Default behavior:
 1. Starts the local Postgres container only
-2. Runs Spring Boot backend on the host with Codex CLI + local MLX Llama
+2. Runs Spring Boot backend on the host with OpenAI API + local MLX Llama
 3. Waits for backend health
 4. Runs the Vite frontend on the host
 
@@ -191,7 +191,7 @@ export LOCAL_REPLY_MODEL_FAMILY="${LOCAL_REPLY_MODEL_FAMILY:-llama}"
 export LOCAL_REPLY_LLAMA_RUNTIME_PATH="${LOCAL_REPLY_LLAMA_RUNTIME_PATH:-outputs/training/manual_llama31_local_check_20260421_025259/runtime}"
 
 if [[ "$EXTERNAL_LLM_PROVIDER_MODE" == "__unset__" ]]; then
-  export LLM_PROVIDER_MODE="codex"
+  export LLM_PROVIDER_MODE="openai"
 else
   export LLM_PROVIDER_MODE="$EXTERNAL_LLM_PROVIDER_MODE"
 fi

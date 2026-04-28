@@ -125,25 +125,6 @@ type PendingInteractionTrace = {
   startedAtAbsoluteMs: number;
 };
 
-const MAKE_CASE_RESPONSIBILITY_SIGNALS = ["책임"] as const;
-const MAKE_CASE_BASIS_SIGNALS = ["근거", "이유", "기준", "판단"] as const;
-const EXPOSE_EVIDENCE_SIGNALS = [
-  "기록",
-  "사실",
-  "숨긴",
-  "감춘",
-  "증거",
-  "들춘",
-  "꺼내",
-] as const;
-const SACRIFICE_DECISION_DRIFT_PATTERNS = [
-  /죽어야/u,
-  /먼저\s*죽/u,
-  /희생/u,
-  /버려야/u,
-  /버릴/u,
-  /내보내야/u,
-] as const;
 const TARGET_SUBSTITUTION_PATTERNS = [/그 사람/u, /그녀/u, /저 사람/u] as const;
 const TARGET_SUBSTITUTION_REPLACEMENTS = [/그 사람/gu, /그녀/gu, /저 사람/gu] as const;
 const FINAL_REPLY_REWRITE_TEMPERATURE = 0.2;
@@ -273,14 +254,6 @@ function stripWrappingQuotes(text: string) {
 
 function compactSentence(text: string) {
   return normalizeInlineText(text).replace(/[.。]$/u, "");
-}
-
-function containsAnyKeyword(
-  text: string,
-  keywords: readonly string[],
-) {
-  const normalized = text.toLowerCase();
-  return keywords.some((keyword) => normalized.includes(keyword.toLowerCase()));
 }
 
 function containsAnyPattern(text: string, patterns: readonly RegExp[]) {
@@ -828,12 +801,6 @@ function buildPrompt(
   input: GenerateInteractionInput,
   promptFormat: ScenePromptFormat,
   rewriteSeed?: FinalReplyRewriteSeed | null,
-  options?: {
-    forceTargetName?: boolean;
-    forceActionSignals?: boolean;
-    forceMakeCaseAxes?: boolean;
-    forceExposeEvidenceAxis?: boolean;
-  },
 ) {
   const basePrompt =
     promptFormat === "situation_card"
@@ -850,28 +817,6 @@ function buildPrompt(
 
   const contract = resolveInteractionContract(input);
   const targetLabel = resolveTargetLabel(input);
-  const presentActionSignals = contract.requiredSignals.filter((keyword) =>
-    rewriteSeed.draftReplyText.includes(keyword),
-  );
-  const prioritizedActionSignals =
-    presentActionSignals.length > 0
-      ? presentActionSignals
-      : contract.requiredSignals.slice(0, 4);
-  const actionSignalHint =
-    prioritizedActionSignals.length > 0
-      ? prioritizedActionSignals.join(", ")
-      : null;
-  const draftHasMakeCaseResponsibility =
-    contract.action === "make_case" &&
-    containsAnyKeyword(rewriteSeed.draftReplyText, MAKE_CASE_RESPONSIBILITY_SIGNALS);
-  const draftHasMakeCaseBasis =
-    contract.action === "make_case" &&
-    containsAnyKeyword(rewriteSeed.draftReplyText, MAKE_CASE_BASIS_SIGNALS);
-  const draftHasExposeEvidence =
-    contract.action === "expose" &&
-    containsAnyKeyword(rewriteSeed.draftReplyText, EXPOSE_EVIDENCE_SIGNALS);
-  const draftHasSacrificeDecision =
-    containsAnyPattern(rewriteSeed.draftReplyText, SACRIFICE_DECISION_DRIFT_PATTERNS);
   const draftHasExplicitTargetName =
     targetLabel !== "none" && rewriteSeed.draftReplyText.includes(targetLabel);
   const rewriteRules = [
@@ -884,35 +829,10 @@ function buildPrompt(
       ? `- 유지할 행동 의도: ${rewriteSeed.selectedActionReason}`
       : null,
     targetLabel && targetLabel !== "none"
-      ? options?.forceTargetName
-        ? `- 타깃은 ${targetLabel}다. 이름을 정확히 그대로 한 번 이상 반드시 직접 말한다.`
-        : `- 타깃은 ${targetLabel}다. 초안이 겨누는 대상과 책임선을 유지한다.`
+      ? `- 타깃은 ${targetLabel}다. 초안이 겨누는 대상과 책임선을 유지한다.`
       : null,
     draftHasExplicitTargetName
-      ? options?.forceTargetName
-        ? `- 초안에 있는 타깃 이름 ${targetLabel}을 그 사람, 그녀, 저 사람, 당신 같은 대명사로 바꾸지 않는다. 책임을 돌리는 문장에서는 ${targetLabel} 이름을 직접 쓴다.`
-        : `- 초안에 있는 타깃 이름 ${targetLabel}을 불필요한 대명사로 흐리지 않는다.`
-      : null,
-    actionSignalHint
-      ? options?.forceActionSignals
-        ? `- 이번 턴의 액션 의미를 유지하려면 다음 표현 중 하나 이상을 대사에 직접 반드시 남긴다: ${actionSignalHint}.`
-        : `- 이번 턴의 액션 의미를 흐리지 않도록 다음 표현 중 하나 이상을 직접 유지한다: ${actionSignalHint}.`
-      : null,
-    presentActionSignals.length > 0
-      ? `- 초안에 이미 들어 있는 액션 신호어(${presentActionSignals.join(", ")})는 rewrite 뒤에도 가능하면 그대로 남긴다.`
-      : null,
-    draftHasMakeCaseResponsibility || draftHasMakeCaseBasis
-      ? options?.forceMakeCaseAxes
-        ? "- 이번 턴은 책임 묻기다. rewrite 뒤에도 '책임'을 직접 반드시 남기고, '근거' 또는 '이유' 또는 '기준' 또는 '판단' 중 하나도 반드시 직접 남긴다."
-        : "- 이번 턴은 책임 묻기다. 초안의 책임 축과 근거/이유 축을 지우지 않는다."
-      : null,
-    draftHasExposeEvidence
-      ? options?.forceExposeEvidenceAxis
-        ? "- 이번 턴은 사실 확인이다. rewrite 뒤에도 '기록' 또는 '사실' 또는 '숨긴' 또는 '감춘' 또는 '증거' 또는 '들춘' 또는 '꺼내' 중 하나를 직접 반드시 남긴다. 책임과 근거만 따지는 일반 책임 추궁 문장으로 바꾸지 않는다."
-        : "- 이번 턴은 사실 확인이다. 초안의 기록/사실/숨긴 것/증거 축을 지우지 않는다."
-      : null,
-    !draftHasSacrificeDecision
-      ? "- 초안에 없던 희생 결정, 죽음, 버리기 의미를 새로 넣지 않는다. 예: 죽어야, 희생, 버려야."
+      ? `- 초안에 있는 타깃 이름 ${targetLabel}을 불필요한 대명사로 흐리지 않는다.`
       : null,
     "- 초안 대사의 사실관계, 책임선, 압박 방향을 바꾸지 않는다.",
     "- 초안보다 더 자연스럽고 직접적인 방 안 대사로만 다시 쓴다.",
@@ -1091,19 +1011,6 @@ function validateRewriteCandidate(params: {
   });
 
   const issues = [...baseValidation.issues];
-  const draftReplyText = params.rewriteSeed?.draftReplyText ?? "";
-
-  if (
-    params.rewriteSeed &&
-    !containsAnyPattern(draftReplyText, SACRIFICE_DECISION_DRIFT_PATTERNS) &&
-    containsAnyPattern(params.cleaned, SACRIFICE_DECISION_DRIFT_PATTERNS)
-  ) {
-    issues.push({
-      code: "sacrifice_decision_drift",
-      message: "초안에 없던 희생 결정 의미가 새로 들어왔다.",
-    });
-  }
-
   return {
     ok: issues.length === 0,
     issues,
@@ -1685,138 +1592,6 @@ export async function maybeGenerateFinalReply(
         }),
     sourceRef,
   );
-
-  const needsSafetyRetry =
-    validation.issues.some((issue) => issue.code === "sacrifice_decision_drift") &&
-    contract.action === "make_case";
-
-  if (needsSafetyRetry) {
-    debugFailures.push(
-      buildRewriteFailureDebugEntry({
-        summary: summarizeRewriteRejection({
-          cleaned,
-          validationIssues: validation.issues,
-        }),
-        sourceRef,
-        validationIssues: validation.issues,
-        candidateReplyText: cleaned || normalized,
-        kind: "validation_error",
-      }),
-    );
-    const strictTargetPrompt = buildPrompt(input, adapterConfig.promptFormat, rewriteSeed, {
-      forceTargetName: false,
-      forceActionSignals: true,
-      forceMakeCaseAxes: true,
-      forceExposeEvidenceAxis: false,
-    });
-    const retryRequestTrace = startInteractionTraceStage(
-      traceContext,
-      "reply_rewrite_retry_request",
-      "final reply rewrite 재시도",
-      null,
-      sourceRef,
-    );
-    try {
-      const retried = await runCandidatePrompt(strictTargetPrompt);
-      finishInteractionTraceStage(
-        traceContext,
-        retryRequestTrace,
-        retried ? "ok" : "skipped",
-        retried
-          ? "강화된 규칙으로 rewrite 후보를 다시 생성했습니다."
-          : "재시도 결과가 비어 있습니다.",
-        retried?.sourceRef ?? sourceRef,
-      );
-      if (retried) {
-        text = retried.text;
-        sourceRef = retried.sourceRef;
-        adapterPath = retried.adapterPath;
-        normalized = text.trim();
-        let retriedCleaned = normalizeReplyText(normalized);
-        const repairedRetryCandidate = repairTargetNameSubstitution({
-          cleaned: retriedCleaned,
-          contract,
-          rewriteSeed,
-        });
-        retriedCleaned = repairedRetryCandidate.cleaned;
-        const retryValidationTrace = startInteractionTraceStage(
-          traceContext,
-          "reply_rewrite_retry_validation",
-          "final reply rewrite 재검증",
-          null,
-          sourceRef,
-        );
-        const retriedValidation = validateRewriteCandidate({
-          cleaned: retriedCleaned,
-          contract,
-          npcName: input.npc.persona.name,
-          rewriteSeed,
-        });
-        finishInteractionTraceStage(
-          traceContext,
-          retryValidationTrace,
-          retriedValidation.ok && retriedCleaned && !/^!+$/u.test(retriedCleaned)
-            ? "ok"
-            : "failed",
-          retriedValidation.ok && retriedCleaned && !/^!+$/u.test(retriedCleaned)
-            ? repairedRetryCandidate.applied
-              ? "재시도 rewrite 후보를 채택했습니다. 타깃 이름 대명사 치환을 자동 보정했습니다."
-              : "재시도 rewrite 후보를 채택했습니다."
-            : summarizeRewriteRejection({
-                cleaned: retriedCleaned,
-                validationIssues: retriedValidation.issues,
-              }),
-          sourceRef,
-        );
-        if (
-          retriedCleaned &&
-          !/^!+$/u.test(retriedCleaned) &&
-          retriedValidation.ok
-        ) {
-          return {
-            text: retriedCleaned,
-            adapterPath,
-            sourceRef,
-            debugFailures: debugFailures.length > 0 ? debugFailures : null,
-            trace: traceContext.entries,
-          };
-        }
-        debugFailures.push(
-          buildRewriteFailureDebugEntry({
-            summary: summarizeRewriteRejection({
-              cleaned: retriedCleaned,
-              validationIssues: retriedValidation.issues,
-            }),
-            sourceRef,
-            validationIssues: retriedValidation.issues,
-            candidateReplyText: retriedCleaned || normalized,
-            kind: "validation_error",
-          }),
-        );
-        validation = retriedValidation;
-        cleaned = retriedCleaned;
-      }
-    } catch (error) {
-      const rejectionReason =
-        error instanceof Error && error.message.trim()
-          ? `rewrite 재시도 요청 실패: ${error.message.trim()}`
-          : "rewrite 재시도 요청에 실패했습니다.";
-      finishInteractionTraceStage(
-        traceContext,
-        retryRequestTrace,
-        "failed",
-        rejectionReason,
-        sourceRef,
-      );
-      debugFailures.push(
-        buildRewriteFailureDebugEntry({
-          summary: rejectionReason,
-          sourceRef,
-          kind: "request_error",
-        }),
-      );
-    }
-  }
 
   if (
     !cleaned ||

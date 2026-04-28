@@ -76,7 +76,6 @@ export function buildNpcInteractionMessages(input: GenerateInteractionInput) {
         summary: input.normalizedInput.promptSummary,
         canonicalMove: contract.canonicalPlayerMove,
         promptLines: contract.playerPromptLines,
-        requiredSignals: contract.requiredSignals,
       },
       roomState: {
         round: input.round,

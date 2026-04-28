@@ -29,14 +29,6 @@ const COMMON_META_PATTERNS = [
   /^(?:response|reply|assistant)\s*:/iu,
 ];
 
-const GENERIC_ROOM_FACT_PATTERNS = [
-  /이 방은/u,
-  /탈출(?:은)?\s*불가능/u,
-  /탈출 캡슐/u,
-  /다섯 명 중 네 명/u,
-  /안전합니다/u,
-];
-
 const PROFILE_SUMMARY_DESCRIPTOR_PATTERN =
   /(?:성향|가치관|말투|특성|특징|내면|심리|기질)/u;
 const PROFILE_SUMMARY_VERB_PATTERN =
@@ -61,8 +53,6 @@ export interface InteractionContract {
   playerPromptLines: string[];
   replyRules: string[];
   structuredRules: string[];
-  requiredSignals: string[];
-  forbiddenPatterns: RegExp[];
 }
 
 export interface ContractValidationIssue {
@@ -403,8 +393,6 @@ export function buildInteractionContract(params: {
       targetNpcId: resolvedTargetId,
       targetNpcLabel: resolvedTargetLabel,
     }),
-    requiredSignals: spec?.replyAlignmentKeywords ?? [],
-    forbiddenPatterns: [...COMMON_META_PATTERNS, ...GENERIC_ROOM_FACT_PATTERNS],
   };
 }
 
@@ -438,7 +426,6 @@ export function validateReplyAgainstContract(params: {
 }): ContractValidationResult {
   const issues: ContractValidationIssue[] = [];
   const normalized = stripWrappingQuotes(params.replyText);
-  const lower = normalized.toLowerCase();
 
   if (!normalized) {
     issues.push({
@@ -477,25 +464,6 @@ export function validateReplyAgainstContract(params: {
       code: "profile_summary",
       message: "NPC 대사 대신 인물 프로필 요약문이 나왔다.",
     });
-  }
-
-  if (
-    params.contract.mode !== "free_text" &&
-    GENERIC_ROOM_FACT_PATTERNS.some((pattern) => pattern.test(normalized))
-  ) {
-    const hasTargetName =
-      params.contract.targetNpcLabel != null &&
-      normalized.includes(params.contract.targetNpcLabel);
-    const hasSignal = params.contract.requiredSignals.some((keyword) =>
-      lower.includes(keyword.toLowerCase()),
-    );
-
-    if (!hasTargetName && !hasSignal) {
-      issues.push({
-        code: "generic_room_fact_only",
-        message: "액션 반응 대신 방 설정 일반론만 반복했다.",
-      });
-    }
   }
 
   return {
