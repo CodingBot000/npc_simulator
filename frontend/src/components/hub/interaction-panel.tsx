@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   AvailableActionDefinition,
   ChatMessage,
+  InteractionTraceEntry,
   InteractionResponsePayload,
   NpcState,
   PlayerAction,
@@ -38,6 +39,18 @@ type PlayInputMode = "intent_only" | "free_text" | "combined";
 type ConversationMessage = ChatMessage & {
   deliveryStatus?: "failed";
 };
+type FailureDebugEntry = NonNullable<ChatMessage["failureDebug"]>[number];
+type InteractionTraceTurn = {
+  npcMessage: ConversationMessage;
+  playerMessage: ConversationMessage | null;
+  traceEntries: InteractionTraceEntry[];
+  frontendElapsedMs: number | null;
+};
+
+const SHOW_INTERACTION_FAILURE_DEBUG =
+  (import.meta.env.VITE_SHOW_INTERACTION_FAILURE_DEBUG ?? "true").toLowerCase() !==
+  "false";
+const ROOM_CONVERSATION_UI_VERSION = "conv-ui-2026-04-29_01-08";
 
 function roundStatus(round: RoundState) {
   if (round.currentRound === 0) {
@@ -87,32 +100,136 @@ function formatReplyRewriteSource(source: string | null | undefined) {
     return null;
   }
 
+  const [provider] = normalized.split(":");
+  const locality = provider === "local" ? "local" : "remote";
+  const providerLabel =
+    provider && provider !== "local" ? provider.replace(/_/gu, "-") : null;
+  const baseten400ToOpenAiFallback = normalized.includes("fallback_from_baseten_400");
+
+  const formatLabel = (modelLabel: string) =>
+    [
+      locality,
+      providerLabel,
+      modelLabel,
+      baseten400ToOpenAiFallback ? "baseten400→openai" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
   if (normalized.includes("llama")) {
-    return "llama";
+    return formatLabel("llama");
   }
 
   if (normalized.includes("qwen")) {
-    return "qwen";
+    return formatLabel("qwen");
   }
 
   if (/gpt[-_]?5\.4/u.test(normalized)) {
-    return "gpt5.4";
+    return formatLabel("gpt5.4");
   }
 
   if (/gpt[-_\w.]*nano/u.test(normalized)) {
-    return "gpt-nano";
+    return formatLabel("gpt-nano");
   }
 
   if (/gpt[-_\w.]*mini/u.test(normalized)) {
-    return "gpt-mini";
+    return formatLabel("gpt-mini");
   }
 
   const gptVersion = normalized.match(/gpt[-_]?(\d+(?:\.\d+)?)/u);
   if (gptVersion) {
-    return `gpt${gptVersion[1]}`;
+    return formatLabel(`gpt${gptVersion[1]}`);
   }
 
-  return null;
+  return [
+    locality,
+    providerLabel,
+    baseten400ToOpenAiFallback ? "baseten400→openai" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatReplyRewriteReason(reason: string | null | undefined) {
+  const normalized = reason?.trim();
+  return normalized ? normalized : null;
+}
+
+function formatTraceDuration(durationMs: number) {
+  if (durationMs >= 60_000) {
+    return `${(durationMs / 60_000).toFixed(2)}m`;
+  }
+  if (durationMs >= 1_000) {
+    return `${(durationMs / 1_000).toFixed(2)}s`;
+  }
+  return `${durationMs}ms`;
+}
+
+function formatTraceStatus(status: InteractionTraceEntry["status"]) {
+  switch (status) {
+    case "ok":
+      return "정상";
+    case "failed":
+      return "실패";
+    case "fallback":
+      return "fallback";
+    case "skipped":
+      return "건너뜀";
+    default:
+      return status;
+  }
+}
+
+function buildInteractionTraceTurns(
+  conversation: ConversationMessage[],
+  replyElapsedByMessageId: Record<string, number>,
+) {
+  const turns: InteractionTraceTurn[] = [];
+
+  for (let index = 0; index < conversation.length; index += 1) {
+    const message = conversation[index];
+    if (message.speaker !== "npc") {
+      continue;
+    }
+
+    let playerMessage: ConversationMessage | null = null;
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      const candidate = conversation[cursor];
+      if (candidate.speaker === "player") {
+        playerMessage = candidate;
+        break;
+      }
+    }
+
+    turns.push({
+      npcMessage: message,
+      playerMessage,
+      traceEntries: message.interactionTrace ?? [],
+      frontendElapsedMs:
+        message.speaker === "npc" &&
+        replyElapsedByMessageId[message.id] !== undefined
+          ? replyElapsedByMessageId[message.id]
+          : null,
+    });
+  }
+
+  return turns.reverse();
+}
+
+function formatFailureDebugStage(params: {
+  entry: FailureDebugEntry;
+  replyRewriteReason: string | null;
+}) {
+  switch (params.entry.stage) {
+    case "interaction_provider":
+      return "기본 생성 실패";
+    case "interaction_validation":
+      return "기본 생성 검증 실패";
+    case "reply_rewrite":
+      return params.replyRewriteReason ? "최종 rewrite 실패" : "rewrite 중간 실패";
+    default:
+      return "실패";
+  }
 }
 
 function GuideAlertModal({
@@ -152,7 +269,7 @@ function GuideAlertModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[rgba(3,10,17,0.78)] p-8 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[rgba(3,10,17,0.78)] p-4 backdrop-blur-sm md:p-8">
       <button
         type="button"
         aria-label="가이드 닫기"
@@ -210,6 +327,154 @@ function GuideAlertModal({
   );
 }
 
+function InteractionTraceModal({
+  open,
+  turns,
+  onClose,
+}: {
+  open: boolean;
+  turns: InteractionTraceTurn[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[rgba(3,10,17,0.78)] p-8 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="처리 기록 닫기"
+        onClick={onClose}
+        className="absolute inset-0"
+      />
+
+      <Panel
+        eyebrow="디버그"
+        title="턴 처리 기록"
+        subtitle="각 NPC 답변마다 어느 단계가 얼마나 걸렸는지 본다."
+        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-[1120px] flex-col overflow-hidden md:max-h-[86vh]"
+        contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+        trailing={
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-[var(--panel-border)] bg-white/12 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)] hover:bg-white/18"
+          >
+            닫기
+          </button>
+        }
+      >
+        <div className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-2">
+          {turns.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[var(--panel-border)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+              아직 기록된 대화가 없다.
+            </div>
+          ) : (
+            turns.map((turn) => {
+              const slowestStage =
+                turn.traceEntries
+                  .filter((entry) => entry.stage !== "turn_total")
+                  .sort((left, right) => right.durationMs - left.durationMs)[0] ?? null;
+
+              return (
+                <article
+                  key={`${turn.npcMessage.id}-trace`}
+                  className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+                        {formatConversationTimestamp(turn.npcMessage.timestamp)}
+                      </p>
+                      {turn.playerMessage ? (
+                        <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">
+                          당신: {turn.playerMessage.text}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-sm leading-7 text-foreground">
+                        {turn.npcMessage.text}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right text-xs text-[var(--ink-muted)]">
+                      {turn.frontendElapsedMs !== null ? (
+                        <p>프론트 총 응답 {formatTraceDuration(turn.frontendElapsedMs)}</p>
+                      ) : null}
+                      {slowestStage ? (
+                        <p>
+                          최장 단계 {slowestStage.label} ·{" "}
+                          {formatTraceDuration(slowestStage.durationMs)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {turn.traceEntries.length === 0 ? (
+                    <p className="mt-3 text-sm text-[var(--ink-muted)]">
+                      이 턴에는 단계 기록이 없다.
+                    </p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {turn.traceEntries.map((entry, index) => (
+                        <div
+                          key={`${turn.npcMessage.id}-trace-stage-${index}`}
+                          className="grid grid-cols-[minmax(0,1.6fr)_84px_96px_minmax(0,2fr)] gap-3 rounded-2xl border border-[var(--panel-border)] bg-[rgba(255,255,255,0.04)] px-3 py-3 text-[12px] leading-5"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground">{entry.label}</p>
+                            <p className="text-[var(--ink-muted)]">{entry.stage}</p>
+                          </div>
+                          <div>
+                            <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
+                              {formatTraceStatus(entry.status)}
+                            </span>
+                          </div>
+                          <div className="text-right font-semibold text-foreground">
+                            {formatTraceDuration(entry.durationMs)}
+                          </div>
+                          <div className="min-w-0 break-words text-[var(--ink-muted)]">
+                            <p>
+                              +{formatTraceDuration(entry.startedAtMs)} ~ +
+                              {formatTraceDuration(entry.finishedAtMs)}
+                            </p>
+                            {entry.detail ? <p className="mt-1">{entry.detail}</p> : null}
+                            {entry.sourceRef ? <p className="mt-1">{entry.sourceRef}</p> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 export function InteractionPanel({
   npc,
   conversation,
@@ -233,6 +498,7 @@ export function InteractionPanel({
   onAction,
 }: InteractionPanelProps) {
   const [guideOpen, setGuideOpen] = useState(false);
+  const [traceModalOpen, setTraceModalOpen] = useState(false);
   const [playInputMode, setPlayInputMode] = useState<PlayInputMode>("intent_only");
   const [draftConfirmed, setDraftConfirmed] = useState(false);
   const [localWarning, setLocalWarning] = useState<string | null>(null);
@@ -257,6 +523,7 @@ export function InteractionPanel({
       : "bg-[var(--accent)] hover:brightness-105";
   const activeWarning = localWarning ?? draftWarning;
   const loadingLabel = `답변중${".".repeat(loadingDotCount)}`;
+  const traceTurns = buildInteractionTraceTurns(conversation, replyElapsedByMessageId);
   const conversationCardClassName =
     playInputMode === "combined"
       ? "flex h-[820px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4"
@@ -370,6 +637,11 @@ export function InteractionPanel({
         targetLabel={selectedTargetLabel}
         onClose={() => setGuideOpen(false)}
       />
+      <InteractionTraceModal
+        open={traceModalOpen}
+        turns={traceTurns}
+        onClose={() => setTraceModalOpen(false)}
+      />
 
       <Panel
         eyebrow="플레이"
@@ -454,9 +726,21 @@ export function InteractionPanel({
           <div className={conversationCardClassName}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-                  방 안 대화
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
+                    방 안 대화
+                  </p>
+                  <span className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)]">
+                    {ROOM_CONVERSATION_UI_VERSION}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTraceModalOpen(true)}
+                    className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)] transition hover:border-[var(--teal)] hover:bg-white/18"
+                  >
+                    처리 기록
+                  </button>
+                </div>
                 <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
                   방금 누구에게 뭐라고 했는지와 돌아온 말을 여기서 읽는다.
                 </p>
@@ -479,6 +763,12 @@ export function InteractionPanel({
                       message.speaker === "npc"
                         ? formatReplyRewriteSource(message.replyRewriteSource)
                         : null;
+                    const replyRewriteReason =
+                      message.speaker === "npc"
+                        ? formatReplyRewriteReason(message.replyRewriteReason)
+                        : null;
+                    const failureDebugEntries: FailureDebugEntry[] =
+                      message.speaker === "npc" ? message.failureDebug ?? [] : [];
                     const failed = message.deliveryStatus === "failed";
 
                     return (
@@ -501,6 +791,7 @@ export function InteractionPanel({
                             replyElapsedByMessageId[message.id] !== undefined
                               ? ` · 응답 ${formatElapsedDuration(replyElapsedByMessageId[message.id])}`
                               : ""}
+                            {replyRewriteLabel ? ` · ${replyRewriteLabel}` : ""}
                           </p>
                           <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                             {failed ? (
@@ -513,13 +804,56 @@ export function InteractionPanel({
                                 fallback
                               </span>
                             ) : null}
-                            {replyRewriteLabel ? (
-                              <span className="rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--ink-muted)]">
-                                {replyRewriteLabel}
-                              </span>
-                            ) : null}
                           </div>
                         </div>
+                        {replyRewriteReason ? (
+                          <p className="mt-2 text-[11px] leading-5 text-[var(--danger)]">
+                            탈락 사유: {replyRewriteReason}
+                          </p>
+                        ) : null}
+                        {SHOW_INTERACTION_FAILURE_DEBUG &&
+                        failureDebugEntries.length > 0 ? (
+                          <div className="mt-2 space-y-2 rounded-2xl border border-[rgba(181,43,48,0.24)] bg-[rgba(181,43,48,0.08)] px-3 py-3 text-[11px] leading-5 text-[var(--danger)]">
+                            {failureDebugEntries.map((entry: FailureDebugEntry, index: number) => (
+                              <div
+                                key={`${message.id}-failure-debug-${index}`}
+                                className="space-y-1"
+                              >
+                                <p className="font-semibold">
+                                  디버그 ·{" "}
+                                  {formatFailureDebugStage({
+                                    entry,
+                                    replyRewriteReason,
+                                  })}
+                                  {entry.sourceRef ? ` · ${entry.sourceRef}` : ""}
+                                </p>
+                                <p>원인: {entry.summary}</p>
+                                {entry.candidateReplyText ? (
+                                  <p>실패 reply: {entry.candidateReplyText}</p>
+                                ) : null}
+                                {entry.candidateSelectedActionType ? (
+                                  <p>
+                                    실패 action: {entry.candidateSelectedActionType}
+                                    {entry.candidateSelectedActionReason
+                                      ? ` · ${entry.candidateSelectedActionReason}`
+                                      : ""}
+                                  </p>
+                                ) : null}
+                                {entry.candidateTargetNpcId ? (
+                                  <p>실패 target: {entry.candidateTargetNpcId}</p>
+                                ) : null}
+                                {entry.candidateImpactTags?.length ? (
+                                  <p>
+                                    실패 tags: {entry.candidateImpactTags.join(", ")}
+                                  </p>
+                                ) : null}
+                                {entry.issues?.length ? (
+                                  <p>세부: {entry.issues.join(" / ")}</p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </article>
                     );
                   })}

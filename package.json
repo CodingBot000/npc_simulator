@@ -34,6 +34,7 @@
     "finalize:sft": "node backend/scripts/finalize-sft-dataset.mjs",
     "finalize:preference": "node backend/scripts/finalize-preference-dataset.mjs",
     "review:deploy:runpod": "npm --workspace @npc-simulator/backend-scripts run review:deploy:runpod",
+    "review:deploy:baseten": "npm --workspace @npc-simulator/backend-scripts run review:deploy:baseten",
     "export:mlx-sft": "node backend/scripts/export-mlx-sft-dataset.mjs",
     "export:mlx-sft:compact": "node backend/scripts/export-mlx-sft-dataset.mjs --output-dir data/train/mlx_sft_compact --input-format compact --assistant-format reply_text",
     "export:mlx-sft:reply": "node backend/scripts/export-mlx-sft-dataset.mjs --output-dir data/train/mlx_sft_reply --input-format compact --assistant-format reply_text",

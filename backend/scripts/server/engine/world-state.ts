@@ -39,6 +39,9 @@ function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
       action: entry.selectedAction,
       fallbackUsed: entry.fallbackUsed ?? false,
       replyRewriteSource: entry.replyRewriteSource ?? null,
+      replyRewriteReason: entry.replyRewriteReason ?? null,
+      failureDebug: entry.failureDebug ?? null,
+      interactionTrace: entry.interactionTrace ?? null,
     },
   ];
 }

@@ -39,6 +39,9 @@ export interface InteractionLogEntry {
   inputMode: InputMode;
   fallbackUsed?: boolean;
   replyRewriteSource?: string | null;
+  replyRewriteReason?: string | null;
+  failureDebug?: InspectorPayload["failureDebug"] | null;
+  interactionTrace?: InspectorPayload["interactionTrace"] | null;
   roundBefore?: number;
   roundAfter?: number;
   playerText: string;

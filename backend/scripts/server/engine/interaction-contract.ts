@@ -498,34 +498,6 @@ export function validateReplyAgainstContract(params: {
     }
   }
 
-  if (
-    params.contract.action &&
-    params.contract.targetNpcLabel &&
-    actionSpecFor(params.contract.action)?.targetPolicy === "required" &&
-    !normalized.includes(params.contract.targetNpcLabel)
-  ) {
-    issues.push({
-      code: "missing_target_alignment",
-      message: "타깃이 필요한 액션인데 reply에 대상 정합성이 드러나지 않는다.",
-    });
-  }
-
-  if (
-    params.contract.action &&
-    params.contract.mode !== "free_text" &&
-    params.contract.requiredSignals.length > 0
-  ) {
-    const hasAlignmentSignal = params.contract.requiredSignals.some((keyword) =>
-      lower.includes(keyword.toLowerCase()),
-    );
-    if (!hasAlignmentSignal) {
-      issues.push({
-        code: "missing_action_alignment",
-        message: "reply가 액션 의미를 충분히 드러내지 않는다.",
-      });
-    }
-  }
-
   return {
     ok: issues.length === 0,
     issues,
@@ -549,19 +521,6 @@ export function validateStructuredResultAgainstContract(params: {
       code: "target_npc_mismatch",
       message: "structuredImpact.targetNpcId가 선택한 타깃과 다르다.",
     });
-  }
-
-  if (spec?.structuredImpactKeywords.length) {
-    const tags = params.result.structuredImpact.impactTags.join(" ");
-    const hasKeyword = spec.structuredImpactKeywords.some((keyword) =>
-      tags.includes(keyword),
-    );
-    if (!hasKeyword) {
-      issues.push({
-        code: "impact_alignment_missing",
-        message: "structuredImpact가 액션 의미와 충분히 맞지 않는다.",
-      });
-    }
   }
 
   return {

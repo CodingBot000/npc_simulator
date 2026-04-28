@@ -19,6 +19,8 @@ import {
 } from "@server/providers/llm-provider";
 import { getInteractionModelCandidates } from "@server/providers/model-registry";
 
+const CODEX_INTERACTION_TOTAL_TIMEOUT_MS = 10 * 60_000;
+
 interface CommandResult {
   code: number | null;
   stdout: string;
@@ -78,10 +80,21 @@ export class CodexProvider implements LlmProvider {
     const { systemPrompt, userPrompt } = buildNpcInteractionMessages(input);
     const prompt = `${systemPrompt}\n\n${userPrompt}`;
     let lastError: Error | null = null;
+    const startedAtMs = Date.now();
 
     for (const model of getInteractionModelCandidates()) {
+      const remainingTimeoutMs =
+        CODEX_INTERACTION_TOTAL_TIMEOUT_MS - (Date.now() - startedAtMs);
+
+      if (remainingTimeoutMs <= 0) {
+        lastError = new Error(
+          `codex timed out after ${CODEX_INTERACTION_TOTAL_TIMEOUT_MS}ms.`,
+        );
+        break;
+      }
+
       try {
-        return await this.runCodexPrompt(model, prompt);
+        return await this.runCodexPrompt(model, prompt, remainingTimeoutMs);
       } catch (error) {
         lastError =
           error instanceof Error
@@ -96,6 +109,7 @@ export class CodexProvider implements LlmProvider {
   private async runCodexPrompt(
     model: string,
     prompt: string,
+    timeoutMs: number,
   ): Promise<LlmInteractionResult> {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "npc-sim-codex-"));
     const schemaPath = path.join(tempDir, "schema.json");
@@ -125,7 +139,7 @@ export class CodexProvider implements LlmProvider {
           outputPath,
           "-",
         ],
-        { stdin: prompt, timeoutMs: 120000 },
+        { stdin: prompt, timeoutMs },
       );
 
       if (result.code !== 0) {

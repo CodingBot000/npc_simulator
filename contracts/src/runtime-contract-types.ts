@@ -199,6 +199,7 @@ export interface StructuredImpactInference {
 export interface ReplyPayload {
   text: string;
   rewriteSource?: string | null;
+  rewriteReason?: string | null;
 }
 
 export interface LlmInteractionResult {
@@ -227,6 +228,65 @@ export interface ShadowComparisonPayload {
   error: string | null;
   rawOutput: string | null;
   result: LlmInteractionResult | null;
+}
+
+export type InteractionFailureDebugStage =
+  | "interaction_provider"
+  | "interaction_validation"
+  | "reply_rewrite";
+
+export type InteractionFailureDebugKind =
+  | "provider_error"
+  | "contract_validation"
+  | "request_error"
+  | "validation_error";
+
+export type InteractionTraceStage =
+  | "prepare_context"
+  | "interaction_provider"
+  | "interaction_validation"
+  | "interaction_fallback"
+  | "reply_rewrite_request"
+  | "reply_rewrite_validation"
+  | "reply_rewrite_retry_request"
+  | "reply_rewrite_retry_validation"
+  | "shadow_compare_wait"
+  | "pressure_update"
+  | "round_progress"
+  | "autonomy_phase"
+  | "memory_update"
+  | "log_commit"
+  | "dataset_export"
+  | "turn_total";
+
+export type InteractionTraceStatus =
+  | "ok"
+  | "failed"
+  | "fallback"
+  | "skipped";
+
+export interface InteractionTraceEntry {
+  stage: InteractionTraceStage;
+  label: string;
+  status: InteractionTraceStatus;
+  startedAtMs: number;
+  finishedAtMs: number;
+  durationMs: number;
+  detail?: string | null;
+  sourceRef?: string | null;
+}
+
+export interface InteractionFailureDebugEntry {
+  stage: InteractionFailureDebugStage;
+  kind: InteractionFailureDebugKind;
+  summary: string;
+  sourceRef?: string | null;
+  issues?: string[];
+  candidateReplyText?: string | null;
+  candidateSelectedActionType?: AllowedActionType | null;
+  candidateSelectedActionReason?: string | null;
+  candidateTargetNpcId?: string | null;
+  candidateImpactTags?: ImpactTag[];
 }
 
 export interface PressureChange {
@@ -299,6 +359,9 @@ export interface InspectorPayload {
   replyText: string;
   fallbackUsed?: boolean;
   replyRewriteSource?: string | null;
+  replyRewriteReason?: string | null;
+  failureDebug?: InteractionFailureDebugEntry[] | null;
+  interactionTrace?: InteractionTraceEntry[] | null;
   retrievedMemories: RetrievedMemoryEntry[];
   retrievedKnowledge: RetrievedKnowledgeEvidence[];
   emotion: NpcEmotionState;
@@ -331,6 +394,9 @@ export interface ChatMessage {
   action: PlayerAction | AllowedActionType | null;
   fallbackUsed?: boolean;
   replyRewriteSource?: string | null;
+  replyRewriteReason?: string | null;
+  failureDebug?: InteractionFailureDebugEntry[] | null;
+  interactionTrace?: InteractionTraceEntry[] | null;
 }
 
 export interface RuntimeStatus {

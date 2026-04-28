@@ -441,6 +441,38 @@ export interface components {
         };
         /** @enum {string} */
         AllowedActionType: "accuse" | "defend" | "deflect" | "appeal" | "ally" | "stall" | "probe";
+        /** @enum {string} */
+        InteractionFailureDebugStage: "interaction_provider" | "interaction_validation" | "reply_rewrite";
+        /** @enum {string} */
+        InteractionFailureDebugKind: "provider_error" | "contract_validation" | "request_error" | "validation_error";
+        /** @enum {string} */
+        ImpactTag: "player_distrust_up" | "player_distrust_down" | "player_blame_up" | "player_blame_down" | "player_sympathy_up" | "player_sympathy_down" | "target_blame_up" | "target_blame_high_up" | "target_blame_down" | "target_distrust_up" | "target_distrust_down" | "target_hostility_up" | "target_hostility_down" | "target_sympathy_up" | "target_sympathy_down" | "target_utility_down" | "target_utility_up" | "target_dispensability_up" | "target_dispensability_down" | "room_pressure_shift" | "no_major_shift";
+        InteractionFailureDebugEntry: {
+            stage: components["schemas"]["InteractionFailureDebugStage"];
+            kind: components["schemas"]["InteractionFailureDebugKind"];
+            summary: string;
+            sourceRef?: string | null;
+            issues?: string[];
+            candidateReplyText?: string | null;
+            candidateSelectedActionType?: components["schemas"]["AllowedActionType"] | null;
+            candidateSelectedActionReason?: string | null;
+            candidateTargetNpcId?: string | null;
+            candidateImpactTags?: components["schemas"]["ImpactTag"][];
+        };
+        /** @enum {string} */
+        InteractionTraceStage: "prepare_context" | "interaction_provider" | "interaction_validation" | "interaction_fallback" | "reply_rewrite_request" | "reply_rewrite_validation" | "reply_rewrite_retry_request" | "reply_rewrite_retry_validation" | "shadow_compare_wait" | "pressure_update" | "round_progress" | "autonomy_phase" | "memory_update" | "log_commit" | "dataset_export" | "turn_total";
+        /** @enum {string} */
+        InteractionTraceStatus: "ok" | "failed" | "fallback" | "skipped";
+        InteractionTraceEntry: {
+            stage: components["schemas"]["InteractionTraceStage"];
+            label: string;
+            status: components["schemas"]["InteractionTraceStatus"];
+            startedAtMs: number;
+            finishedAtMs: number;
+            durationMs: number;
+            detail?: string | null;
+            sourceRef?: string | null;
+        };
         ChatMessage: {
             id: string;
             npcId: string;
@@ -451,6 +483,9 @@ export interface components {
             action: components["schemas"]["PlayerAction"] | components["schemas"]["AllowedActionType"] | null;
             fallbackUsed?: boolean;
             replyRewriteSource?: string | null;
+            replyRewriteReason?: string | null;
+            failureDebug?: components["schemas"]["InteractionFailureDebugEntry"][] | null;
+            interactionTrace?: components["schemas"]["InteractionTraceEntry"][] | null;
         };
         RoundState: {
             currentRound: number;
@@ -524,8 +559,6 @@ export interface components {
             type: components["schemas"]["AllowedActionType"];
             reason: string;
         };
-        /** @enum {string} */
-        ImpactTag: "player_distrust_up" | "player_distrust_down" | "player_blame_up" | "player_blame_down" | "player_sympathy_up" | "player_sympathy_down" | "target_blame_up" | "target_blame_high_up" | "target_blame_down" | "target_distrust_up" | "target_distrust_down" | "target_hostility_up" | "target_hostility_down" | "target_sympathy_up" | "target_sympathy_down" | "target_utility_down" | "target_utility_up" | "target_dispensability_up" | "target_dispensability_down" | "room_pressure_shift" | "no_major_shift";
         StructuredImpactInference: {
             impactTags: components["schemas"]["ImpactTag"][];
             targetNpcId: string | null;
@@ -568,6 +601,7 @@ export interface components {
         ReplyPayload: {
             text: string;
             rewriteSource?: string | null;
+            rewriteReason?: string | null;
         };
         LlmInteractionResult: {
             reply: components["schemas"]["ReplyPayload"];
@@ -649,6 +683,9 @@ export interface components {
             replyText: string;
             fallbackUsed?: boolean;
             replyRewriteSource?: string | null;
+            replyRewriteReason?: string | null;
+            failureDebug?: components["schemas"]["InteractionFailureDebugEntry"][] | null;
+            interactionTrace?: components["schemas"]["InteractionTraceEntry"][] | null;
             retrievedMemories: components["schemas"]["RetrievedMemoryEntry"][];
             retrievedKnowledge: components["schemas"]["RetrievedKnowledgeEvidence"][];
             emotion: components["schemas"]["NpcEmotionState"];

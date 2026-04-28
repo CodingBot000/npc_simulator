@@ -2,11 +2,21 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { GenerateInteractionInput } from "@backend-provider";
+import type {
+  InteractionFailureDebugEntry,
+  InteractionTraceEntry,
+  InteractionTraceStage,
+  InteractionTraceStatus,
+} from "@backend-contracts/api";
 import {
   buildCodexCliChildEnv,
   buildModelExecutionChildEnv,
 } from "@backend-support/bootstrap";
 import { PROJECT_ROOT, appConfig } from "@server/config";
+import {
+  createBasetenChatCompletion,
+  extractBasetenChatText,
+} from "@server/baseten-client";
 import { openAiConfig } from "@server/config/openai";
 import { databaseConfig } from "@server/config/database";
 import { dbQuery } from "@server/db/postgres";
@@ -79,6 +89,66 @@ type RunpodAdapterConfig = {
   promptFormat: ScenePromptFormat;
 };
 
+type BasetenAdapterConfig = {
+  backend: "baseten";
+  modelId: string;
+  modelUrl: string | null;
+  model: string;
+  provider: string | null;
+  promptFormat: ScenePromptFormat;
+};
+type FinalReplyGenerationResult = {
+  text: string | null;
+  adapterPath: string | null;
+  sourceRef: string;
+  rejectedReason?: string | null;
+  debugFailures?: InteractionFailureDebugEntry[] | null;
+  trace?: InteractionTraceEntry[] | null;
+};
+type FinalReplyRewriteSeed = {
+  draftReplyText: string;
+  selectedActionType: string | null;
+  selectedActionReason: string | null;
+};
+
+type InteractionTraceContext = {
+  originMs: number;
+  entries: InteractionTraceEntry[];
+};
+
+type PendingInteractionTrace = {
+  stage: InteractionTraceStage;
+  label: string;
+  detail?: string | null;
+  sourceRef?: string | null;
+  startedAtMs: number;
+  startedAtAbsoluteMs: number;
+};
+
+const MAKE_CASE_RESPONSIBILITY_SIGNALS = ["책임"] as const;
+const MAKE_CASE_BASIS_SIGNALS = ["근거", "이유", "기준", "판단"] as const;
+const EXPOSE_EVIDENCE_SIGNALS = [
+  "기록",
+  "사실",
+  "숨긴",
+  "감춘",
+  "증거",
+  "들춘",
+  "꺼내",
+] as const;
+const SACRIFICE_DECISION_DRIFT_PATTERNS = [
+  /죽어야/u,
+  /먼저\s*죽/u,
+  /희생/u,
+  /버려야/u,
+  /버릴/u,
+  /내보내야/u,
+] as const;
+const TARGET_SUBSTITUTION_PATTERNS = [/그 사람/u, /그녀/u, /저 사람/u] as const;
+const TARGET_SUBSTITUTION_REPLACEMENTS = [/그 사람/gu, /그녀/gu, /저 사람/gu] as const;
+const FINAL_REPLY_REWRITE_TEMPERATURE = 0.2;
+const OPENAI_FALLBACK_FROM_BASETEN_400_MARKER = "fallback_from_baseten_400";
+
 type CodexReplyConfig = {
   backend: "codex";
   promptFormat: ScenePromptFormat;
@@ -95,6 +165,7 @@ type ResolvedAdapterConfig =
   | LocalReplyBackendConfig
   | TogetherAdapterConfig
   | RunpodAdapterConfig
+  | BasetenAdapterConfig
   | CodexReplyConfig
   | OpenAiReplyConfig;
 const LEGACY_QWEN_REPLY_MLX_MODEL =
@@ -204,6 +275,18 @@ function compactSentence(text: string) {
   return normalizeInlineText(text).replace(/[.。]$/u, "");
 }
 
+function containsAnyKeyword(
+  text: string,
+  keywords: readonly string[],
+) {
+  const normalized = text.toLowerCase();
+  return keywords.some((keyword) => normalized.includes(keyword.toLowerCase()));
+}
+
+function containsAnyPattern(text: string, patterns: readonly RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
 function truncateForPrompt(text: string, maxLength = 96) {
   const normalized = normalizeInlineText(text);
   if (normalized.length <= maxLength) {
@@ -290,6 +373,17 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
       } as const;
     }
 
+    if (row?.remote_model_name && remoteProviderRef?.kind === "baseten") {
+      return {
+        backend: "baseten",
+        modelId: remoteProviderRef.modelId,
+        modelUrl: null,
+        model: row.remote_model_name,
+        provider: row.remote_provider,
+        promptFormat: baseConfig.promptFormat,
+      } as const;
+    }
+
     if (
       row?.remote_model_name &&
       (remoteProviderRef?.kind === "together" ||
@@ -329,6 +423,18 @@ function getFinalReplyModelCandidates() {
       ].filter(Boolean),
     ),
   );
+}
+
+function buildOpenAiFallbackReplyConfig(): OpenAiReplyConfig | null {
+  if (!openAiConfig.apiKey) {
+    return null;
+  }
+
+  return {
+    backend: "openai_api",
+    promptFormat: appConfig.finalReply.promptFormat,
+    models: getFinalReplyModelCandidates(),
+  };
 }
 
 async function resolveAdapterConfigForNpc(npcId: string) {
@@ -376,6 +482,26 @@ async function resolveAdapterConfigForNpc(npcId: string) {
       return {
         backend: "runpod",
         endpointId: remoteProviderRef.endpointId,
+        model: appConfig.finalReply.remote.modelName,
+        provider: appConfig.finalReply.remote.provider,
+        promptFormat: appConfig.finalReply.promptFormat,
+      } as const;
+    }
+    case "baseten": {
+      const remoteProviderRef = parseRemoteProviderRef(
+        appConfig.finalReply.remote.provider,
+      );
+      const modelId =
+        remoteProviderRef?.kind === "baseten"
+          ? remoteProviderRef.modelId
+          : appConfig.finalReply.remote.basetenModelId;
+      if (!modelId || !appConfig.finalReply.remote.modelName) {
+        return null;
+      }
+      return {
+        backend: "baseten",
+        modelId,
+        modelUrl: appConfig.finalReply.remote.basetenModelUrl ?? null,
         model: appConfig.finalReply.remote.modelName,
         provider: appConfig.finalReply.remote.provider,
         promptFormat: appConfig.finalReply.promptFormat,
@@ -701,20 +827,101 @@ function buildSceneStateMinPrompt(input: GenerateInteractionInput) {
 function buildPrompt(
   input: GenerateInteractionInput,
   promptFormat: ScenePromptFormat,
+  rewriteSeed?: FinalReplyRewriteSeed | null,
+  options?: {
+    forceTargetName?: boolean;
+    forceActionSignals?: boolean;
+    forceMakeCaseAxes?: boolean;
+    forceExposeEvidenceAxis?: boolean;
+  },
 ) {
-  if (promptFormat === "situation_card") {
-    return buildSituationCardPrompt(input);
+  const basePrompt =
+    promptFormat === "situation_card"
+      ? buildSituationCardPrompt(input)
+      : promptFormat === "direct_scene"
+        ? buildDirectScenePrompt(input)
+        : promptFormat === "scene_state_min"
+          ? buildSceneStateMinPrompt(input)
+          : buildRawJsonPrompt(input);
+
+  if (!rewriteSeed) {
+    return basePrompt;
   }
 
-  if (promptFormat === "direct_scene") {
-    return buildDirectScenePrompt(input);
-  }
+  const contract = resolveInteractionContract(input);
+  const targetLabel = resolveTargetLabel(input);
+  const presentActionSignals = contract.requiredSignals.filter((keyword) =>
+    rewriteSeed.draftReplyText.includes(keyword),
+  );
+  const prioritizedActionSignals =
+    presentActionSignals.length > 0
+      ? presentActionSignals
+      : contract.requiredSignals.slice(0, 4);
+  const actionSignalHint =
+    prioritizedActionSignals.length > 0
+      ? prioritizedActionSignals.join(", ")
+      : null;
+  const draftHasMakeCaseResponsibility =
+    contract.action === "make_case" &&
+    containsAnyKeyword(rewriteSeed.draftReplyText, MAKE_CASE_RESPONSIBILITY_SIGNALS);
+  const draftHasMakeCaseBasis =
+    contract.action === "make_case" &&
+    containsAnyKeyword(rewriteSeed.draftReplyText, MAKE_CASE_BASIS_SIGNALS);
+  const draftHasExposeEvidence =
+    contract.action === "expose" &&
+    containsAnyKeyword(rewriteSeed.draftReplyText, EXPOSE_EVIDENCE_SIGNALS);
+  const draftHasSacrificeDecision =
+    containsAnyPattern(rewriteSeed.draftReplyText, SACRIFICE_DECISION_DRIFT_PATTERNS);
+  const draftHasExplicitTargetName =
+    targetLabel !== "none" && rewriteSeed.draftReplyText.includes(targetLabel);
+  const rewriteRules = [
+    "rewrite 기준",
+    `- 현재 초안 대사: ${rewriteSeed.draftReplyText}`,
+    rewriteSeed.selectedActionType
+      ? `- 유지할 액션 방향: ${rewriteSeed.selectedActionType}`
+      : null,
+    rewriteSeed.selectedActionReason
+      ? `- 유지할 행동 의도: ${rewriteSeed.selectedActionReason}`
+      : null,
+    targetLabel && targetLabel !== "none"
+      ? options?.forceTargetName
+        ? `- 타깃은 ${targetLabel}다. 이름을 정확히 그대로 한 번 이상 반드시 직접 말한다.`
+        : `- 타깃은 ${targetLabel}다. 초안이 겨누는 대상과 책임선을 유지한다.`
+      : null,
+    draftHasExplicitTargetName
+      ? options?.forceTargetName
+        ? `- 초안에 있는 타깃 이름 ${targetLabel}을 그 사람, 그녀, 저 사람, 당신 같은 대명사로 바꾸지 않는다. 책임을 돌리는 문장에서는 ${targetLabel} 이름을 직접 쓴다.`
+        : `- 초안에 있는 타깃 이름 ${targetLabel}을 불필요한 대명사로 흐리지 않는다.`
+      : null,
+    actionSignalHint
+      ? options?.forceActionSignals
+        ? `- 이번 턴의 액션 의미를 유지하려면 다음 표현 중 하나 이상을 대사에 직접 반드시 남긴다: ${actionSignalHint}.`
+        : `- 이번 턴의 액션 의미를 흐리지 않도록 다음 표현 중 하나 이상을 직접 유지한다: ${actionSignalHint}.`
+      : null,
+    presentActionSignals.length > 0
+      ? `- 초안에 이미 들어 있는 액션 신호어(${presentActionSignals.join(", ")})는 rewrite 뒤에도 가능하면 그대로 남긴다.`
+      : null,
+    draftHasMakeCaseResponsibility || draftHasMakeCaseBasis
+      ? options?.forceMakeCaseAxes
+        ? "- 이번 턴은 책임 묻기다. rewrite 뒤에도 '책임'을 직접 반드시 남기고, '근거' 또는 '이유' 또는 '기준' 또는 '판단' 중 하나도 반드시 직접 남긴다."
+        : "- 이번 턴은 책임 묻기다. 초안의 책임 축과 근거/이유 축을 지우지 않는다."
+      : null,
+    draftHasExposeEvidence
+      ? options?.forceExposeEvidenceAxis
+        ? "- 이번 턴은 사실 확인이다. rewrite 뒤에도 '기록' 또는 '사실' 또는 '숨긴' 또는 '감춘' 또는 '증거' 또는 '들춘' 또는 '꺼내' 중 하나를 직접 반드시 남긴다. 책임과 근거만 따지는 일반 책임 추궁 문장으로 바꾸지 않는다."
+        : "- 이번 턴은 사실 확인이다. 초안의 기록/사실/숨긴 것/증거 축을 지우지 않는다."
+      : null,
+    !draftHasSacrificeDecision
+      ? "- 초안에 없던 희생 결정, 죽음, 버리기 의미를 새로 넣지 않는다. 예: 죽어야, 희생, 버려야."
+      : null,
+    "- 초안 대사의 사실관계, 책임선, 압박 방향을 바꾸지 않는다.",
+    "- 초안보다 더 자연스럽고 직접적인 방 안 대사로만 다시 쓴다.",
+    "- 새로운 사실을 덧붙이거나 대상을 바꾸지 않는다.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  if (promptFormat === "scene_state_min") {
-    return buildSceneStateMinPrompt(input);
-  }
-
-  return buildRawJsonPrompt(input);
+  return [basePrompt, "", rewriteRules].join("\n");
 }
 
 async function runMlxGenerate(args: string[]) {
@@ -772,7 +979,7 @@ async function runTogetherGenerate(params: {
       },
     ],
     maxTokens: appConfig.finalReply.maxTokens,
-    temperature: 0.7,
+    temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
   });
   return extractTogetherChatText(response) ?? "";
 }
@@ -797,9 +1004,192 @@ async function runRunpodGenerate(params: {
       },
     ],
     maxTokens: appConfig.finalReply.maxTokens,
-    temperature: 0.7,
+    temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
   });
   return extractRunpodVllmText(response) ?? "";
+}
+
+async function runBasetenGenerate(params: {
+  modelId: string;
+  modelUrl: string | null;
+  model: string;
+  npcId: string;
+  promptFormat: ScenePromptFormat;
+  prompt: string;
+}) {
+  const response = await createBasetenChatCompletion({
+    modelId: params.modelId,
+    modelUrl: params.modelUrl,
+    model: params.model,
+    messages: [
+      {
+        role: "system",
+        content: resolveSystemPrompt(params.npcId, params.promptFormat),
+      },
+      {
+        role: "user",
+        content: params.prompt,
+      },
+    ],
+    maxTokens: appConfig.finalReply.maxTokens,
+    temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
+  });
+  return extractBasetenChatText(response) ?? "";
+}
+
+function summarizeRewriteRejection(params: {
+  cleaned: string;
+  validationIssues: ReturnType<typeof validateReplyAgainstContract>["issues"];
+}) {
+  if (!params.cleaned) {
+    return "응답이 비어 있습니다.";
+  }
+
+  if (/^!+$/u.test(params.cleaned)) {
+    return "의미 없는 기호만 나왔습니다.";
+  }
+
+  if (params.validationIssues.length > 0) {
+    return params.validationIssues.map((issue) => issue.message).join(" / ");
+  }
+
+  return "최종 reply 검증을 통과하지 못했습니다.";
+}
+
+function buildRewriteFailureDebugEntry(params: {
+  summary: string;
+  sourceRef: string | null;
+  validationIssues?: ReturnType<typeof validateReplyAgainstContract>["issues"];
+  candidateReplyText?: string | null;
+  kind: InteractionFailureDebugEntry["kind"];
+}) {
+  const issues =
+    params.validationIssues && params.validationIssues.length > 0
+      ? params.validationIssues.map((issue) => `${issue.code}: ${issue.message}`)
+      : undefined;
+
+  return {
+    stage: "reply_rewrite",
+    kind: params.kind,
+    summary: params.summary,
+    sourceRef: params.sourceRef,
+    issues,
+    candidateReplyText: params.candidateReplyText ?? null,
+  } satisfies InteractionFailureDebugEntry;
+}
+
+function validateRewriteCandidate(params: {
+  cleaned: string;
+  contract: ReturnType<typeof resolveInteractionContract>;
+  npcName: string;
+  rewriteSeed?: FinalReplyRewriteSeed | null;
+}) {
+  const baseValidation = validateReplyAgainstContract({
+    replyText: params.cleaned,
+    contract: params.contract,
+    npcName: params.npcName,
+  });
+
+  const issues = [...baseValidation.issues];
+  const draftReplyText = params.rewriteSeed?.draftReplyText ?? "";
+
+  if (
+    params.rewriteSeed &&
+    !containsAnyPattern(draftReplyText, SACRIFICE_DECISION_DRIFT_PATTERNS) &&
+    containsAnyPattern(params.cleaned, SACRIFICE_DECISION_DRIFT_PATTERNS)
+  ) {
+    issues.push({
+      code: "sacrifice_decision_drift",
+      message: "초안에 없던 희생 결정 의미가 새로 들어왔다.",
+    });
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues,
+  };
+}
+
+function repairTargetNameSubstitution(params: {
+  cleaned: string;
+  contract: ReturnType<typeof resolveInteractionContract>;
+  rewriteSeed?: FinalReplyRewriteSeed | null;
+}) {
+  const targetLabel = params.contract.targetNpcLabel?.trim();
+  const draftReplyText = params.rewriteSeed?.draftReplyText ?? "";
+
+  if (!targetLabel || !draftReplyText.includes(targetLabel)) {
+    return {
+      cleaned: params.cleaned,
+      applied: false,
+    };
+  }
+
+  if (
+    params.cleaned.includes(targetLabel) ||
+    !containsAnyPattern(params.cleaned, TARGET_SUBSTITUTION_PATTERNS)
+  ) {
+    return {
+      cleaned: params.cleaned,
+      applied: false,
+    };
+  }
+
+  let repaired = params.cleaned;
+  for (const pattern of TARGET_SUBSTITUTION_REPLACEMENTS) {
+    repaired = repaired.replace(pattern, targetLabel);
+  }
+
+  return {
+    cleaned: repaired,
+    applied: repaired !== params.cleaned,
+  };
+}
+
+function isBaseten400RequestError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.includes("Baseten inference request failed (400)")
+  );
+}
+
+function startInteractionTraceStage(
+  context: InteractionTraceContext,
+  stage: InteractionTraceStage,
+  label: string,
+  detail?: string | null,
+  sourceRef?: string | null,
+): PendingInteractionTrace {
+  const startedAtAbsoluteMs = Date.now();
+  return {
+    stage,
+    label,
+    detail,
+    sourceRef,
+    startedAtMs: Math.max(0, startedAtAbsoluteMs - context.originMs),
+    startedAtAbsoluteMs,
+  };
+}
+
+function finishInteractionTraceStage(
+  context: InteractionTraceContext,
+  pending: PendingInteractionTrace,
+  status: InteractionTraceStatus,
+  detail?: string | null,
+  sourceRef?: string | null,
+) {
+  const finishedAtAbsoluteMs = Date.now();
+  const finishedAtMs = Math.max(0, finishedAtAbsoluteMs - context.originMs);
+  context.entries.push({
+    stage: pending.stage,
+    label: pending.label,
+    status,
+    startedAtMs: pending.startedAtMs,
+    finishedAtMs,
+    durationMs: Math.max(0, finishedAtAbsoluteMs - pending.startedAtAbsoluteMs),
+    detail: detail ?? pending.detail ?? null,
+    sourceRef: sourceRef ?? pending.sourceRef ?? null,
+  });
 }
 
 interface OpenAiTextResponsePayload {
@@ -971,30 +1361,11 @@ async function runOpenAiGenerate(params: {
   throw lastError ?? new Error("OpenAI final reply generation failed.");
 }
 
-function canonicalizeReplyForGuard(text: string) {
-  return stripWrappingQuotes(normalizeInlineText(text))
-    .replace(/^[“"'‘’]+|[“"'‘’]+$/gu, "")
-    .trim();
-}
-
-function looksRepeatedRecentReply(text: string, input: GenerateInteractionInput) {
-  const candidate = canonicalizeReplyForGuard(text);
-  if (!candidate || candidate.length < 8) {
-    return false;
-  }
-
-  const recentNpcReplies = input.recentConversation
-    .filter((entry) => entry.speaker === "npc")
-    .slice(-3)
-    .map((entry) => canonicalizeReplyForGuard(entry.text))
-    .filter(Boolean);
-
-  return recentNpcReplies.some((entry) => entry === candidate);
-}
-
 export async function maybeGenerateFinalReply(
   input: GenerateInteractionInput,
-) {
+  rewriteSeed?: FinalReplyRewriteSeed | null,
+  options?: { traceOriginMs?: number },
+): Promise<FinalReplyGenerationResult | null> {
   const mode = appConfig.finalReply.mode;
   if (mode === "off" || appConfig.finalReply.backend === "off") {
     return null;
@@ -1015,47 +1386,94 @@ export async function maybeGenerateFinalReply(
     return null;
   }
 
-  const prompt = buildPrompt(input, adapterConfig.promptFormat);
-  let text: string;
-  let sourceRef: string;
-  let adapterPath: string | null = null;
+  const debugFailures: InteractionFailureDebugEntry[] = [];
+  const traceContext: InteractionTraceContext = {
+    originMs: options?.traceOriginMs ?? Date.now(),
+    entries: [],
+  };
 
-  if (adapterConfig.backend === "codex") {
-    const generated = await runCodexGenerate({
-      models: adapterConfig.models,
-      npcId: input.npc.persona.id,
-      promptFormat: adapterConfig.promptFormat,
-      prompt,
-    });
-    text = generated.text;
-    sourceRef = `codex:${generated.model}`;
-  } else if (adapterConfig.backend === "openai_api") {
-    const generated = await runOpenAiGenerate({
-      models: adapterConfig.models,
-      npcId: input.npc.persona.id,
-      promptFormat: adapterConfig.promptFormat,
-      prompt,
-    });
-    text = generated.text;
-    sourceRef = `openai:${generated.model}`;
-  } else if (adapterConfig.backend === "together") {
-    text = await runTogetherGenerate({
-      model: adapterConfig.model,
-      npcId: input.npc.persona.id,
-      promptFormat: adapterConfig.promptFormat,
-      prompt,
-    });
-    sourceRef = `together:${adapterConfig.model}`;
-  } else if (adapterConfig.backend === "runpod") {
-    text = await runRunpodGenerate({
-      endpointId: adapterConfig.endpointId,
-      model: adapterConfig.model,
-      npcId: input.npc.persona.id,
-      promptFormat: adapterConfig.promptFormat,
-      prompt,
-    });
-    sourceRef = `runpod:${adapterConfig.endpointId}:${adapterConfig.model}`;
-  } else {
+  async function runCandidatePrompt(
+    candidatePrompt: string,
+    config: ResolvedAdapterConfig = adapterConfig,
+  ): Promise<{ text: string; sourceRef: string; adapterPath: string | null } | null> {
+    let sourceRef: string = config.backend;
+    let adapterPath: string | null = null;
+
+    if (config.backend === "codex") {
+      sourceRef = "codex";
+      const generated = await runCodexGenerate({
+        models: config.models,
+        npcId: input.npc.persona.id,
+        promptFormat: config.promptFormat,
+        prompt: candidatePrompt,
+      });
+      return {
+        text: generated.text,
+        sourceRef: `codex:${generated.model}`,
+        adapterPath,
+      };
+    }
+
+    if (config.backend === "openai_api") {
+      sourceRef = "openai";
+      const generated = await runOpenAiGenerate({
+        models: config.models,
+        npcId: input.npc.persona.id,
+        promptFormat: config.promptFormat,
+        prompt: candidatePrompt,
+      });
+      return {
+        text: generated.text,
+        sourceRef: `openai:${generated.model}`,
+        adapterPath,
+      };
+    }
+
+    if (config.backend === "together") {
+      sourceRef = `together:${config.model}`;
+      return {
+        text: await runTogetherGenerate({
+          model: config.model,
+          npcId: input.npc.persona.id,
+          promptFormat: config.promptFormat,
+          prompt: candidatePrompt,
+        }),
+        sourceRef,
+        adapterPath,
+      };
+    }
+
+    if (config.backend === "runpod") {
+      sourceRef = `runpod:${config.endpointId}:${config.model}`;
+      return {
+        text: await runRunpodGenerate({
+          endpointId: config.endpointId,
+          model: config.model,
+          npcId: input.npc.persona.id,
+          promptFormat: config.promptFormat,
+          prompt: candidatePrompt,
+        }),
+        sourceRef,
+        adapterPath,
+      };
+    }
+
+    if (config.backend === "baseten") {
+      sourceRef = `baseten:${config.modelId}:${config.model}`;
+      return {
+        text: await runBasetenGenerate({
+          modelId: config.modelId,
+          modelUrl: config.modelUrl,
+          model: config.model,
+          npcId: input.npc.persona.id,
+          promptFormat: config.promptFormat,
+          prompt: candidatePrompt,
+        }),
+        sourceRef,
+        adapterPath,
+      };
+    }
+
     const binaryAvailable = await hasMlxBinary();
     if (!binaryAvailable) {
       if (mode === "on") {
@@ -1064,10 +1482,10 @@ export async function maybeGenerateFinalReply(
       return null;
     }
 
-    adapterPath = adapterConfig.path;
+    adapterPath = config.path;
     const adapterAvailable = await hasRuntimeArtifact(
       adapterPath,
-      adapterConfig.runtimeKind,
+      config.runtimeKind,
     );
     if (!adapterAvailable) {
       if (mode === "on") {
@@ -1076,55 +1494,368 @@ export async function maybeGenerateFinalReply(
       return null;
     }
 
-    text = await runMlxGenerate(
-      adapterConfig.runtimeKind === "mlx_fused_model"
-        ? [
-            "--model",
-            adapterPath,
-            "--system-prompt",
-            resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
-            "--prompt",
-            prompt,
-            "--max-tokens",
-            String(appConfig.finalReply.maxTokens),
-          ]
-        : [
-            "--model",
-            adapterConfig.mlxModel ?? appConfig.localReply.mlxModel,
-            "--adapter-path",
-            adapterPath,
-            "--system-prompt",
-            resolveSystemPrompt(input.npc.persona.id, adapterConfig.promptFormat),
-            "--prompt",
-            prompt,
-            "--max-tokens",
-            String(appConfig.finalReply.maxTokens),
-          ],
-    );
-    sourceRef = `local:${adapterConfig.mlxModel ?? appConfig.localReply.family}`;
+    sourceRef = `local:${config.mlxModel ?? appConfig.localReply.family}`;
+    return {
+      text: await runMlxGenerate(
+        config.runtimeKind === "mlx_fused_model"
+          ? [
+              "--model",
+              adapterPath,
+              "--system-prompt",
+              resolveSystemPrompt(input.npc.persona.id, config.promptFormat),
+              "--prompt",
+              candidatePrompt,
+              "--max-tokens",
+              String(appConfig.finalReply.maxTokens),
+            ]
+          : [
+              "--model",
+              config.mlxModel ?? appConfig.localReply.mlxModel,
+              "--adapter-path",
+              adapterPath,
+              "--system-prompt",
+              resolveSystemPrompt(input.npc.persona.id, config.promptFormat),
+              "--prompt",
+              candidatePrompt,
+              "--max-tokens",
+              String(appConfig.finalReply.maxTokens),
+            ],
+      ),
+      sourceRef,
+      adapterPath,
+    };
   }
 
-  const normalized = text.trim();
-  const cleaned = normalizeReplyText(normalized);
+  const prompt = buildPrompt(input, adapterConfig.promptFormat, rewriteSeed);
+  let generated;
+  const requestTrace = startInteractionTraceStage(
+    traceContext,
+    "reply_rewrite_request",
+    "final reply rewrite 요청",
+    null,
+    adapterConfig.backend,
+  );
+  try {
+    generated = await runCandidatePrompt(prompt);
+    if (!generated) {
+      finishInteractionTraceStage(
+        traceContext,
+        requestTrace,
+        "skipped",
+        "rewrite 대상이 없어 건너뛰었습니다.",
+        adapterConfig.backend,
+      );
+      return null;
+    }
+    finishInteractionTraceStage(
+      traceContext,
+      requestTrace,
+      "ok",
+      "rewrite 후보를 생성했습니다.",
+      generated.sourceRef,
+    );
+  } catch (error) {
+    const openAiFallbackConfig =
+      adapterConfig.backend === "baseten" && isBaseten400RequestError(error)
+        ? buildOpenAiFallbackReplyConfig()
+        : null;
+    const rejectionReason =
+      error instanceof Error && error.message.trim()
+        ? `rewrite 요청 실패: ${error.message.trim()}`
+        : "rewrite 요청에 실패했습니다.";
+    finishInteractionTraceStage(
+      traceContext,
+      requestTrace,
+      "failed",
+      rejectionReason,
+      adapterConfig.backend,
+    );
+    if (openAiFallbackConfig) {
+      debugFailures.push(
+        buildRewriteFailureDebugEntry({
+          summary: rejectionReason,
+          sourceRef: adapterConfig.backend,
+          kind: "request_error",
+        }),
+      );
+      const openAiFallbackTrace = startInteractionTraceStage(
+        traceContext,
+        "reply_rewrite_retry_request",
+        "Baseten 400 -> OpenAI fallback",
+        null,
+        "openai",
+      );
+      try {
+        const fallbackGenerated = await runCandidatePrompt(prompt, openAiFallbackConfig);
+        if (!fallbackGenerated) {
+          throw new Error("OpenAI fallback did not return a rewrite candidate.");
+        }
+        generated = {
+          ...fallbackGenerated,
+          sourceRef: `${fallbackGenerated.sourceRef}:${OPENAI_FALLBACK_FROM_BASETEN_400_MARKER}`,
+        };
+        finishInteractionTraceStage(
+          traceContext,
+          openAiFallbackTrace,
+          "ok",
+          "Baseten 400으로 OpenAI fallback을 사용했습니다.",
+          generated.sourceRef,
+        );
+      } catch (fallbackError) {
+        const fallbackRejectionReason =
+          fallbackError instanceof Error && fallbackError.message.trim()
+            ? `OpenAI fallback 요청 실패: ${fallbackError.message.trim()}`
+            : "OpenAI fallback 요청에 실패했습니다.";
+        finishInteractionTraceStage(
+          traceContext,
+          openAiFallbackTrace,
+          "failed",
+          fallbackRejectionReason,
+          "openai",
+        );
+        debugFailures.push(
+          buildRewriteFailureDebugEntry({
+            summary: fallbackRejectionReason,
+            sourceRef: "openai",
+            kind: "request_error",
+          }),
+        );
+        return {
+          text: null,
+          adapterPath: null,
+          sourceRef: adapterConfig.backend,
+          rejectedReason: rejectionReason,
+          debugFailures,
+          trace: traceContext.entries,
+        };
+      }
+    } else {
+      debugFailures.push(
+        buildRewriteFailureDebugEntry({
+          summary: rejectionReason,
+          sourceRef: adapterConfig.backend,
+          kind: "request_error",
+        }),
+      );
+      return {
+        text: null,
+        adapterPath: null,
+        sourceRef: adapterConfig.backend,
+        rejectedReason: rejectionReason,
+        debugFailures,
+        trace: traceContext.entries,
+      };
+    }
+  }
+
+  let { text, sourceRef, adapterPath } = generated;
+  let normalized = text.trim();
+  let cleaned = normalizeReplyText(normalized);
   const contract = resolveInteractionContract(input);
-  const validation = validateReplyAgainstContract({
-    replyText: cleaned,
+  const repairedCandidate = repairTargetNameSubstitution({
+    cleaned,
+    contract,
+    rewriteSeed,
+  });
+  cleaned = repairedCandidate.cleaned;
+  const validationTrace = startInteractionTraceStage(
+    traceContext,
+    "reply_rewrite_validation",
+    "final reply rewrite 검증",
+    null,
+    sourceRef,
+  );
+  let validation = validateRewriteCandidate({
+    cleaned,
     contract,
     npcName: input.npc.persona.name,
+    rewriteSeed,
   });
+  finishInteractionTraceStage(
+    traceContext,
+    validationTrace,
+    validation.ok && cleaned && !/^!+$/u.test(cleaned) ? "ok" : "failed",
+    validation.ok && cleaned && !/^!+$/u.test(cleaned)
+      ? repairedCandidate.applied
+        ? "초기 rewrite 후보를 채택할 수 있습니다. 타깃 이름 대명사 치환을 자동 보정했습니다."
+        : "초기 rewrite 후보를 채택할 수 있습니다."
+      : summarizeRewriteRejection({
+          cleaned,
+          validationIssues: validation.issues,
+        }),
+    sourceRef,
+  );
+
+  const needsSafetyRetry =
+    validation.issues.some((issue) => issue.code === "sacrifice_decision_drift") &&
+    contract.action === "make_case";
+
+  if (needsSafetyRetry) {
+    debugFailures.push(
+      buildRewriteFailureDebugEntry({
+        summary: summarizeRewriteRejection({
+          cleaned,
+          validationIssues: validation.issues,
+        }),
+        sourceRef,
+        validationIssues: validation.issues,
+        candidateReplyText: cleaned || normalized,
+        kind: "validation_error",
+      }),
+    );
+    const strictTargetPrompt = buildPrompt(input, adapterConfig.promptFormat, rewriteSeed, {
+      forceTargetName: false,
+      forceActionSignals: true,
+      forceMakeCaseAxes: true,
+      forceExposeEvidenceAxis: false,
+    });
+    const retryRequestTrace = startInteractionTraceStage(
+      traceContext,
+      "reply_rewrite_retry_request",
+      "final reply rewrite 재시도",
+      null,
+      sourceRef,
+    );
+    try {
+      const retried = await runCandidatePrompt(strictTargetPrompt);
+      finishInteractionTraceStage(
+        traceContext,
+        retryRequestTrace,
+        retried ? "ok" : "skipped",
+        retried
+          ? "강화된 규칙으로 rewrite 후보를 다시 생성했습니다."
+          : "재시도 결과가 비어 있습니다.",
+        retried?.sourceRef ?? sourceRef,
+      );
+      if (retried) {
+        text = retried.text;
+        sourceRef = retried.sourceRef;
+        adapterPath = retried.adapterPath;
+        normalized = text.trim();
+        let retriedCleaned = normalizeReplyText(normalized);
+        const repairedRetryCandidate = repairTargetNameSubstitution({
+          cleaned: retriedCleaned,
+          contract,
+          rewriteSeed,
+        });
+        retriedCleaned = repairedRetryCandidate.cleaned;
+        const retryValidationTrace = startInteractionTraceStage(
+          traceContext,
+          "reply_rewrite_retry_validation",
+          "final reply rewrite 재검증",
+          null,
+          sourceRef,
+        );
+        const retriedValidation = validateRewriteCandidate({
+          cleaned: retriedCleaned,
+          contract,
+          npcName: input.npc.persona.name,
+          rewriteSeed,
+        });
+        finishInteractionTraceStage(
+          traceContext,
+          retryValidationTrace,
+          retriedValidation.ok && retriedCleaned && !/^!+$/u.test(retriedCleaned)
+            ? "ok"
+            : "failed",
+          retriedValidation.ok && retriedCleaned && !/^!+$/u.test(retriedCleaned)
+            ? repairedRetryCandidate.applied
+              ? "재시도 rewrite 후보를 채택했습니다. 타깃 이름 대명사 치환을 자동 보정했습니다."
+              : "재시도 rewrite 후보를 채택했습니다."
+            : summarizeRewriteRejection({
+                cleaned: retriedCleaned,
+                validationIssues: retriedValidation.issues,
+              }),
+          sourceRef,
+        );
+        if (
+          retriedCleaned &&
+          !/^!+$/u.test(retriedCleaned) &&
+          retriedValidation.ok
+        ) {
+          return {
+            text: retriedCleaned,
+            adapterPath,
+            sourceRef,
+            debugFailures: debugFailures.length > 0 ? debugFailures : null,
+            trace: traceContext.entries,
+          };
+        }
+        debugFailures.push(
+          buildRewriteFailureDebugEntry({
+            summary: summarizeRewriteRejection({
+              cleaned: retriedCleaned,
+              validationIssues: retriedValidation.issues,
+            }),
+            sourceRef,
+            validationIssues: retriedValidation.issues,
+            candidateReplyText: retriedCleaned || normalized,
+            kind: "validation_error",
+          }),
+        );
+        validation = retriedValidation;
+        cleaned = retriedCleaned;
+      }
+    } catch (error) {
+      const rejectionReason =
+        error instanceof Error && error.message.trim()
+          ? `rewrite 재시도 요청 실패: ${error.message.trim()}`
+          : "rewrite 재시도 요청에 실패했습니다.";
+      finishInteractionTraceStage(
+        traceContext,
+        retryRequestTrace,
+        "failed",
+        rejectionReason,
+        sourceRef,
+      );
+      debugFailures.push(
+        buildRewriteFailureDebugEntry({
+          summary: rejectionReason,
+          sourceRef,
+          kind: "request_error",
+        }),
+      );
+    }
+  }
+
   if (
     !cleaned ||
     /^!+$/u.test(cleaned) ||
-    !validation.ok ||
-    looksRepeatedRecentReply(cleaned, input)
+    !validation.ok
   ) {
-    return null;
+    if (debugFailures.length === 0) {
+      debugFailures.push(
+        buildRewriteFailureDebugEntry({
+          summary: summarizeRewriteRejection({
+            cleaned,
+            validationIssues: validation.issues,
+          }),
+          sourceRef,
+          validationIssues: validation.issues,
+          candidateReplyText: cleaned || normalized,
+          kind: "validation_error",
+        }),
+      );
+    }
+    return {
+      text: null,
+      adapterPath,
+      sourceRef,
+      rejectedReason: summarizeRewriteRejection({
+        cleaned,
+        validationIssues: validation.issues,
+      }),
+      debugFailures,
+      trace: traceContext.entries,
+    };
   }
 
   return {
     text: cleaned,
     adapterPath,
     sourceRef,
+    debugFailures: debugFailures.length > 0 ? debugFailures : null,
+    trace: traceContext.entries,
   };
 }
 

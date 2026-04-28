@@ -486,6 +486,18 @@ public class RuntimeWorldService {
         if (!replyRewriteSource.isBlank()) {
             message.put("replyRewriteSource", replyRewriteSource);
         }
+        String replyRewriteReason = extractText(entry, "replyRewriteReason", "");
+        if (!replyRewriteReason.isBlank()) {
+            message.put("replyRewriteReason", replyRewriteReason);
+        }
+        JsonNode failureDebug = entry.get("failureDebug");
+        if (failureDebug != null && !failureDebug.isNull()) {
+            message.set("failureDebug", failureDebug.deepCopy());
+        }
+        JsonNode interactionTrace = entry.get("interactionTrace");
+        if (interactionTrace != null && !interactionTrace.isNull()) {
+            message.set("interactionTrace", interactionTrace.deepCopy());
+        }
         JsonNode action = entry.get("selectedAction");
         message.set("action", action == null ? NullNode.instance : action.deepCopy());
         return message;

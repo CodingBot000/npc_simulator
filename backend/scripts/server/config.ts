@@ -17,6 +17,7 @@ import {
   getProcessEnv,
   hasServerEnv,
 } from "@server/config/env-loader";
+import { buildBasetenRemoteProvider } from "@server/remote-provider";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
   canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
@@ -38,6 +39,7 @@ type FinalReplyBackend =
   | "codex"
   | "openai_api"
   | "together"
+  | "baseten"
   | "runpod";
 type LocalReplyModelFamily = "llama" | "qwen";
 type LocalReplyPromptFormat =
@@ -157,6 +159,10 @@ function resolveRunpodRemoteProvider(endpointId: string | null) {
   return endpointId ? `runpod:${endpointId}` : null;
 }
 
+function resolveBasetenRemoteProvider(modelId: string | null) {
+  return modelId ? buildBasetenRemoteProvider(modelId) : null;
+}
+
 function parseFinalReplyBackend(params: {
   mode: FinalReplyMode;
   localModelFamily: LocalReplyModelFamily;
@@ -166,7 +172,7 @@ function parseFinalReplyBackend(params: {
 
   if (rawValue === "codex" && serverRuntimeContext.isCloudMode) {
     throw new Error(
-      "FINAL_REPLY_BACKEND=codex is not allowed in cloud mode. Use openai_api, together, runpod, or off.",
+      "FINAL_REPLY_BACKEND=codex is not allowed in cloud mode. Use openai_api, together, baseten, runpod, or off.",
     );
   }
 
@@ -178,6 +184,7 @@ function parseFinalReplyBackend(params: {
     rawValue === "codex" ||
     rawValue === "openai_api" ||
     rawValue === "together" ||
+    rawValue === "baseten" ||
     rawValue === "runpod"
   ) {
     return rawValue;
@@ -219,10 +226,15 @@ const finalReplyPromptFormat = parseLocalReplyPromptFormat(
 const finalReplyRunpodEndpointId =
   getServerEnv("FINAL_REPLY_RUNPOD_ENDPOINT_ID") ||
   getServerEnv("RUNPOD_ENDPOINT_ID");
+const finalReplyBasetenModelId =
+  getServerEnv("FINAL_REPLY_BASETEN_MODEL_ID") ||
+  getServerEnv("BASETEN_MODEL_ID");
 const finalReplyRemoteProvider =
   getServerEnv("FINAL_REPLY_REMOTE_PROVIDER") ||
   (finalReplyBackend === "runpod"
     ? resolveRunpodRemoteProvider(finalReplyRunpodEndpointId)
+    : finalReplyBackend === "baseten"
+      ? resolveBasetenRemoteProvider(finalReplyBasetenModelId)
     : finalReplyBackend === "together"
       ? "together"
       : null);
@@ -283,6 +295,10 @@ export const appConfig = {
       provider: finalReplyRemoteProvider,
       modelName: getServerEnv("FINAL_REPLY_REMOTE_MODEL_NAME"),
       runpodEndpointId: finalReplyRunpodEndpointId,
+      basetenModelId: finalReplyBasetenModelId,
+      basetenModelUrl:
+        getServerEnv("FINAL_REPLY_BASETEN_MODEL_URL") ||
+        getServerEnv("BASETEN_MODEL_URL"),
     },
   },
   localReply: {

@@ -48,6 +48,38 @@
             "null"
           ]
         },
+        "replyRewriteReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failureDebug": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/InteractionFailureDebugEntry"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interactionTrace": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/InteractionTraceEntry"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "retrievedMemories": {
           "type": "array",
           "items": {
@@ -193,6 +225,201 @@
         "shadowComparison"
       ],
       "additionalProperties": false
+    },
+    "InteractionFailureDebugEntry": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "$ref": "#/definitions/InteractionFailureDebugStage"
+        },
+        "kind": {
+          "$ref": "#/definitions/InteractionFailureDebugKind"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "sourceRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "candidateReplyText": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidateSelectedActionType": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AllowedActionType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidateSelectedActionReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidateTargetNpcId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidateImpactTags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ImpactTag"
+          }
+        }
+      },
+      "required": [
+        "stage",
+        "kind",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "InteractionFailureDebugStage": {
+      "type": "string",
+      "enum": [
+        "interaction_provider",
+        "interaction_validation",
+        "reply_rewrite"
+      ]
+    },
+    "InteractionFailureDebugKind": {
+      "type": "string",
+      "enum": [
+        "provider_error",
+        "contract_validation",
+        "request_error",
+        "validation_error"
+      ]
+    },
+    "AllowedActionType": {
+      "type": "string",
+      "enum": [
+        "accuse",
+        "defend",
+        "deflect",
+        "appeal",
+        "ally",
+        "stall",
+        "probe"
+      ]
+    },
+    "ImpactTag": {
+      "type": "string",
+      "enum": [
+        "player_distrust_up",
+        "player_distrust_down",
+        "player_blame_up",
+        "player_blame_down",
+        "player_sympathy_up",
+        "player_sympathy_down",
+        "target_blame_up",
+        "target_blame_high_up",
+        "target_blame_down",
+        "target_distrust_up",
+        "target_distrust_down",
+        "target_hostility_up",
+        "target_hostility_down",
+        "target_sympathy_up",
+        "target_sympathy_down",
+        "target_utility_down",
+        "target_utility_up",
+        "target_dispensability_up",
+        "target_dispensability_down",
+        "room_pressure_shift",
+        "no_major_shift"
+      ]
+    },
+    "InteractionTraceEntry": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "$ref": "#/definitions/InteractionTraceStage"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/InteractionTraceStatus"
+        },
+        "startedAtMs": {
+          "type": "number"
+        },
+        "finishedAtMs": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "stage",
+        "label",
+        "status",
+        "startedAtMs",
+        "finishedAtMs",
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "InteractionTraceStage": {
+      "type": "string",
+      "enum": [
+        "prepare_context",
+        "interaction_provider",
+        "interaction_validation",
+        "interaction_fallback",
+        "reply_rewrite_request",
+        "reply_rewrite_validation",
+        "reply_rewrite_retry_request",
+        "reply_rewrite_retry_validation",
+        "shadow_compare_wait",
+        "pressure_update",
+        "round_progress",
+        "autonomy_phase",
+        "memory_update",
+        "log_commit",
+        "dataset_export",
+        "turn_total"
+      ]
+    },
+    "InteractionTraceStatus": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "failed",
+        "fallback",
+        "skipped"
+      ]
     },
     "RetrievedMemoryEntry": {
       "type": "object",
@@ -445,18 +672,6 @@
       ],
       "additionalProperties": false
     },
-    "AllowedActionType": {
-      "type": "string",
-      "enum": [
-        "accuse",
-        "defend",
-        "deflect",
-        "appeal",
-        "ally",
-        "stall",
-        "probe"
-      ]
-    },
     "SelectedAction": {
       "type": "object",
       "properties": {
@@ -502,32 +717,6 @@
         "rationale"
       ],
       "additionalProperties": false
-    },
-    "ImpactTag": {
-      "type": "string",
-      "enum": [
-        "player_distrust_up",
-        "player_distrust_down",
-        "player_blame_up",
-        "player_blame_down",
-        "player_sympathy_up",
-        "player_sympathy_down",
-        "target_blame_up",
-        "target_blame_high_up",
-        "target_blame_down",
-        "target_distrust_up",
-        "target_distrust_down",
-        "target_hostility_up",
-        "target_hostility_down",
-        "target_sympathy_up",
-        "target_sympathy_down",
-        "target_utility_down",
-        "target_utility_up",
-        "target_dispensability_up",
-        "target_dispensability_down",
-        "room_pressure_shift",
-        "no_major_shift"
-      ]
     },
     "RelationshipDelta": {
       "type": "object",
@@ -859,6 +1048,12 @@
           "type": "string"
         },
         "rewriteSource": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rewriteReason": {
           "type": [
             "string",
             "null"
