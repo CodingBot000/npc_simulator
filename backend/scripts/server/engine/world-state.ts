@@ -40,6 +40,7 @@ function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
       fallbackUsed: entry.fallbackUsed ?? false,
       replyRewriteSource: entry.replyRewriteSource ?? null,
       replyRewriteReason: entry.replyRewriteReason ?? null,
+      replyJudge: entry.replyJudge ?? null,
       failureDebug: entry.failureDebug ?? null,
       interactionTrace: entry.interactionTrace ?? null,
     },

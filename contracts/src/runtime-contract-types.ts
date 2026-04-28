@@ -250,6 +250,8 @@ export type InteractionTraceStage =
   | "reply_rewrite_validation"
   | "reply_rewrite_retry_request"
   | "reply_rewrite_retry_validation"
+  | "reply_judge_request"
+  | "reply_judge_result"
   | "shadow_compare_wait"
   | "pressure_update"
   | "round_progress"
@@ -274,6 +276,25 @@ export interface InteractionTraceEntry {
   durationMs: number;
   detail?: string | null;
   sourceRef?: string | null;
+}
+
+export type InteractionJudgeStatus =
+  | "aligned"
+  | "misaligned"
+  | "skipped"
+  | "failed";
+
+export interface InteractionJudgeResult {
+  status: InteractionJudgeStatus;
+  sourceRef: string | null;
+  model: string | null;
+  aligned: boolean | null;
+  targetMaintained: boolean | null;
+  fatalMismatch: boolean | null;
+  confidence: number | null;
+  reason: string | null;
+  durationMs: number | null;
+  error: string | null;
 }
 
 export interface InteractionFailureDebugEntry {
@@ -360,6 +381,7 @@ export interface InspectorPayload {
   fallbackUsed?: boolean;
   replyRewriteSource?: string | null;
   replyRewriteReason?: string | null;
+  replyJudge?: InteractionJudgeResult | null;
   failureDebug?: InteractionFailureDebugEntry[] | null;
   interactionTrace?: InteractionTraceEntry[] | null;
   retrievedMemories: RetrievedMemoryEntry[];
@@ -395,6 +417,7 @@ export interface ChatMessage {
   fallbackUsed?: boolean;
   replyRewriteSource?: string | null;
   replyRewriteReason?: string | null;
+  replyJudge?: InteractionJudgeResult | null;
   failureDebug?: InteractionFailureDebugEntry[] | null;
   interactionTrace?: InteractionTraceEntry[] | null;
 }

@@ -50,7 +50,7 @@ type InteractionTraceTurn = {
 const SHOW_INTERACTION_FAILURE_DEBUG =
   (import.meta.env.VITE_SHOW_INTERACTION_FAILURE_DEBUG ?? "true").toLowerCase() !==
   "false";
-const ROOM_CONVERSATION_UI_VERSION = "conv-ui-2026-04-29_01-08";
+const ROOM_CONVERSATION_UI_VERSION = "conv-ui-2026-04-29_01-45-judge";
 
 function roundStatus(round: RoundState) {
   if (round.currentRound === 0) {
@@ -178,6 +178,16 @@ function formatTraceStatus(status: InteractionTraceEntry["status"]) {
     default:
       return status;
   }
+}
+
+function formatJudgeBoolean(value: boolean | null | undefined) {
+  if (value === true) {
+    return "yes";
+  }
+  if (value === false) {
+    return "no";
+  }
+  return "n/a";
 }
 
 function buildInteractionTraceTurns(
@@ -429,6 +439,39 @@ function InteractionTraceModal({
                       ) : null}
                     </div>
                   </div>
+
+                  {turn.npcMessage.replyJudge ? (
+                    <div className="mt-3 rounded-2xl border border-[var(--panel-border)] bg-[rgba(76,194,200,0.08)] px-3 py-3 text-[12px] leading-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-foreground">LLM Judge</p>
+                        <p className="text-[var(--ink-muted)]">
+                          {turn.npcMessage.replyJudge.sourceRef ?? "judge"} ·{" "}
+                          {turn.npcMessage.replyJudge.durationMs !== null
+                            ? formatTraceDuration(turn.npcMessage.replyJudge.durationMs)
+                            : "n/a"}
+                        </p>
+                      </div>
+                      <p className="mt-1 break-words text-[var(--ink-muted)]">
+                        status={turn.npcMessage.replyJudge.status} · aligned=
+                        {formatJudgeBoolean(turn.npcMessage.replyJudge.aligned)} · target=
+                        {formatJudgeBoolean(turn.npcMessage.replyJudge.targetMaintained)} · fatal=
+                        {formatJudgeBoolean(turn.npcMessage.replyJudge.fatalMismatch)}
+                        {turn.npcMessage.replyJudge.confidence !== null
+                          ? ` · confidence=${turn.npcMessage.replyJudge.confidence}`
+                          : ""}
+                      </p>
+                      {turn.npcMessage.replyJudge.reason ? (
+                        <p className="mt-1 break-words text-[var(--ink-muted)]">
+                          {turn.npcMessage.replyJudge.reason}
+                        </p>
+                      ) : null}
+                      {turn.npcMessage.replyJudge.error ? (
+                        <p className="mt-1 break-words text-[var(--danger)]">
+                          {turn.npcMessage.replyJudge.error}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {turn.traceEntries.length === 0 ? (
                     <p className="mt-3 text-sm text-[var(--ink-muted)]">

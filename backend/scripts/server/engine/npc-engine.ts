@@ -5,6 +5,7 @@ import {
 import type {
   EpisodeExportPaths,
   InteractionFailureDebugEntry,
+  InteractionJudgeResult,
   InteractionTraceEntry,
   InteractionTraceStage,
   InteractionTraceStatus,
@@ -51,6 +52,7 @@ import {
 } from "@server/engine/world-state";
 import { buildFallbackInteractionResult } from "@server/engine/fallback-interaction";
 import { maybeGenerateFinalReply } from "@server/providers/mlx-reply-adapter";
+import { maybeJudgeInteractionReply } from "@server/judge/interaction-judge";
 import { retrieveEvidenceBundle } from "@server/engine/retrieval";
 import { buildRuntimeStatus, getLlmProvider } from "@server/providers/llm-provider";
 import { maybeGenerateShadowComparison } from "@server/providers/shadow-compare";
@@ -351,6 +353,7 @@ export async function runInteractionTurn(
   let fallbackUsed = false;
   let replyRewriteSource: string | null = null;
   let replyRewriteReason: string | null = null;
+  let replyJudge: InteractionJudgeResult | null = null;
   const failureDebugEntries: InteractionFailureDebugEntry[] = [];
   let llmResult;
 
@@ -580,6 +583,52 @@ export async function runInteractionTurn(
       rewriteReason: replyRewriteReason,
     },
   };
+  const judgeTrace = startInteractionTraceStage(
+    turnStartedAtMs,
+    "reply_judge_request",
+    "semantic Judge 판정",
+    null,
+    "openai:judge",
+  );
+  replyJudge = await maybeJudgeInteractionReply({
+    contract: interactionContract,
+    replyText: llmResult.reply.text,
+  });
+  finishInteractionTraceStage(
+    interactionTraceEntries,
+    turnStartedAtMs,
+    judgeTrace,
+    replyJudge.status === "failed"
+      ? "failed"
+      : replyJudge.status === "skipped"
+        ? "skipped"
+        : "ok",
+    [
+      `status=${replyJudge.status}`,
+      replyJudge.confidence !== null ? `confidence=${replyJudge.confidence}` : null,
+      replyJudge.reason,
+      replyJudge.error,
+    ].filter(Boolean).join(" | "),
+    replyJudge.sourceRef ?? "openai:judge",
+  );
+  recordInteractionTraceStage(
+    interactionTraceEntries,
+    turnStartedAtMs,
+    "reply_judge_result",
+    "semantic Judge 결과",
+    replyJudge.status === "failed"
+      ? "failed"
+      : replyJudge.status === "skipped"
+        ? "skipped"
+        : "ok",
+    [
+      `aligned=${replyJudge.aligned}`,
+      `targetMaintained=${replyJudge.targetMaintained}`,
+      `fatalMismatch=${replyJudge.fatalMismatch}`,
+      replyJudge.durationMs !== null ? `duration=${replyJudge.durationMs}ms` : null,
+    ].filter(Boolean).join(" | "),
+    replyJudge.sourceRef ?? "openai:judge",
+  );
   const shadowWaitTrace = startInteractionTraceStage(
     turnStartedAtMs,
     "shadow_compare_wait",
@@ -765,6 +814,7 @@ export async function runInteractionTurn(
     fallbackUsed,
     replyRewriteSource,
     replyRewriteReason,
+    replyJudge,
     failureDebug: failureDebugEntries.length > 0 ? failureDebugEntries : null,
     interactionTrace:
       interactionTraceEntries.length > 0 ? interactionTraceEntries : null,
@@ -801,6 +851,7 @@ export async function runInteractionTurn(
     fallbackUsed,
     replyRewriteSource,
     replyRewriteReason,
+    replyJudge,
     failureDebug: failureDebugEntries.length > 0 ? failureDebugEntries : null,
     interactionTrace:
       interactionTraceEntries.length > 0 ? interactionTraceEntries : null,

@@ -490,6 +490,10 @@ public class RuntimeWorldService {
         if (!replyRewriteReason.isBlank()) {
             message.put("replyRewriteReason", replyRewriteReason);
         }
+        JsonNode replyJudge = entry.get("replyJudge");
+        if (replyJudge != null && !replyJudge.isNull()) {
+            message.set("replyJudge", replyJudge.deepCopy());
+        }
         JsonNode failureDebug = entry.get("failureDebug");
         if (failureDebug != null && !failureDebug.isNull()) {
             message.set("failureDebug", failureDebug.deepCopy());

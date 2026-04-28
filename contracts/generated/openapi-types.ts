@@ -442,6 +442,20 @@ export interface components {
         /** @enum {string} */
         AllowedActionType: "accuse" | "defend" | "deflect" | "appeal" | "ally" | "stall" | "probe";
         /** @enum {string} */
+        InteractionJudgeStatus: "aligned" | "misaligned" | "skipped" | "failed";
+        InteractionJudgeResult: {
+            status: components["schemas"]["InteractionJudgeStatus"];
+            sourceRef: string | null;
+            model: string | null;
+            aligned: boolean | null;
+            targetMaintained: boolean | null;
+            fatalMismatch: boolean | null;
+            confidence: number | null;
+            reason: string | null;
+            durationMs: number | null;
+            error: string | null;
+        };
+        /** @enum {string} */
         InteractionFailureDebugStage: "interaction_provider" | "interaction_validation" | "reply_rewrite";
         /** @enum {string} */
         InteractionFailureDebugKind: "provider_error" | "contract_validation" | "request_error" | "validation_error";
@@ -460,7 +474,7 @@ export interface components {
             candidateImpactTags?: components["schemas"]["ImpactTag"][];
         };
         /** @enum {string} */
-        InteractionTraceStage: "prepare_context" | "interaction_provider" | "interaction_validation" | "interaction_fallback" | "reply_rewrite_request" | "reply_rewrite_validation" | "reply_rewrite_retry_request" | "reply_rewrite_retry_validation" | "shadow_compare_wait" | "pressure_update" | "round_progress" | "autonomy_phase" | "memory_update" | "log_commit" | "dataset_export" | "turn_total";
+        InteractionTraceStage: "prepare_context" | "interaction_provider" | "interaction_validation" | "interaction_fallback" | "reply_rewrite_request" | "reply_rewrite_validation" | "reply_rewrite_retry_request" | "reply_rewrite_retry_validation" | "reply_judge_request" | "reply_judge_result" | "shadow_compare_wait" | "pressure_update" | "round_progress" | "autonomy_phase" | "memory_update" | "log_commit" | "dataset_export" | "turn_total";
         /** @enum {string} */
         InteractionTraceStatus: "ok" | "failed" | "fallback" | "skipped";
         InteractionTraceEntry: {
@@ -484,6 +498,7 @@ export interface components {
             fallbackUsed?: boolean;
             replyRewriteSource?: string | null;
             replyRewriteReason?: string | null;
+            replyJudge?: components["schemas"]["InteractionJudgeResult"] | null;
             failureDebug?: components["schemas"]["InteractionFailureDebugEntry"][] | null;
             interactionTrace?: components["schemas"]["InteractionTraceEntry"][] | null;
         };
@@ -684,6 +699,7 @@ export interface components {
             fallbackUsed?: boolean;
             replyRewriteSource?: string | null;
             replyRewriteReason?: string | null;
+            replyJudge?: components["schemas"]["InteractionJudgeResult"] | null;
             failureDebug?: components["schemas"]["InteractionFailureDebugEntry"][] | null;
             interactionTrace?: components["schemas"]["InteractionTraceEntry"][] | null;
             retrievedMemories: components["schemas"]["RetrievedMemoryEntry"][];

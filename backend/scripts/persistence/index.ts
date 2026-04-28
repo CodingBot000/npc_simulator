@@ -40,6 +40,7 @@ export interface InteractionLogEntry {
   fallbackUsed?: boolean;
   replyRewriteSource?: string | null;
   replyRewriteReason?: string | null;
+  replyJudge?: InspectorPayload["replyJudge"] | null;
   failureDebug?: InspectorPayload["failureDebug"] | null;
   interactionTrace?: InspectorPayload["interactionTrace"] | null;
   roundBefore?: number;

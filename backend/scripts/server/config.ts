@@ -47,6 +47,8 @@ type LocalReplyPromptFormat =
   | "situation_card"
   | "direct_scene"
   | "scene_state_min";
+type InteractionJudgeMode = "off" | "on";
+type InteractionJudgeEnforcement = "off" | "warn" | "retry" | "reject";
 
 export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   PROJECT_ROOT,
@@ -137,6 +139,27 @@ function parseRuntimeArtifactKind(
     return rawValue;
   }
   return defaultValue;
+}
+
+function parseInteractionJudgeMode(): InteractionJudgeMode {
+  const rawValue = getServerEnv("INTERACTION_JUDGE_MODE");
+  if (rawValue === "on" || rawValue === "off") {
+    return rawValue;
+  }
+  return "off";
+}
+
+function parseInteractionJudgeEnforcement(): InteractionJudgeEnforcement {
+  const rawValue = getServerEnv("INTERACTION_JUDGE_ENFORCEMENT");
+  if (
+    rawValue === "off" ||
+    rawValue === "warn" ||
+    rawValue === "retry" ||
+    rawValue === "reject"
+  ) {
+    return rawValue;
+  }
+  return "off";
 }
 
 function parseProviderMode(): LlmProviderMode {
@@ -328,6 +351,18 @@ export const appConfig = {
       getServerEnv("SHADOW_COMPARE_MLX_MODEL") ||
       canonicalModelConfig.localReplyMlxModelId,
     maxTokens: Number(getServerEnv("SHADOW_COMPARE_MAX_TOKENS") || "360"),
+  },
+  interactionJudge: {
+    mode: parseInteractionJudgeMode(),
+    model: getServerEnv("INTERACTION_JUDGE_MODEL") || "gpt-4.1-nano",
+    timeoutMs: Number(getServerEnv("INTERACTION_JUDGE_TIMEOUT_MS") || "4000"),
+    maxOutputTokens: Number(
+      getServerEnv("INTERACTION_JUDGE_MAX_OUTPUT_TOKENS") || "96",
+    ),
+    enforcement: parseInteractionJudgeEnforcement(),
+    confidenceThreshold: Number(
+      getServerEnv("INTERACTION_JUDGE_CONFIDENCE_THRESHOLD") || "0.8",
+    ),
   },
   npcAutonomy: {
     debugSeed: getServerEnv("NPC_AUTONOMY_DEBUG_SEED"),

@@ -612,6 +612,16 @@
             "null"
           ]
         },
+        "replyJudge": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InteractionJudgeResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "failureDebug": {
           "anyOf": [
             {
@@ -659,6 +669,90 @@
         "ally",
         "stall",
         "probe"
+      ]
+    },
+    "InteractionJudgeResult": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/InteractionJudgeStatus"
+        },
+        "sourceRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "aligned": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "targetMaintained": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "fatalMismatch": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "sourceRef",
+        "model",
+        "aligned",
+        "targetMaintained",
+        "fatalMismatch",
+        "confidence",
+        "reason",
+        "durationMs",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "InteractionJudgeStatus": {
+      "type": "string",
+      "enum": [
+        "aligned",
+        "misaligned",
+        "skipped",
+        "failed"
       ]
     },
     "InteractionFailureDebugEntry": {
@@ -825,6 +919,8 @@
         "reply_rewrite_validation",
         "reply_rewrite_retry_request",
         "reply_rewrite_retry_validation",
+        "reply_judge_request",
+        "reply_judge_result",
         "shadow_compare_wait",
         "pressure_update",
         "round_progress",
@@ -950,6 +1046,16 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "replyJudge": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InteractionJudgeResult"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "failureDebug": {
