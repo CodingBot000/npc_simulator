@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.npcsimulator.infra.bridge.BackendProcessEnvironment;
 import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
 import java.io.IOException;
 import java.io.InputStream;
@@ -2731,17 +2732,13 @@ public class ReviewService {
         try {
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(runtimeLayout.workingDirectory().toFile());
-            Map<String, String> env = builder.environment();
-            env.putIfAbsent("NPC_SIMULATOR_ROOT", runtimeLayout.projectRoot().toString());
-            if (!blank(datasourceUrl)) {
-                env.put("SPRING_DATASOURCE_URL", datasourceUrl);
-            }
-            if (!blank(datasourceUsername)) {
-                env.put("SPRING_DATASOURCE_USERNAME", datasourceUsername);
-            }
-            if (!blank(datasourcePassword)) {
-                env.put("SPRING_DATASOURCE_PASSWORD", datasourcePassword);
-            }
+            BackendProcessEnvironment.apply(
+                builder.environment(),
+                runtimeLayout,
+                datasourceUrl,
+                datasourceUsername,
+                datasourcePassword
+            );
 
             long startedAt = System.currentTimeMillis();
             Process process = builder.start();
@@ -2769,17 +2766,13 @@ public class ReviewService {
         try {
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(runtimeLayout.workingDirectory().toFile());
-            Map<String, String> env = builder.environment();
-            env.putIfAbsent("NPC_SIMULATOR_ROOT", runtimeLayout.projectRoot().toString());
-            if (!blank(datasourceUrl)) {
-                env.put("SPRING_DATASOURCE_URL", datasourceUrl);
-            }
-            if (!blank(datasourceUsername)) {
-                env.put("SPRING_DATASOURCE_USERNAME", datasourceUsername);
-            }
-            if (!blank(datasourcePassword)) {
-                env.put("SPRING_DATASOURCE_PASSWORD", datasourcePassword);
-            }
+            BackendProcessEnvironment.apply(
+                builder.environment(),
+                runtimeLayout,
+                datasourceUrl,
+                datasourceUsername,
+                datasourcePassword
+            );
             builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             builder.redirectError(ProcessBuilder.Redirect.DISCARD);
             builder.start();

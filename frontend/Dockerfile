@@ -4,6 +4,8 @@ WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/package.json
 COPY backend/scripts/package.json backend/scripts/package.json
+COPY shared/simulator-rules/package.json shared/simulator-rules/package.json
+COPY shared/simulator-presentation/package.json shared/simulator-presentation/package.json
 
 RUN npm ci
 

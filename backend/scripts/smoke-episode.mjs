@@ -4,9 +4,13 @@ import {
   ensureScriptProjectRoot,
   getScriptEnv,
 } from "./_script-runtime.mjs";
+import { DEFAULT_BASE_URL } from "./_episode-cli-helpers.mjs";
 
 const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
-const baseUrl = getScriptEnv("SMOKE_BASE_URL", PROJECT_ROOT) || "http://localhost:3000";
+const baseUrl =
+  getScriptEnv("SMOKE_BASE_URL", PROJECT_ROOT) ||
+  getScriptEnv("NPC_SIMULATOR_API_BASE_URL", PROJECT_ROOT) ||
+  DEFAULT_BASE_URL;
 const instanceId =
   getScriptEnv("SMOKE_INSTANCE_ID", PROJECT_ROOT) ||
   `smoke-${crypto.randomUUID().slice(0, 8)}`;

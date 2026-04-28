@@ -56,6 +56,28 @@ const TRAINING_BINDING_KEYS: ReviewTrainingBindingKey[] = [
   "supervisor",
   "director",
 ];
+const REVIEWER_STORAGE_KEY = "npc-simulator-reviewer";
+
+function readStoredReviewer() {
+  try {
+    return window.localStorage.getItem(REVIEWER_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function persistReviewer(value: string) {
+  try {
+    const trimmed = value.trim();
+    if (trimmed) {
+      window.localStorage.setItem(REVIEWER_STORAGE_KEY, trimmed);
+    } else {
+      window.localStorage.removeItem(REVIEWER_STORAGE_KEY);
+    }
+  } catch {
+    return;
+  }
+}
 
 function isSftItem(item: ReviewItem): item is SftReviewItemView {
   return item.kind === "sft";
@@ -1398,7 +1420,7 @@ export function ReviewDashboard({
   const [data, setData] = useState(initialData);
   const [sourceMode, setSourceMode] = useState<ReviewSourceMode>("human_required");
   const [kind, setKind] = useState<ReviewKind>("sft");
-  const [reviewer, setReviewer] = useState("switch");
+  const [reviewer, setReviewer] = useState(readStoredReviewer);
   const [finalizeStatus, setFinalizeStatus] = useState<ReviewFinalizeStatusView | null>(
     null,
   );
@@ -1418,6 +1440,10 @@ export function ReviewDashboard({
     startedAt: string;
   } | null>(null);
   const trainingPollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    persistReviewer(reviewer);
+  }, [reviewer]);
 
   const humanRequiredDataset = useMemo(
     () => filterDatasetByReviewedState(data.humanRequired, false),

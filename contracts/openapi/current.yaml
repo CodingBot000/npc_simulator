@@ -8,6 +8,9 @@ info:
     OpenAPI contract stays aligned with the TypeScript runtime models.
 servers:
   - url: http://localhost:8080
+    description: Local Spring Boot backend
+  - url: https://api.example.com
+    description: Cloud backend placeholder; replace with the AWS backend URL
 paths:
   /api/world:
     get:
@@ -25,6 +28,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorldSnapshot"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/reset:
     post:
       operationId: resetWorld
@@ -41,6 +46,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorldSnapshot"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/interact:
     post:
       operationId: interact
@@ -63,6 +70,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InteractionResponse"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/inspector:
     get:
       operationId: getInspector
@@ -79,6 +88,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InspectorResponse"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review:
     get:
       operationId: getReviewDashboard
@@ -89,6 +100,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewDashboardData"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
     patch:
       operationId: patchReviewDecision
       requestBody:
@@ -104,6 +117,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewMutationResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/finalize:
     get:
       operationId: getReviewFinalizeStatus
@@ -114,6 +129,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewFinalizeStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
     post:
       operationId: runReviewFinalize
       responses:
@@ -123,6 +140,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewFinalizeStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/training:
     get:
       operationId: getReviewTrainingStatus
@@ -133,6 +152,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
     post:
       operationId: runReviewTraining
       requestBody:
@@ -148,6 +169,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/training/evaluate:
     post:
       operationId: runReviewTrainingEvaluation
@@ -164,6 +187,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/training/decision:
     post:
       operationId: updateReviewTrainingDecision
@@ -180,6 +205,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/training/promote:
     post:
       operationId: promoteReviewTrainingRun
@@ -196,6 +223,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/pipeline:
     get:
       operationId: getReviewPipelineStatus
@@ -206,6 +235,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewPipelineStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/pipeline/judge:
     post:
       operationId: runJudgeReviewQueue
@@ -222,6 +253,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewPipelineRunResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/pipeline/prepare-human-review:
     post:
       operationId: runPrepareHumanReview
@@ -238,6 +271,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewPipelineRunResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/review/pipeline/llm-first-pass:
     post:
       operationId: runReviewLlmFirstPass
@@ -254,6 +289,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewPipelineRunResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
   /api/system/info:
     get:
       operationId: getSystemInfo
@@ -264,7 +301,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemInfo"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
 components:
+  responses:
+    ErrorResponse:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     InteractionRequest:
       $ref: "../generated/json-schema/InteractionRequest.json"
@@ -296,5 +342,7 @@ components:
       $ref: "../generated/json-schema/ReviewPipelineRunRequest.json"
     SystemInfo:
       $ref: "../generated/json-schema/SystemInfo.json"
+    ErrorResponse:
+      $ref: "../generated/json-schema/ErrorResponse.json"
     ReviewDecisionRequest:
       $ref: "../generated/json-schema/ReviewDecisionRequest.json"

@@ -7,6 +7,101 @@
       "properties": {
         "sourceMode": {
           "$ref": "#/definitions/ReviewSourceMode"
+        },
+        "mode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "heuristic",
+            "llm",
+            "hybrid",
+            null
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "codex",
+            "openai",
+            null
+          ]
+        },
+        "limit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dryRun": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "verbose": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "input": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "output": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewInput": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pairsInput": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "collectorInput": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outputDir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "skipDbSync": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "sftInput": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pairInput": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

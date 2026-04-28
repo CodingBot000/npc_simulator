@@ -1,0 +1,13 @@
+{
+  "name": "@npc-simulator/simulator-rules",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./constants": "./constants.ts",
+    "./type-sets": "./type-sets.ts",
+    "./types": "./types.ts",
+    "./utils": "./utils.ts",
+    ".": "./index.ts"
+  }
+}

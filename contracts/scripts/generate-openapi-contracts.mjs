@@ -36,6 +36,7 @@ const schemaDefinitions = [
   ["ReviewPipelineRunResult", "ContractReviewPipelineRunResult"],
   ["ReviewPipelineStatus", "ContractReviewPipelineStatus"],
   ["SystemInfo", "ContractSystemInfo"],
+  ["ErrorResponse", "ContractErrorResponse"],
 ];
 
 function writeJsonSchema(schemaName, typeName) {
@@ -85,6 +86,11 @@ for (const [schemaName, typeName] of schemaDefinitions) {
 }
 
 execFileSync(openapiTypesBin, [openapiSpecPath, "-o", openapiTypesPath], {
+  cwd: repoRoot,
+  stdio: "inherit",
+});
+
+execFileSync(process.execPath, [path.join(scriptDir, "bundle-openapi.mjs")], {
   cwd: repoRoot,
   stdio: "inherit",
 });

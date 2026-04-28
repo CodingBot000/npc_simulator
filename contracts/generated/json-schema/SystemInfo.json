@@ -19,13 +19,108 @@
           "items": {
             "type": "string"
           }
+        },
+        "deploymentMode": {
+          "type": "string"
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "configured": {
+              "type": "boolean"
+            },
+            "detail": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "configured",
+            "detail"
+          ],
+          "additionalProperties": false
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string"
+            },
+            "configured": {
+              "type": "boolean"
+            },
+            "credentialStatus": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "actionGuide": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "configured",
+            "credentialStatus",
+            "label",
+            "detail",
+            "actionGuide"
+          ],
+          "additionalProperties": false
+        },
+        "finalReply": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string"
+            },
+            "backend": {
+              "type": "string"
+            },
+            "configured": {
+              "type": "boolean"
+            },
+            "credentialStatus": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "actionGuide": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "backend",
+            "configured",
+            "credentialStatus",
+            "label",
+            "detail",
+            "actionGuide"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
         "service",
         "status",
         "phase",
-        "pendingMigrations"
+        "pendingMigrations",
+        "deploymentMode",
+        "database",
+        "provider",
+        "finalReply"
       ],
       "additionalProperties": false
     }

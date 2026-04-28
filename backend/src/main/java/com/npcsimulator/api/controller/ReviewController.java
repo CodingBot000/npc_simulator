@@ -2,9 +2,15 @@ package com.npcsimulator.api.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.npcsimulator.api.dto.ErrorResponse;
+import com.npcsimulator.api.dto.ReviewDecisionRequest;
+import com.npcsimulator.api.dto.ReviewPipelineRunRequest;
+import com.npcsimulator.api.dto.ReviewTrainingDecisionRequest;
+import com.npcsimulator.api.dto.ReviewTrainingRequest;
+import com.npcsimulator.api.dto.ReviewTrainingRunActionRequest;
 import com.npcsimulator.review.ReviewApiException;
 import com.npcsimulator.review.ReviewService;
-import java.util.Map;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -40,7 +46,7 @@ public class ReviewController {
     @PatchMapping
     public ResponseEntity<String> updateDecision(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody ReviewDecisionRequest body
     ) {
         try {
             return jsonResponse(ResponseEntity.ok(), reviewService.updateDecision(headers, body));
@@ -79,7 +85,7 @@ public class ReviewController {
     @PostMapping("/training")
     public ResponseEntity<String> runTraining(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody ReviewTrainingRequest body
     ) {
         try {
             return jsonResponse(ResponseEntity.ok(), reviewService.runTraining(headers, body));
@@ -91,7 +97,7 @@ public class ReviewController {
     @PostMapping("/training/evaluate")
     public ResponseEntity<String> runTrainingEvaluation(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody ReviewTrainingRunActionRequest body
     ) {
         try {
             return jsonResponse(ResponseEntity.ok(), reviewService.runTrainingEvaluation(headers, body));
@@ -103,7 +109,7 @@ public class ReviewController {
     @PostMapping("/training/decision")
     public ResponseEntity<String> updateTrainingDecision(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody ReviewTrainingDecisionRequest body
     ) {
         try {
             return jsonResponse(ResponseEntity.ok(), reviewService.updateTrainingDecision(headers, body));
@@ -115,7 +121,7 @@ public class ReviewController {
     @PostMapping("/training/promote")
     public ResponseEntity<String> promoteTrainingRun(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody ReviewTrainingRunActionRequest body
     ) {
         try {
             return jsonResponse(ResponseEntity.ok(), reviewService.promoteTrainingRun(headers, body));
@@ -136,10 +142,10 @@ public class ReviewController {
     @PostMapping("/pipeline/judge")
     public ResponseEntity<String> runJudgeReviewQueue(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody(required = false) ReviewPipelineRunRequest body
     ) {
         try {
-            return jsonResponse(ResponseEntity.ok(), reviewService.runJudgeReviewQueue(headers, body));
+            return jsonResponse(ResponseEntity.ok(), reviewService.runJudgeReviewQueue(headers, requestOrEmpty(body)));
         } catch (ReviewApiException error) {
             return errorResponse(error);
         }
@@ -148,10 +154,10 @@ public class ReviewController {
     @PostMapping("/pipeline/prepare-human-review")
     public ResponseEntity<String> runPrepareHumanReview(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody(required = false) ReviewPipelineRunRequest body
     ) {
         try {
-            return jsonResponse(ResponseEntity.ok(), reviewService.runPrepareHumanReview(headers, body));
+            return jsonResponse(ResponseEntity.ok(), reviewService.runPrepareHumanReview(headers, requestOrEmpty(body)));
         } catch (ReviewApiException error) {
             return errorResponse(error);
         }
@@ -160,10 +166,10 @@ public class ReviewController {
     @PostMapping("/pipeline/llm-first-pass")
     public ResponseEntity<String> runReviewLlmFirstPass(
         @RequestHeader HttpHeaders headers,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody(required = false) ReviewPipelineRunRequest body
     ) {
         try {
-            return jsonResponse(ResponseEntity.ok(), reviewService.runReviewLlmFirstPass(headers, body));
+            return jsonResponse(ResponseEntity.ok(), reviewService.runReviewLlmFirstPass(headers, requestOrEmpty(body)));
         } catch (ReviewApiException error) {
             return errorResponse(error);
         }
@@ -181,7 +187,11 @@ public class ReviewController {
     private ResponseEntity<String> errorResponse(ReviewApiException error) {
         return ResponseEntity.status(error.getStatus())
             .contentType(MediaType.APPLICATION_JSON)
-            .body(writeJson(Map.of("message", error.getMessage())));
+            .body(writeJson(new ErrorResponse(error.getMessage())));
+    }
+
+    private ReviewPipelineRunRequest requestOrEmpty(ReviewPipelineRunRequest body) {
+        return body == null ? ReviewPipelineRunRequest.empty() : body;
     }
 
     private String writeJson(Object value) {

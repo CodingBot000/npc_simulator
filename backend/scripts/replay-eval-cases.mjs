@@ -47,7 +47,7 @@ function usage() {
     "  --cases <path>                 JSON/JSONL eval case file",
     "",
     "Options:",
-    "  --base-url <url>               API base URL (default: http://localhost:3000)",
+    "  --base-url <url>               Backend API base URL (default: http://localhost:8080)",
     "  --case-id <id[,id]>            run only selected case ids",
     "  --instance-prefix <value>      prefix for isolated world instances",
     "  --output <path>                write JSONL result file",

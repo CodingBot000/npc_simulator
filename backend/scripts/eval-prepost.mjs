@@ -7,6 +7,7 @@ import {
   ensureScriptProjectRoot,
 } from "./_script-runtime.mjs";
 import {
+  DEFAULT_BASE_URL,
   getNumberOption,
   getStringOption,
   loadJsonOrJsonl,
@@ -115,8 +116,8 @@ function usage() {
     "",
     "Options:",
     "  --cases <path>                benchmark case file (default: scripts/eval-cases/prepost-benchmark.json)",
-    "  --pre-base-url <url>          pre run base URL (default: http://localhost:3000)",
-    "  --post-base-url <url>         post run base URL (default: http://localhost:3000)",
+    "  --pre-base-url <url>          pre run backend API base URL (default: http://localhost:8080)",
+    "  --post-base-url <url>         post run backend API base URL (default: http://localhost:8080)",
     "  --pre-input <path>            existing pre-run JSONL to compare instead of live replay",
     "  --post-input <path>           existing post-run JSONL to compare instead of live replay",
     "  --pre-label <name>            pre run label (default: baseline)",
@@ -974,8 +975,8 @@ async function main() {
     "cases",
     "scripts/eval-cases/prepost-benchmark.json",
   );
-  const preBaseUrl = getStringOption(options, "pre-base-url", "http://localhost:3000");
-  const postBaseUrl = getStringOption(options, "post-base-url", "http://localhost:3000");
+  const preBaseUrl = getStringOption(options, "pre-base-url", DEFAULT_BASE_URL);
+  const postBaseUrl = getStringOption(options, "post-base-url", DEFAULT_BASE_URL);
   const preInput = getStringOption(options, "pre-input", null);
   const postInput = getStringOption(options, "post-input", null);
   const preLabel = getStringOption(options, "pre-label", "baseline");
