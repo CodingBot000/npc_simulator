@@ -2,21 +2,28 @@
   "name": "npc-simulator-monorepo",
   "private": true,
   "workspaces": [
-    "frontend"
+    "frontend",
+    "backend/scripts"
   ],
   "devDependencies": {
+    "openapi-typescript": "^7.10.1",
+    "ts-json-schema-generator": "^2.4.0",
+    "tslib": "^2.8.1",
     "tsx": "^4.20.6"
   },
   "scripts": {
     "dev": "npm --workspace frontend run dev",
     "build": "npm --workspace frontend run build",
     "start": "npm --workspace frontend run start",
-    "lint": "npm --workspace frontend run lint",
+    "lint": "npm --workspace frontend run lint && npm --workspace @npc-simulator/backend-scripts run lint:layers && npm --workspace @npc-simulator/backend-scripts run lint:env && npm --workspace @npc-simulator/backend-scripts run lint:root-scripts",
     "typecheck": "npm --workspace frontend run typecheck",
+    "generate:openapi-contracts": "node contracts/scripts/generate-openapi-contracts.mjs",
+    "test:autonomy": "npm --workspace @npc-simulator/backend-scripts run test:autonomy",
     "browser:install": "npm --workspace frontend run browser:install",
     "browser:cdp": "npm --workspace frontend run browser:cdp",
     "browser:cdp:check": "npm --workspace frontend run browser:cdp:check",
     "browser:capture": "npm --workspace frontend run browser:capture",
+    "smoke:separated-deploy": "npm --workspace @npc-simulator/frontend run build && node frontend/scripts/smoke/separated-deployment.mjs",
     "smoke:episode": "node backend/scripts/smoke-episode.mjs",
     "collect:episodes": "node backend/scripts/collect-episodes.mjs",
     "replay:eval": "node backend/scripts/replay-eval-cases.mjs",
@@ -26,7 +33,8 @@
     "review:prepare": "node backend/scripts/prepare-human-review.mjs",
     "finalize:sft": "node backend/scripts/finalize-sft-dataset.mjs",
     "finalize:preference": "node backend/scripts/finalize-preference-dataset.mjs",
-    "review:deploy:runpod": "tsx backend/scripts/review-deploy-runpod.ts",
+    "review:deploy:runpod": "npm --workspace @npc-simulator/backend-scripts run review:deploy:runpod",
+    "review:deploy:baseten": "npm --workspace @npc-simulator/backend-scripts run review:deploy:baseten",
     "export:mlx-sft": "node backend/scripts/export-mlx-sft-dataset.mjs",
     "export:mlx-sft:compact": "node backend/scripts/export-mlx-sft-dataset.mjs --output-dir data/train/mlx_sft_compact --input-format compact --assistant-format reply_text",
     "export:mlx-sft:reply": "node backend/scripts/export-mlx-sft-dataset.mjs --output-dir data/train/mlx_sft_reply --input-format compact --assistant-format reply_text",

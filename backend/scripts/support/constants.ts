@@ -1,0 +1,22 @@
+export {
+  DEFAULT_PLAYER_ID,
+  DEFAULT_PLAYER_LABEL,
+  EMOTION_LABELS,
+  MAX_CONVERSATION_MESSAGES,
+  MAX_EVENT_LOG_ENTRIES,
+  MAX_LONG_MEMORIES,
+  MAX_RETRIEVED_KNOWLEDGE,
+  MAX_RETRIEVED_MEMORIES,
+  MAX_SHORT_MEMORIES,
+  NPC_ACTION_LABELS,
+  PLAYER_ACTION_DESCRIPTIONS,
+  PLAYER_ACTION_LABELS,
+  PLAYER_ACTION_TARGET_MODES,
+  PRESSURE_DIMENSION_LABELS,
+} from "@sim-shared/constants";
+
+export const DATA_FILES = {
+  worldState: "world-state.json",
+  interactionLog: "interaction-log.json",
+  npcMemory: "npc-memory.json",
+} as const;

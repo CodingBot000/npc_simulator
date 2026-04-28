@@ -14,8 +14,15 @@
  * Last updated: 2026-04-09
  */
 
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
-import type { CandidateId, ConsensusBoardEntry, PlayerAction, RelationshipDelta } from "@/lib/types";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
+import type {
+  CandidateId,
+  ConsensusBoardEntry,
+  RelationshipDelta,
+} from "@backend-contracts/api";
+import type {
+  PlayerAction,
+} from "@sim-shared/types";
 import { ACCUSATORY_ACTIONS, ACTION_PRESSURE_RULES, BASE_RELATIONSHIP_DELTAS } from "@server/engine/action-rules";
 import { EVALUATOR_REACTION_PROFILES } from "@server/engine/bias-profiles";
 import {

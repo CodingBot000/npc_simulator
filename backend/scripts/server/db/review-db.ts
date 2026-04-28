@@ -17,7 +17,7 @@ import type {
   ReviewTrainingStatusView,
   SftReviewDecision,
   SftReviewItemView,
-} from "@/lib/review-types";
+} from "@backend-contracts/review";
 import { DATA_DIR, PROJECT_ROOT } from "@server/config";
 import { dbQuery, withDbTransaction } from "@server/db/postgres";
 
@@ -1898,6 +1898,7 @@ export interface TrainingRunSpecRecord {
   runId: string;
   kind: ReviewTrainingKind;
   trainingBackend: ReviewTrainingBackend;
+  canonicalModelFamily: string | null;
   fingerprint: string;
   sourceFingerprint: string;
   sourceDatasetVersion: string | null;
@@ -1935,6 +1936,7 @@ export async function createTrainingRunInDb(params: {
   runUid: string;
   kind: ReviewTrainingKind;
   trainingBackend: ReviewTrainingBackend;
+  canonicalModelFamily: string | null;
   state: "running";
   currentStep: ReviewTrainingRunView["currentStep"];
   message: string;
@@ -1981,6 +1983,7 @@ export async function createTrainingRunInDb(params: {
       remote_model_name: params.remoteModelName ?? null,
       dataset_work_dir: params.datasetDir,
       params_json: {
+        canonicalModelFamily: params.canonicalModelFamily,
         sourceDatasetVersion: params.sourceDatasetVersion,
         parentRunUid: params.parentRunUid,
         logPath: params.logPath,
@@ -2028,6 +2031,7 @@ export async function getTrainingRunSpecFromDb(
     kind: (row.run_kind as ReviewTrainingKind) ?? "sft",
     trainingBackend:
       (row.training_backend as ReviewTrainingBackend | null) ?? "local_peft",
+    canonicalModelFamily: asString(params.canonicalModelFamily),
     fingerprint: row.run_fingerprint ?? "",
     sourceFingerprint: row.source_fingerprint ?? "",
     sourceDatasetVersion: asString(params.sourceDatasetVersion),

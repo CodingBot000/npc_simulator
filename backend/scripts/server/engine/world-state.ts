@@ -1,14 +1,18 @@
-import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@/lib/constants";
+import { MAX_CONVERSATION_MESSAGES, MAX_EVENT_LOG_ENTRIES } from "@backend-support/constants";
+import type { WorldSnapshot } from "@backend-contracts/api";
 import type {
   ChatMessage,
   EventLogEntry,
-  InteractionLogEntry,
   MemoryEntry,
+  PressureChange,
+  ResolutionState,
   RuntimeStatus,
-  WorldSnapshot,
+} from "@backend-contracts/api";
+import type {
+  InteractionLogEntry,
   WorldStateFile,
-} from "@/lib/types";
-import { formatDimensionDelta, groupBy } from "@/lib/utils";
+} from "@backend-persistence";
+import { formatDimensionDelta, groupBy } from "@backend-support/utils";
 import { buildConsensusBoard } from "@server/engine/pressure-engine";
 import { buildRuntimeStatus } from "@server/providers/llm-provider";
 import { getCurrentScenario } from "@server/scenario";
@@ -34,6 +38,11 @@ function interactionToMessages(entry: InteractionLogEntry): ChatMessage[] {
       timestamp: entry.timestamp,
       action: entry.selectedAction,
       fallbackUsed: entry.fallbackUsed ?? false,
+      replyRewriteSource: entry.replyRewriteSource ?? null,
+      replyRewriteReason: entry.replyRewriteReason ?? null,
+      replyJudge: entry.replyJudge ?? null,
+      failureDebug: entry.failureDebug ?? null,
+      interactionTrace: entry.interactionTrace ?? null,
     },
   ];
 }
@@ -58,8 +67,8 @@ export function composeInteractionEventLogEntry(params: {
   selectedActionLabel: string;
   promptSummary: string;
   targetLabel: string | null;
-  pressureChanges: import("@/lib/types").PressureChange[];
-  resolution: import("@/lib/types").ResolutionState;
+  pressureChanges: PressureChange[];
+  resolution: ResolutionState;
 }) {
   const tone: EventLogEntry["tone"] = params.resolution.resolved
     ? "danger"
@@ -104,7 +113,7 @@ export function composeRoundEventLogEntry(params: {
     timestamp: new Date().toISOString(),
     title: params.title,
     detail: params.detail,
-    tags: params.tags,
+    tags: [...params.tags],
     npcId: "system",
     tone: params.tone,
   } satisfies EventLogEntry;

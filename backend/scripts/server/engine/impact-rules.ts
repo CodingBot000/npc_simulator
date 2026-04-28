@@ -1,11 +1,13 @@
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type {
   CandidateId,
-  ImpactTag,
-  JudgementDimensions,
   RelationshipDelta,
   StructuredImpactInference,
-} from "@/lib/types";
+} from "@backend-contracts/api";
+import type {
+  ImpactTag,
+  JudgementDimensions,
+} from "@sim-shared/types";
 
 type DimensionDelta = Partial<JudgementDimensions>;
 

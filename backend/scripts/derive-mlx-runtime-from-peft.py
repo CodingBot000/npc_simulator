@@ -9,6 +9,7 @@ def build_parser():
         description="Derive an MLX runtime artifact from a PEFT adapter."
     )
     parser.add_argument("--model", required=True)
+    parser.add_argument("--canonical-model-family")
     parser.add_argument("--runtime-base-model")
     parser.add_argument("--adapter-dir", required=True)
     parser.add_argument("--output-dir", required=True)
@@ -52,6 +53,7 @@ def main():
         )
 
     manifest = {
+        "canonicalModelFamily": args.canonical_model_family,
         "baseModelId": args.model,
         "runtimeBaseModelId": args.runtime_base_model,
         "canonicalArtifact": {

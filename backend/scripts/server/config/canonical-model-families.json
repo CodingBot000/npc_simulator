@@ -1,0 +1,12 @@
+{
+  "defaultFamily": "llama31_8b_instruct",
+  "families": {
+    "llama31_8b_instruct": {
+      "displayName": "Llama 3.1 8B Instruct",
+      "localTrainingBaseModelId": "unsloth/Meta-Llama-3.1-8B-Instruct",
+      "localReplyMlxModelId": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "remoteTrainingBaseModelId": "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference",
+      "localReplyRuntimeFamily": "llama"
+    }
+  }
+}

@@ -1,0 +1,686 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewTrainingStatusView",
+  "definitions": {
+    "ReviewTrainingStatusView": {
+      "type": "object",
+      "properties": {
+        "activeRun": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingRunView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latestRun": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingRunView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sft": {
+          "$ref": "#/definitions/ReviewTrainingPreflightView"
+        },
+        "dpo": {
+          "$ref": "#/definitions/ReviewTrainingPreflightView"
+        }
+      },
+      "required": [
+        "activeRun",
+        "latestRun",
+        "sft",
+        "dpo"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingRunView": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/ReviewTrainingKind"
+        },
+        "trainingBackend": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingBackend"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "succeeded",
+            "failed"
+          ]
+        },
+        "currentStep": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "build_dataset",
+            "upload_remote_files",
+            "train_sft",
+            "train_dpo",
+            "wait_remote_training",
+            "derive_runtime",
+            null
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finishedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceFingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceDatasetVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parentRunId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "baseModelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "datasetDir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adapterPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtimeArtifactPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtimeArtifactKind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingRuntimeArtifactKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remoteProvider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remoteJobId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remoteTrainingFileId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remoteValidationFileId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remoteModelName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durations": {
+          "$ref": "#/definitions/ReviewTrainingDurationsView"
+        },
+        "evaluation": {
+          "$ref": "#/definitions/ReviewTrainingEvaluationView"
+        },
+        "decision": {
+          "$ref": "#/definitions/ReviewTrainingDecisionView"
+        },
+        "promotion": {
+          "$ref": "#/definitions/ReviewTrainingPromotionView"
+        }
+      },
+      "required": [
+        "runId",
+        "kind",
+        "trainingBackend",
+        "state",
+        "currentStep",
+        "message",
+        "startedAt",
+        "finishedAt",
+        "updatedAt",
+        "fingerprint",
+        "sourceFingerprint",
+        "sourceDatasetVersion",
+        "parentRunId",
+        "baseModelId",
+        "datasetDir",
+        "adapterPath",
+        "runtimeArtifactPath",
+        "runtimeArtifactKind",
+        "remoteProvider",
+        "remoteJobId",
+        "remoteTrainingFileId",
+        "remoteValidationFileId",
+        "remoteModelName",
+        "logPath",
+        "durations",
+        "evaluation",
+        "decision",
+        "promotion"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingKind": {
+      "type": "string",
+      "enum": [
+        "sft",
+        "dpo"
+      ]
+    },
+    "ReviewTrainingBackend": {
+      "type": "string",
+      "enum": [
+        "local_peft",
+        "together_serverless_lora",
+        "smoke"
+      ]
+    },
+    "ReviewTrainingRuntimeArtifactKind": {
+      "type": "string",
+      "enum": [
+        "mlx_adapter",
+        "mlx_fused_model",
+        "legacy_mlx_adapter"
+      ]
+    },
+    "ReviewTrainingDurationsView": {
+      "type": "object",
+      "properties": {
+        "buildMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "trainMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "buildMs",
+        "trainMs",
+        "totalMs"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingEvaluationView": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "running",
+            "succeeded",
+            "failed"
+          ]
+        },
+        "bindingKey": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingBindingKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "benchmarkId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "baselineLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summaryPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finishedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recommendation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "promote",
+            "hold",
+            null
+          ]
+        },
+        "winnerCounts": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingEvalWinnerCountsView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "baselineNaturalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidateNaturalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "baselinePersonaFit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidatePersonaFit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "baselineAntiMeta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidateAntiMeta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "bindingKey",
+        "benchmarkId",
+        "baselineLabel",
+        "summaryPath",
+        "message",
+        "startedAt",
+        "finishedAt",
+        "recommendation",
+        "winnerCounts",
+        "baselineNaturalness",
+        "candidateNaturalness",
+        "baselinePersonaFit",
+        "candidatePersonaFit",
+        "baselineAntiMeta",
+        "candidateAntiMeta",
+        "confidence"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingBindingKey": {
+      "type": "string",
+      "enum": [
+        "default",
+        "doctor",
+        "supervisor",
+        "director"
+      ]
+    },
+    "ReviewTrainingEvalWinnerCountsView": {
+      "type": "object",
+      "properties": {
+        "baseline": {
+          "type": "number"
+        },
+        "candidate": {
+          "type": "number"
+        },
+        "tie": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "baseline",
+        "candidate",
+        "tie"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingDecisionView": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "accepted",
+            "rejected"
+          ]
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "reviewer",
+        "notes",
+        "decidedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingPromotionView": {
+      "type": "object",
+      "properties": {
+        "isPromoted": {
+          "type": "boolean"
+        },
+        "bindingKey": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingBindingKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "promotedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "isPromoted",
+        "bindingKey",
+        "promotedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingPreflightView": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/ReviewTrainingKind"
+        },
+        "canStart": {
+          "type": "boolean"
+        },
+        "alreadyTrained": {
+          "type": "boolean"
+        },
+        "duplicateRunId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parentRunId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adapterPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sftFingerprintRelation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "match",
+            "mismatch",
+            null
+          ]
+        },
+        "executionMode": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingExecutionMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trainingBackend": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReviewTrainingBackend"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockingIssues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dataset": {
+          "$ref": "#/definitions/ReviewTrainingDatasetView"
+        }
+      },
+      "required": [
+        "kind",
+        "canStart",
+        "alreadyTrained",
+        "duplicateRunId",
+        "parentRunId",
+        "adapterPath",
+        "sftFingerprintRelation",
+        "executionMode",
+        "trainingBackend",
+        "blockingIssues",
+        "dataset"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewTrainingExecutionMode": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ReviewTrainingBackend"
+        },
+        {
+          "type": "string",
+          "const": "needs_new_sft"
+        },
+        {
+          "type": "string",
+          "const": "reuse_existing_sft"
+        },
+        {
+          "type": "string",
+          "const": "unsupported"
+        }
+      ]
+    },
+    "ReviewTrainingDatasetView": {
+      "type": "object",
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "manifestPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "datasetVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rowCount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "exists",
+        "manifestPath",
+        "datasetVersion",
+        "fingerprint",
+        "rowCount"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

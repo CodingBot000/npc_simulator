@@ -3,6 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import {
+  buildScriptSpawnEnv,
+  ensureScriptProjectRoot,
+} from "./_script-runtime.mjs";
+import {
   getNumberOption,
   getStringOption,
   loadJsonOrJsonl,
@@ -14,6 +18,8 @@ import {
   runStructuredLlmJudge,
   writeJsonLines,
 } from "./_quality-judge-helpers.mjs";
+
+const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
 
 const NPC_CUE_TERMS = {
   engineer: ["현장", "수리", "복구", "케이블", "장비", "밸브", "시스템", "버텨"],
@@ -200,8 +206,8 @@ function normalizeCases(payload, sourceLabel) {
 async function runNodeProcess(args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, {
-      cwd: process.cwd(),
-      env: process.env,
+      cwd: PROJECT_ROOT,
+      env: buildScriptSpawnEnv(PROJECT_ROOT),
       stdio: options.verbose ? "inherit" : "pipe",
     });
 

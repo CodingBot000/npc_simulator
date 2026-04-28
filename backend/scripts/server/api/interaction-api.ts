@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { playerActions, type InteractionRequestPayload } from "@/lib/types";
+import type { InteractionRequestPayload } from "@backend-contracts/api";
+import { playerActions } from "@sim-shared/type-sets";
 import { interactWithNpc } from "@server/engine/npc-engine";
 import { getApiErrorStatus } from "@server/errors";
 import { getWorldInstanceIdFromHeaders, type HeaderBag } from "@server/api/headers";

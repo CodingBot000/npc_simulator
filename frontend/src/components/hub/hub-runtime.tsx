@@ -1,14 +1,8 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { HubClient } from "@/components/hub/hub-client";
 import { Panel } from "@/components/ui/panel";
-import { buildClientApiUrl } from "@/lib/api-client";
+import { apiGetWorld } from "@/lib/api-client";
 import type { WorldSnapshot } from "@/lib/types";
-
-function isWorldError(payload: unknown): payload is { message?: string } {
-  return typeof payload === "object" && payload !== null && "message" in payload;
-}
 
 function HubLoadingState() {
   return (
@@ -73,23 +67,11 @@ export function HubRuntime() {
       setError(null);
 
       try {
-        const response = await fetch(buildClientApiUrl("/api/world"), {
+        const payload = await apiGetWorld({
           cache: "no-store",
           signal: controller.signal,
         });
-        const payload = (await response.json()) as
-          | WorldSnapshot
-          | { message?: string };
-
-        if (!response.ok) {
-          throw new Error(
-            isWorldError(payload)
-              ? payload.message || "월드 데이터를 불러오지 못했습니다."
-              : "월드 데이터를 불러오지 못했습니다.",
-          );
-        }
-
-        setWorld(payload as WorldSnapshot);
+        setWorld(payload);
       } catch (loadError) {
         if (controller.signal.aborted) {
           return;

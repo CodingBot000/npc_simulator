@@ -1,8 +1,9 @@
-FROM node:22-bookworm-slim AS node-deps
+FROM node:22-trixie-slim AS node-deps
 WORKDIR /workspace
 
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/package.json
+COPY backend/scripts/package.json backend/scripts/package.json
 
 RUN npm ci
 
@@ -17,19 +18,28 @@ COPY backend/src src
 RUN chmod +x gradlew
 RUN ./gradlew --no-daemon bootJar
 
-FROM node:22-bookworm-slim
+FROM node:22-trixie-slim
 WORKDIR /workspace
+
+ARG INSTALL_CODEX_CLI=false
+ARG CODEX_CLI_NPM_SPEC=@openai/codex@0.125.0
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
+  && if [ "$INSTALL_CODEX_CLI" = "true" ]; then npm install -g "$CODEX_CLI_NPM_SPEC"; fi \
+  && mkdir -p /root/.codex-docker \
   && rm -rf /var/lib/apt/lists/*
 
 ENV SPRING_PROFILES_ACTIVE=prod
 ENV NPC_SIMULATOR_ROOT=/workspace
+ENV NPC_SIMULATOR_WORKDIR=/workspace
+ENV NPC_SIMULATOR_SCRIPTS_ROOT=/workspace/backend/scripts
+ENV NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
+ENV NPC_SIMULATOR_DATA_ROOT=/workspace/data
+ENV NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 
 COPY --from=node-deps /workspace/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
-COPY frontend frontend
 COPY backend/scripts backend/scripts
 COPY data data
 COPY --from=build /workspace/backend/build/libs/*.jar /app/app.jar

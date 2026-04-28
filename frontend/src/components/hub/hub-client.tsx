@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import { EventLog } from "@/components/hub/event-log";
 import { InteractionPanel } from "@/components/hub/interaction-panel";
@@ -11,21 +9,21 @@ import { StickySummaryHeader } from "@/components/hub/sticky-summary-header";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
-import { buildClientApiUrl } from "@/lib/api-client";
+import { apiGetWorld, apiInteract, apiResetWorld } from "@/lib/api-client";
 import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
 import type {
   ChatMessage,
+  InteractionRequestPayload,
   InteractionResponsePayload,
   PlayerAction,
   WorldSnapshot,
 } from "@/lib/types";
-import { formatPlayerConversationText, nowIso } from "@/lib/utils";
-
-function isApiError(
-  payload: InteractionResponsePayload | WorldSnapshot | { message?: string },
-): payload is { message?: string } {
-  return "message" in payload;
-}
+import {
+  formatPlayerConversationText,
+  hasScenarioScoring,
+  mergeWorldSnapshotScoring,
+  nowIso,
+} from "@/lib/utils";
 
 interface HubClientProps {
   initialWorld: WorldSnapshot;
@@ -34,6 +32,32 @@ interface HubClientProps {
 interface PendingConversationTurn {
   npcId: string;
   playerMessage: ChatMessage;
+  startedAtMs: number;
+}
+
+type LocalConversationMessage = ChatMessage & {
+  deliveryStatus?: "failed";
+};
+
+function findLatestNpcReplyMessage(
+  conversation: ChatMessage[],
+  replyText: string,
+  previousMessageIds: Set<string>,
+) {
+  return (
+    [...conversation]
+      .reverse()
+      .find(
+        (message) =>
+          message.speaker === "npc" &&
+          message.text === replyText &&
+          !previousMessageIds.has(message.id),
+      ) ??
+    [...conversation]
+      .reverse()
+      .find((message) => message.speaker === "npc" && !previousMessageIds.has(message.id)) ??
+    null
+  );
 }
 
 export function HubClient({ initialWorld }: HubClientProps) {
@@ -56,11 +80,17 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
   const [pendingConversationTurn, setPendingConversationTurn] =
     useState<PendingConversationTurn | null>(null);
+  const [localConversationMessagesByNpcId, setLocalConversationMessagesByNpcId] =
+    useState<Record<string, LocalConversationMessage[]>>({});
+  const [replyElapsedByMessageId, setReplyElapsedByMessageId] = useState<
+    Record<string, number>
+  >({});
   const [showStickySummary, setShowStickySummary] = useState(false);
   const [stickyPinned, setStickyPinned] = useState(false);
   const [gameOverOpen, setGameOverOpen] = useState(
     initialWorld.resolution.resolved,
   );
+  const scoringRecoveryAttemptedRef = useRef(hasScenarioScoring(initialWorld.scoring));
   const summarySectionRef = useRef<HTMLDivElement | null>(null);
   const allowDevTools =
     typeof window !== "undefined" &&
@@ -86,15 +116,16 @@ export function HubClient({ initialWorld }: HubClientProps) {
     pendingConversationTurn?.npcId === selectedNpc.persona.id
       ? [pendingConversationTurn.playerMessage]
       : [];
+  const localConversationForSelectedNpc =
+    localConversationMessagesByNpcId[selectedNpc.persona.id] ?? [];
   const conversation = [
     ...baseConversation,
+    ...localConversationForSelectedNpc,
     ...pendingConversationForSelectedNpc,
-  ];
+  ].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
   const waitingForSelectedNpcReply =
     interactionBusy && pendingConversationTurn?.npcId === selectedNpc.persona.id;
-  const stickyConsensusEntries = world.consensusBoard
-    .filter((entry) => entry.candidateId !== DEFAULT_PLAYER_ID)
-    .slice(0, world.npcs.length);
+  const stickyConsensusEntries = world.consensusBoard.slice(0, world.npcs.length + 1);
 
   useEffect(() => {
     if (selectedTargetId === selectedNpc.persona.id) {
@@ -107,6 +138,34 @@ export function HubClient({ initialWorld }: HubClientProps) {
       setGameOverOpen(true);
     }
   }, [world.resolution.resolved]);
+
+  useEffect(() => {
+    if (hasScenarioScoring(world.scoring) || scoringRecoveryAttemptedRef.current) {
+      return;
+    }
+
+    scoringRecoveryAttemptedRef.current = true;
+    const controller = new AbortController();
+
+    async function recoverScoring() {
+      try {
+        const payload = await apiGetWorld({
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        setWorld((current) =>
+          mergeWorldSnapshotScoring(payload, current.scoring),
+        );
+      } catch {
+        // Keep the generic fallback text when recovery fails.
+      }
+    }
+
+    void recoverScoring();
+
+    return () => controller.abort();
+  }, [world.scoring]);
 
   useEffect(() => {
     const target = summarySectionRef.current;
@@ -136,70 +195,103 @@ export function HubClient({ initialWorld }: HubClientProps) {
     text: string;
   }) {
     const timestamp = nowIso();
+    const requestStartedAtMs = Date.now();
+    const previousMessageIds = new Set(baseConversation.map((message) => message.id));
     const pendingTargetLabel =
       selectedTargetId
         ? targetOptions.find((option) => option.id === selectedTargetId)?.label ??
           DEFAULT_PLAYER_LABEL
         : null;
+    const pendingPlayerMessage: ChatMessage = {
+      id: `pending-${crypto.randomUUID()}`,
+      npcId: selectedNpc.persona.id,
+      speaker: "player",
+      text: formatPlayerConversationText({
+        text: payload.text,
+        action: payload.action,
+        targetLabel: pendingTargetLabel,
+      }),
+      timestamp,
+      action: payload.action,
+    };
     setBusy(true);
     setInteractionBusy(true);
     setError(null);
     setDraftWarning(null);
     setPendingConversationTurn({
       npcId: selectedNpc.persona.id,
-      playerMessage: {
-        id: `pending-${crypto.randomUUID()}`,
-        npcId: selectedNpc.persona.id,
-        speaker: "player",
-        text: formatPlayerConversationText({
-          text: payload.text,
-          action: payload.action,
-          targetLabel: pendingTargetLabel,
-        }),
-        timestamp,
-        action: payload.action,
-      },
+      startedAtMs: requestStartedAtMs,
+      playerMessage: pendingPlayerMessage,
     });
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/interact"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          npcId: selectedNpc.persona.id,
-          targetNpcId: selectedTargetId,
-          inputMode: payload.inputMode,
-          text: payload.text,
-          action: payload.action,
-          playerId: DEFAULT_PLAYER_ID,
-        }),
-      });
+      const requestBody: InteractionRequestPayload = {
+        npcId: selectedNpc.persona.id,
+        targetNpcId: selectedTargetId,
+        inputMode: payload.inputMode,
+        text: payload.text,
+        action: payload.action,
+        playerId: DEFAULT_PLAYER_ID,
+      };
+      const responsePayload = await apiInteract(requestBody);
+      const updatedConversation =
+        responsePayload.world.conversations[selectedNpc.persona.id] ?? [];
+      const replyMessage = findLatestNpcReplyMessage(
+        updatedConversation,
+        responsePayload.reply.text,
+        previousMessageIds,
+      );
 
-      const data = (await response.json()) as
-        | InteractionResponsePayload
-        | { message?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          isApiError(data)
-            ? data.message || "상호작용 처리에 실패했습니다."
-            : "상호작용 처리에 실패했습니다.",
-        );
+      if (replyMessage) {
+        setReplyElapsedByMessageId((current) => ({
+          ...current,
+          [replyMessage.id]: Date.now() - requestStartedAtMs,
+        }));
       }
 
-      setWorld((data as InteractionResponsePayload).world);
-      setLastOutcome(data as InteractionResponsePayload);
+      setWorld((current) =>
+        mergeWorldSnapshotScoring(
+          responsePayload.world,
+          current.scoring,
+        ),
+      );
+      setLastOutcome(responsePayload);
       setPendingConversationTurn(null);
       setDraft("");
     } catch (fetchError) {
-      setPendingConversationTurn(null);
-      setError(
+      const failedReplyId = `failed-${crypto.randomUUID()}`;
+      const failedAt = nowIso();
+      const errorMessage =
         fetchError instanceof Error
           ? fetchError.message
-          : "상호작용 처리에 실패했습니다.",
-      );
+          : "상호작용 처리에 실패했습니다.";
+
+      setLocalConversationMessagesByNpcId((current) => {
+        const existing = current[selectedNpc.persona.id] ?? [];
+        const failedMessages: LocalConversationMessage[] = [
+          pendingPlayerMessage,
+          {
+            id: failedReplyId,
+            npcId: selectedNpc.persona.id,
+            speaker: "npc",
+            text: `답변 생성에 실패했습니다. ${errorMessage}`,
+            timestamp: failedAt,
+            action: null,
+            deliveryStatus: "failed",
+          },
+        ];
+
+        return {
+          ...current,
+          [selectedNpc.persona.id]: [...existing, ...failedMessages].slice(-10),
+        };
+      });
+      setReplyElapsedByMessageId((current) => ({
+        ...current,
+        [failedReplyId]: Date.now() - requestStartedAtMs,
+      }));
+      setPendingConversationTurn(null);
+      setError(errorMessage);
     } finally {
       setInteractionBusy(false);
       setBusy(false);
@@ -211,27 +303,18 @@ export function HubClient({ initialWorld }: HubClientProps) {
     setError(null);
 
     try {
-      const response = await fetch(buildClientApiUrl("/api/reset"), {
-        method: "POST",
-      });
-      const data = (await response.json()) as WorldSnapshot | { message?: string };
+      const data = await apiResetWorld();
 
-      if (!response.ok) {
-        throw new Error(
-          isApiError(data)
-            ? data.message || "상태 초기화에 실패했습니다."
-            : "상태 초기화에 실패했습니다.",
-        );
-      }
-
-      setWorld(data as WorldSnapshot);
-      setSelectedNpcId((data as WorldSnapshot).npcs[0]?.persona.id ?? "");
+      setWorld((current) =>
+        mergeWorldSnapshotScoring(data, current.scoring),
+      );
+      setSelectedNpcId(data.npcs[0]?.persona.id ?? "");
       setSelectedTargetId(
-        (data as WorldSnapshot).npcs[1]?.persona.id ??
-          (data as WorldSnapshot).npcs[0]?.persona.id ??
-          null,
+        data.npcs[1]?.persona.id ?? data.npcs[0]?.persona.id ?? null,
       );
       setPendingConversationTurn(null);
+      setLocalConversationMessagesByNpcId({});
+      setReplyElapsedByMessageId({});
       setLastOutcome(null);
       setDraft("");
       setDraftWarning(null);
@@ -349,6 +432,12 @@ export function HubClient({ initialWorld }: HubClientProps) {
                 draft={draft}
                 busy={busy}
                 waitingForReply={waitingForSelectedNpcReply}
+                pendingReplyStartedAtMs={
+                  pendingConversationTurn?.npcId === selectedNpc.persona.id
+                    ? pendingConversationTurn.startedAtMs
+                    : null
+                }
+                replyElapsedByMessageId={replyElapsedByMessageId}
                 subtitle={world.presentation.interactionSubtitle}
                 placeholder={world.presentation.interactionPlaceholder}
                 availableActions={world.availableActions}

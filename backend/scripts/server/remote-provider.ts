@@ -17,6 +17,11 @@ export type ParsedRemoteProviderRef =
       endpointId: string;
     }
   | {
+      kind: "baseten";
+      raw: string;
+      modelId: string;
+    }
+  | {
       kind: "unknown";
       raw: string;
     };
@@ -27,6 +32,14 @@ export function buildRunpodRemoteProvider(endpointId: string) {
     throw new Error("Runpod endpointId is required.");
   }
   return `runpod:${trimmed}`;
+}
+
+export function buildBasetenRemoteProvider(modelId: string) {
+  const trimmed = trimToNull(modelId);
+  if (!trimmed) {
+    throw new Error("Baseten modelId is required.");
+  }
+  return `baseten:${trimmed}`;
 }
 
 export function parseRemoteProviderRef(rawValue: string | null | undefined): ParsedRemoteProviderRef | null {
@@ -50,6 +63,16 @@ export function parseRemoteProviderRef(rawValue: string | null | undefined): Par
       };
     }
   }
+  if (raw.startsWith("baseten:")) {
+    const modelId = trimToNull(raw.slice("baseten:".length));
+    if (modelId) {
+      return {
+        kind: "baseten",
+        raw,
+        modelId,
+      };
+    }
+  }
   return {
     kind: "unknown",
     raw,
@@ -62,4 +85,8 @@ export function isTogetherRemoteProvider(rawValue: string | null | undefined) {
 
 export function isRunpodRemoteProvider(rawValue: string | null | undefined) {
   return parseRemoteProviderRef(rawValue)?.kind === "runpod";
+}
+
+export function isBasetenRemoteProvider(rawValue: string | null | undefined) {
+  return parseRemoteProviderRef(rawValue)?.kind === "baseten";
 }

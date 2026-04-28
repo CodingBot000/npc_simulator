@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PROJECT_ROOT } from "@server/config";
-
-const DEFAULT_TOGETHER_API_BASE_URL = "https://api.together.xyz/v1";
+import { togetherServiceConfig } from "@server/config/together-service";
 
 type RawRecord = Record<string, unknown>;
 
@@ -56,8 +54,6 @@ type TogetherChatResponse = {
   }>;
 };
 
-let localEnvPromise: Promise<Map<string, string>> | null = null;
-
 function trimToNull(value: string | null | undefined) {
   if (typeof value !== "string") {
     return null;
@@ -66,70 +62,11 @@ function trimToNull(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
-function togetherApiBaseUrl() {
-  return trimToNull(process.env.TOGETHER_API_BASE_URL) ?? DEFAULT_TOGETHER_API_BASE_URL;
-}
-
-function parseEnvValue(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return "";
-  }
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-async function readLocalEnvFile() {
-  if (!localEnvPromise) {
-    localEnvPromise = (async () => {
-      const values = new Map<string, string>();
-      const envPath = path.join(PROJECT_ROOT, ".env.local");
-      let raw = "";
-      try {
-        raw = await fs.readFile(envPath, "utf8");
-      } catch {
-        return values;
-      }
-
-      for (const line of raw.split(/\r?\n/u)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) {
-          continue;
-        }
-        const separatorIndex = trimmed.indexOf("=");
-        if (separatorIndex <= 0) {
-          continue;
-        }
-        const key = trimmed.slice(0, separatorIndex).trim();
-        const value = parseEnvValue(trimmed.slice(separatorIndex + 1));
-        if (key) {
-          values.set(key, value);
-        }
-      }
-      return values;
-    })();
-  }
-
-  return localEnvPromise;
-}
-
 export async function getEnvValueOrLocalFile(key: string) {
-  const directValue = trimToNull(process.env[key]);
-  if (directValue) {
-    return directValue;
+  if (key === "TOGETHER_API_KEY") {
+    return togetherServiceConfig.apiKey;
   }
-
-  const values = await readLocalEnvFile();
-  const fallback = trimToNull(values.get(key));
-  if (fallback) {
-    process.env[key] = fallback;
-  }
-  return fallback;
+  return null;
 }
 
 export async function getTogetherApiKey() {
@@ -161,7 +98,7 @@ async function togetherJsonRequest<T>(pathname: string, init?: RequestInit): Pro
     throw new Error("TOGETHER_API_KEY is required.");
   }
 
-  const response = await fetch(`${togetherApiBaseUrl()}${pathname}`, {
+  const response = await fetch(`${togetherServiceConfig.apiBaseUrl}${pathname}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${apiKey}`,

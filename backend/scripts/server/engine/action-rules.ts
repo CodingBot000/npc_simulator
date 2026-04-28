@@ -15,7 +15,8 @@
  * Last updated: 2026-04-09
  */
 
-import type { PlayerAction, RelationshipDelta } from "@/lib/types";
+import type { RelationshipDelta } from "@backend-contracts/api";
+import type { PlayerAction } from "@sim-shared/types";
 import type { PressureActionRule } from "@server/engine/pressure-rule-types";
 
 export const ACCUSATORY_ACTIONS: PlayerAction[] = ["make_case", "expose", "ally", "deflect"];

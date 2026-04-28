@@ -145,6 +145,14 @@ function buildActualMetrics(reset, turnResults) {
   const confidenceValues = turnResults.map(
     (entry) => entry.outcome.inspector.structuredImpact.confidence,
   );
+  const autonomyStepSequences = turnResults.map((entry) =>
+    (entry.outcome.inspector.autonomyPhase?.steps ?? [])
+      .map(
+        (step) =>
+          `${step.actorNpcId}:${step.moveType}:${step.targetNpcId ?? "-"}:${step.secondaryTargetNpcId ?? "-"}`,
+      )
+      .join("|"),
+  );
   const exportedKinds = normalizeExportKinds(finalWorld.exportPaths);
   const requestDurations = turnResults.map((entry) => entry.requestMetrics.durationMs);
   const totalRetries = turnResults.reduce(
@@ -176,6 +184,16 @@ function buildActualMetrics(reset, turnResults) {
       min: confidenceValues.length ? Math.min(...confidenceValues) : 0,
       max: confidenceValues.length ? Math.max(...confidenceValues) : 0,
       values: confidenceValues,
+    },
+    autonomy: {
+      totalSteps: turnResults.reduce(
+        (sum, entry) => sum + (entry.outcome.inspector.autonomyPhase?.steps.length ?? 0),
+        0,
+      ),
+      turnsWithFollowup: turnResults.filter(
+        (entry) => (entry.outcome.inspector.autonomyPhase?.steps.length ?? 0) > 0,
+      ).length,
+      stepSequences: autonomyStepSequences,
     },
     datasetExportedAt: finalWorld.datasetExportedAt,
     exportPaths: finalWorld.exportPaths,

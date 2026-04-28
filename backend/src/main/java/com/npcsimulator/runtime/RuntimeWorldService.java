@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.npcsimulator.infra.bridge.BridgeEnvelope;
 import com.npcsimulator.infra.bridge.NodeBridgeService;
+import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -44,28 +46,28 @@ public class RuntimeWorldService {
     private final boolean postgresDatasource;
     private final String providerMode;
     private final String openAiApiKey;
-    private final String repoRoot;
+    private final BackendRuntimeLayout runtimeLayout;
 
     public RuntimeWorldService(
         RuntimeWorldRepository runtimeWorldRepository,
         RuntimeScenarioCatalog runtimeScenarioCatalog,
         NodeBridgeService nodeBridgeService,
+        BackendRuntimeLayout runtimeLayout,
         ObjectMapper objectMapper,
         PlatformTransactionManager transactionManager,
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${LLM_PROVIDER_MODE:codex}") String providerMode,
-        @Value("${OPENAI_API_KEY:}") String openAiApiKey,
-        @Value("${NPC_SIMULATOR_ROOT:}") String repoRoot
+        @Value("${OPENAI_API_KEY:}") String openAiApiKey
     ) {
         this.runtimeWorldRepository = runtimeWorldRepository;
         this.runtimeScenarioCatalog = runtimeScenarioCatalog;
         this.nodeBridgeService = nodeBridgeService;
+        this.runtimeLayout = runtimeLayout;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.postgresDatasource = datasourceUrl != null && datasourceUrl.matches("^(?:jdbc:)?postgres(?:ql)?:.*");
         this.providerMode = providerMode;
         this.openAiApiKey = openAiApiKey;
-        this.repoRoot = repoRoot;
     }
 
     public JsonNode getWorld(HttpHeaders headers) {
@@ -214,7 +216,16 @@ public class RuntimeWorldService {
     }
 
     private JsonNode invokeBridgeBody(String operation, HttpHeaders headers, Object body) {
-        BridgeEnvelope result = nodeBridgeService.invoke(operation, headers, body);
+        BridgeEnvelope result;
+        try {
+            result = nodeBridgeService.invoke(operation, headers, body);
+        } catch (IllegalStateException error) {
+            throw new RuntimeApiException(
+                bridgeFailureStatus(error),
+                bridgeFailureMessage(error),
+                error
+            );
+        }
 
         try {
             JsonNode payload = objectMapper.readTree(result.bodyJson());
@@ -235,6 +246,26 @@ public class RuntimeWorldService {
                 error
             );
         }
+    }
+
+    private HttpStatus bridgeFailureStatus(IllegalStateException error) {
+        String message = error.getMessage();
+        if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
+            return HttpStatus.GATEWAY_TIMEOUT;
+        }
+
+        return HttpStatus.BAD_GATEWAY;
+    }
+
+    private String bridgeFailureMessage(IllegalStateException error) {
+        String message = error.getMessage();
+        if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
+            return "답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도하거나 NPC_SIMULATOR_BRIDGE_TIMEOUT_SECONDS 값을 늘려주세요.";
+        }
+
+        return message == null || message.isBlank()
+            ? "Runtime bridge request failed."
+            : message;
     }
 
     private JsonNode requestInteractionWorker(JsonNode request, RuntimeWorldBundle bundle) {
@@ -316,11 +347,7 @@ public class RuntimeWorldService {
             return candidate.normalize();
         }
 
-        if (repoRoot == null || repoRoot.isBlank()) {
-            return null;
-        }
-
-        return Path.of(repoRoot).resolve(candidate).normalize();
+        return runtimeLayout.resolveProjectPath(candidatePath);
     }
 
     private <T> T withMutationLock(String instanceId, RuntimeMutationCallback<T> callback) {
@@ -351,9 +378,9 @@ public class RuntimeWorldService {
         snapshot.set("endedAt", copyField(worldState, "endedAt"));
         snapshot.set("datasetExportedAt", copyField(worldState, "datasetExportedAt"));
         snapshot.set("exportPaths", copyField(worldState, "exportPaths"));
-        snapshot.set("presentation", runtimeScenarioCatalog.presentationNode(scenario));
-        snapshot.set("scoring", runtimeScenarioCatalog.scoringNode(scenario));
-        snapshot.set("availableActions", runtimeScenarioCatalog.actionsNode(scenario));
+        snapshot.set("presentation", scenario.presentation().deepCopy());
+        snapshot.set("scoring", scenario.scoring().deepCopy());
+        snapshot.set("availableActions", scenario.availableActions().deepCopy());
         snapshot.set("world", copyField(worldState, "world"));
         snapshot.set("npcs", buildNpcArray(worldState, memoryFile));
         snapshot.set("events", buildEventArray(worldState));
@@ -454,6 +481,27 @@ public class RuntimeWorldService {
         message.put("speaker", "npc");
         message.put("text", extractText(entry, "replyText", ""));
         message.put("timestamp", extractText(entry, "timestamp", ""));
+        message.put("fallbackUsed", entry.path("fallbackUsed").asBoolean(false));
+        String replyRewriteSource = extractText(entry, "replyRewriteSource", "");
+        if (!replyRewriteSource.isBlank()) {
+            message.put("replyRewriteSource", replyRewriteSource);
+        }
+        String replyRewriteReason = extractText(entry, "replyRewriteReason", "");
+        if (!replyRewriteReason.isBlank()) {
+            message.put("replyRewriteReason", replyRewriteReason);
+        }
+        JsonNode replyJudge = entry.get("replyJudge");
+        if (replyJudge != null && !replyJudge.isNull()) {
+            message.set("replyJudge", replyJudge.deepCopy());
+        }
+        JsonNode failureDebug = entry.get("failureDebug");
+        if (failureDebug != null && !failureDebug.isNull()) {
+            message.set("failureDebug", failureDebug.deepCopy());
+        }
+        JsonNode interactionTrace = entry.get("interactionTrace");
+        if (interactionTrace != null && !interactionTrace.isNull()) {
+            message.set("interactionTrace", interactionTrace.deepCopy());
+        }
         JsonNode action = entry.get("selectedAction");
         message.set("action", action == null ? NullNode.instance : action.deepCopy());
         return message;
@@ -552,11 +600,7 @@ public class RuntimeWorldService {
     }
 
     private String resolveLegacyStoragePath(String instanceId) {
-        if (repoRoot == null || repoRoot.isBlank()) {
-            return null;
-        }
-
-        Path base = Path.of(repoRoot).resolve("data");
+        Path base = runtimeLayout.dataRoot();
         if (RuntimeWorldHeaderResolver.DEFAULT_WORLD_INSTANCE_ID.equals(instanceId)) {
             return base.toString();
         }

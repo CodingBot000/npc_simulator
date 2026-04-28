@@ -1,7 +1,11 @@
 import type {
   GenerateInteractionInput,
+  LlmProvider,
+} from "@backend-provider";
+import type {
   LlmInteractionResult,
-} from "@/lib/types";
+} from "@backend-contracts/api";
+import { openAiConfig } from "@server/config/openai";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
 import {
   llmInteractionSchema,
@@ -36,13 +40,13 @@ function extractOutputText(payload: OpenAiResponsesPayload) {
   return textChunks.join("\n").trim();
 }
 
-export class OpenAiProvider {
+export class OpenAiProvider implements LlmProvider {
   readonly mode = "openai" as const;
 
   async generateInteraction(
     input: GenerateInteractionInput,
   ): Promise<LlmInteractionResult> {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = openAiConfig.apiKey;
 
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY is required when LLM_PROVIDER_MODE=openai.");

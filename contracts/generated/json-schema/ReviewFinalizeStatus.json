@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewFinalizeStatusView",
+  "definitions": {
+    "ReviewFinalizeStatusView": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "running",
+            "succeeded",
+            "failed"
+          ]
+        },
+        "canFinalize": {
+          "type": "boolean"
+        },
+        "pending": {
+          "$ref": "#/definitions/ReviewFinalizePendingView"
+        },
+        "currentStep": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "finalize_sft",
+            "finalize_preference",
+            null
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finishedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durations": {
+          "$ref": "#/definitions/ReviewFinalizeDurationsView"
+        },
+        "outputs": {
+          "type": "object",
+          "properties": {
+            "sft": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "preference": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "sft",
+            "preference"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "state",
+        "canFinalize",
+        "pending",
+        "currentStep",
+        "message",
+        "startedAt",
+        "finishedAt",
+        "updatedAt",
+        "durations",
+        "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewFinalizePendingView": {
+      "type": "object",
+      "properties": {
+        "sft": {
+          "type": "number"
+        },
+        "pair": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sft",
+        "pair",
+        "total"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewFinalizeDurationsView": {
+      "type": "object",
+      "properties": {
+        "sftMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "preferenceMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sftMs",
+        "preferenceMs",
+        "totalMs"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

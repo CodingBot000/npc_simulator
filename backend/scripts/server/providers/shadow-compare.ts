@@ -5,13 +5,16 @@ import {
   allowedActionTypes,
   emotionPrimaries,
   impactTags,
-  type GenerateInteractionInput,
-  type LlmInteractionResult,
-  type RuntimeArtifactKind,
-  type ShadowComparisonPayload,
-  type ShadowComparisonStatus,
-} from "@/lib/types";
-import { safeJsonParse, stripCodeFence } from "@/lib/utils";
+} from "@sim-shared/type-sets";
+import type { GenerateInteractionInput } from "@backend-provider";
+import type {
+  LlmInteractionResult,
+  RuntimeArtifactKind,
+  ShadowComparisonPayload,
+  ShadowComparisonStatus,
+} from "@backend-contracts/api";
+import { buildModelExecutionChildEnv } from "@backend-support/bootstrap";
+import { safeJsonParse, stripCodeFence } from "@backend-support/utils";
 import { PROJECT_ROOT, appConfig } from "@server/config";
 import { normalizeLlmInteractionResult } from "@server/engine/action-selection";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
@@ -267,7 +270,7 @@ async function runMlxGenerate(params: {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(LOCAL_MLX_BINARY, args, {
       cwd: PROJECT_ROOT,
-      env: process.env,
+      env: buildModelExecutionChildEnv(PROJECT_ROOT),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

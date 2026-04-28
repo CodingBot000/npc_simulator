@@ -1,13 +1,12 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { closeDbPool } from "@server/db/postgres";
-import { syncSnapshotsFromFilesToDb } from "@server/db/review-db";
+import { ensureNpcSimulatorRoot } from "@backend-support/bootstrap";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+ensureNpcSimulatorRoot(import.meta.url, "..", "..");
 
-process.env.NPC_SIMULATOR_ROOT ??= repoRoot;
+const postgresModulePromise = import("@server/db/postgres");
+const reviewDbModulePromise = import("@server/db/review-db");
 
 async function main() {
+  const { syncSnapshotsFromFilesToDb } = await reviewDbModulePromise;
   await syncSnapshotsFromFilesToDb();
 }
 
@@ -17,5 +16,6 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    const { closeDbPool } = await postgresModulePromise;
     await closeDbPool().catch(() => {});
   });

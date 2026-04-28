@@ -1,12 +1,15 @@
 import { z } from "zod";
 import {
+  type RuntimeStatus,
+} from "@backend-contracts/api";
+import type { LlmProvider } from "@backend-provider";
+import {
   allowedActionTypes,
   emotionPrimaries,
   impactTags,
-  type LlmProvider,
-  type RuntimeStatus,
-} from "@/lib/types";
+} from "@sim-shared/type-sets";
 import { appConfig } from "@server/config";
+import { openAiConfig } from "@server/config/openai";
 import { CodexProvider } from "@server/providers/codex-provider";
 import { DeterministicProvider } from "@server/providers/deterministic-provider";
 import { OpenAiProvider } from "@server/providers/openai-provider";
@@ -150,7 +153,7 @@ let deterministicProvider: DeterministicProvider | null = null;
 
 export function buildRuntimeStatus(): RuntimeStatus {
   if (appConfig.providerMode === "openai") {
-    const configured = Boolean(process.env.OPENAI_API_KEY);
+    const configured = openAiConfig.configured;
 
     return {
       providerMode: "openai",

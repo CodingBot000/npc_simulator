@@ -1,4 +1,10 @@
 import { Pool } from "pg";
+import {
+  ensureScriptProjectRoot,
+  getScriptEnv,
+} from "./_script-runtime.mjs";
+
+const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
 
 function stripJdbcPrefix(value) {
   return String(value).startsWith("jdbc:") ? String(value).slice("jdbc:".length) : String(value);
@@ -6,7 +12,8 @@ function stripJdbcPrefix(value) {
 
 function buildConnectionConfig() {
   const jdbcUrl =
-    process.env.SPRING_DATASOURCE_URL || "jdbc:postgresql://localhost:5432/npc_simulator";
+    getScriptEnv("SPRING_DATASOURCE_URL", PROJECT_ROOT) ||
+    "jdbc:postgresql://localhost:5432/npc_simulator";
   const parsedUrl = new URL(stripJdbcPrefix(jdbcUrl));
 
   if (!/^postgres(?:ql)?:$/u.test(parsedUrl.protocol)) {
@@ -18,17 +25,19 @@ function buildConnectionConfig() {
     port: parsedUrl.port ? Number(parsedUrl.port) : 5432,
     database: parsedUrl.pathname.replace(/^\/+/u, "") || "npc_simulator",
     user:
-      process.env.SPRING_DATASOURCE_USERNAME ||
+      getScriptEnv("SPRING_DATASOURCE_USERNAME", PROJECT_ROOT) ||
       decodeURIComponent(parsedUrl.username) ||
       "npc_simulator",
     password:
-      process.env.SPRING_DATASOURCE_PASSWORD ||
+      getScriptEnv("SPRING_DATASOURCE_PASSWORD", PROJECT_ROOT) ||
       decodeURIComponent(parsedUrl.password) ||
       "npc_simulator",
-    max: Number(process.env.NPC_SIMULATOR_DB_POOL_MAX || "4"),
-    idleTimeoutMillis: Number(process.env.NPC_SIMULATOR_DB_IDLE_TIMEOUT_MS || "30000"),
+    max: Number(getScriptEnv("NPC_SIMULATOR_DB_POOL_MAX", PROJECT_ROOT) || "4"),
+    idleTimeoutMillis: Number(
+      getScriptEnv("NPC_SIMULATOR_DB_IDLE_TIMEOUT_MS", PROJECT_ROOT) || "30000",
+    ),
     connectionTimeoutMillis: Number(
-      process.env.NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS || "10000",
+      getScriptEnv("NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS", PROJECT_ROOT) || "10000",
     ),
   };
 }
@@ -225,4 +234,3 @@ export async function closeDbPool() {
     await current.end();
   }
 }
-

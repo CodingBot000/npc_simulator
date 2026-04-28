@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/basetenlabs/truss/main/truss/config.schema.json
+model_name: npc-sim-llama31-lora-vllm
+description: Llama 3.1 8B Instruct with the npc-sim PEFT LoRA adapter served by vLLM on Baseten.
+model_metadata:
+  example_model_input:
+    model: npc-sim-manual-llama31-local-check-20260421-025259
+    messages:
+      - role: system
+        content: "한 문장의 짧은 한국어 인사만 말한다."
+      - role: user
+        content: "안녕하세요"
+    max_tokens: 64
+    temperature: 0.2
+  tags:
+    - openai-compatible
+    - llama-3.1
+    - lora
+base_image:
+  image: vllm/vllm-openai:v0.7.3
+docker_server:
+  start_command: >-
+    bash -lc 'export HF_TOKEN="$(cat /secrets/hf_access_token)" &&
+    truss-transfer-cli &&
+    vllm serve /app/model_cache/llama31
+    --served-model-name unsloth/Meta-Llama-3.1-8B-Instruct
+    --host 0.0.0.0
+    --port 8000
+    --enable-prefix-caching
+    --max-model-len ${MAX_MODEL_LEN:-4096}
+    --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.90}
+    --enable-lora
+    --max-loras 1
+    --max-lora-rank 8
+    --lora-modules npc-sim-manual-llama31-local-check-20260421-025259=/app/model_cache/npc_adapter'
+  readiness_endpoint: /health
+  liveness_endpoint: /health
+  predict_endpoint: /v1/chat/completions
+  server_port: 8000
+model_cache:
+  - repo_id: unsloth/Meta-Llama-3.1-8B-Instruct
+    revision: a2856192dd7c25b842431f39c179a6c2c2f627d1
+    use_volume: true
+    volume_folder: llama31
+    ignore_patterns:
+      - "*.gguf"
+      - "*.pth"
+      - "original/*"
+  - repo_id: AutoBot000/npc-sim-manual-llama31-local-check-20260421-025259-adapter
+    revision: aa5c65b17f5ab9286f2f2c689cd66f0b0698606e
+    use_volume: true
+    volume_folder: npc_adapter
+    runtime_secret_name: hf_access_token
+    allow_patterns:
+      - "adapter_config.json"
+      - "adapter_model.safetensors"
+      - "README.md"
+      - "chat_template.jinja"
+      - "tokenizer.json"
+      - "tokenizer_config.json"
+resources:
+  instance_type: "H100MIG"
+runtime:
+  predict_concurrency: 8
+  streaming_read_timeout: 300
+  health_checks:
+    startup_threshold_seconds: 2400
+    restart_threshold_seconds: 600
+    stop_traffic_threshold_seconds: 300
+secrets:
+  hf_access_token: null
+environment_variables:
+  TOKENIZERS_PARALLELISM: "false"
+  MAX_MODEL_LEN: "4096"
+  GPU_MEMORY_UTILIZATION: "0.90"

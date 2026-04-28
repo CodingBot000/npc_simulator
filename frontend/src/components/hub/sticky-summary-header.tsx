@@ -1,3 +1,4 @@
+import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
 import type { ConsensusBoardEntry, NpcState } from "@/lib/types";
 
 interface StickySummaryHeaderProps {
@@ -12,14 +13,6 @@ interface StickySummaryHeaderProps {
   onTogglePinned: () => void;
 }
 
-function playerReadout(npc: NpcState) {
-  return [
-    `신 ${npc.relationship.playerTrust}`,
-    `호 ${npc.relationship.playerAffinity}`,
-    `긴 ${npc.relationship.playerTension}`,
-  ].join(" · ");
-}
-
 export function StickySummaryHeader({
   visible,
   pinned,
@@ -31,6 +24,15 @@ export function StickySummaryHeader({
   onSelectNpc,
   onTogglePinned,
 }: StickySummaryHeaderProps) {
+  const playerRisk =
+    consensusEntries.find((entry) => entry.candidateId === DEFAULT_PLAYER_ID)?.totalPressure ?? 0;
+  const highestRisk = consensusEntries.reduce(
+    (maxValue, entry) => Math.max(maxValue, entry.totalPressure),
+    0,
+  );
+  const playerRiskClassName =
+    playerRisk === highestRisk ? "text-[var(--danger)]" : "text-foreground";
+
   return (
     <div
       className={`play-session-card pointer-events-none fixed inset-x-0 top-0 z-50 px-6 transition-all duration-200 ${
@@ -39,85 +41,63 @@ export function StickySummaryHeader({
       aria-hidden={!visible}
     >
       <div
-        className={`mx-auto grid min-w-[1280px] w-full max-w-[1540px] grid-cols-[minmax(0,6.5fr)_minmax(0,3.5fr)_44px] items-center gap-4 rounded-[22px] px-4 py-3 panel-surface pointer-events-auto transition-all duration-200 ${
+        className={`mx-auto grid min-w-[1280px] w-full max-w-[1540px] grid-cols-[minmax(0,1fr)_44px] items-center gap-4 rounded-[22px] px-4 py-3 panel-surface pointer-events-auto transition-all duration-200 ${
           visible ? "translate-y-0" : "-translate-y-2"
         }`}
       >
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(consensusEntries.length, 1)}, minmax(0, 1fr))`,
-          }}
-        >
-          {consensusEntries.map((entry, index) => (
-            <article
-              key={entry.candidateId}
-              className="min-w-0 rounded-[16px] border border-[var(--panel-border)] bg-white/18 px-3 py-2"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p
-                  className={`truncate text-[12px] font-semibold leading-4 ${
-                    index === 0 ? "text-[var(--danger)]" : "text-foreground"
-                  }`}
-                >
-                  {entry.candidateLabel}
-                </p>
-                <p
-                  className={`shrink-0 text-[13px] font-semibold leading-4 ${
-                    index === 0 ? "text-[var(--danger)]" : "text-foreground"
-                  }`}
-                >
-                  {entry.totalPressure}
-                </p>
-              </div>
+        <div className="flex min-w-0 items-center justify-start gap-3">
+          <div className="flex shrink-0 items-center gap-3">
+            <article className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--panel-border)] bg-white/18 px-3 py-2">
+              <p className="truncate text-[12px] font-semibold leading-4 text-foreground">
+                {DEFAULT_PLAYER_LABEL}
+              </p>
+              <p className={`shrink-0 text-[13px] font-semibold leading-4 ${playerRiskClassName}`}>
+                {playerRisk}
+              </p>
             </article>
-          ))}
-        </div>
 
-        <div className="border-l border-[var(--panel-border)] pl-4">
-          <div
-            className="grid gap-2"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(npcs.length, 1)}, minmax(0, 1fr))`,
-            }}
-          >
-            {npcs.map((npc) => {
-              const selected = npc.persona.id === selectedNpcId;
+            <span
+              aria-hidden="true"
+              className="text-sm font-semibold leading-4 text-[var(--ink-muted)]"
+            >
+              |
+            </span>
+          </div>
 
-              return (
-                <button
-                  key={npc.persona.id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onSelectNpc(npc.persona.id)}
-                  className={`min-w-0 rounded-[16px] border px-3 py-2 text-left transition ${
-                    selected
-                      ? "border-[var(--accent)] bg-[var(--panel-strong)] shadow-[0_10px_24px_rgba(176,91,45,0.14)]"
-                      : "border-[var(--panel-border)] bg-white/18 hover:border-[var(--teal)] hover:bg-white/24"
-                  } disabled:cursor-not-allowed disabled:opacity-55`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-[12px] font-semibold leading-4 text-foreground">
-                      {npc.persona.name}
-                    </p>
-                    <p
-                      className={`shrink-0 text-[13px] font-semibold leading-4 ${
-                        selected ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
-                      }`}
-                    >
-                      {riskByNpcId[npc.persona.id] ?? 0}
-                    </p>
-                  </div>
-                  <p
-                    className={`mt-1 truncate text-[11px] leading-4 ${
-                      selected ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
-                    }`}
+          <div className="flex min-w-0 items-center justify-start gap-2">
+            <span className="shrink-0 text-[11px] font-semibold leading-4 text-[var(--ink-muted)]">
+              캐릭터선택
+            </span>
+
+            <div className="flex flex-wrap items-center justify-start gap-2">
+              {npcs.map((npc) => {
+                const selected = npc.persona.id === selectedNpcId;
+                const npcRisk = riskByNpcId[npc.persona.id] ?? 0;
+                const npcRiskClassName =
+                  npcRisk === highestRisk ? "text-[var(--danger)]" : "text-[var(--ink-muted)]";
+
+                return (
+                  <button
+                    key={npc.persona.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onSelectNpc(npc.persona.id)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-left transition ${
+                      selected
+                        ? "border-[var(--teal)] bg-[var(--panel-strong)] shadow-[0_10px_24px_rgba(43,152,168,0.14)]"
+                        : "border-[var(--panel-border)] bg-white/18 text-foreground hover:border-[var(--teal)] hover:bg-white/24"
+                    } disabled:cursor-not-allowed disabled:opacity-55`}
                   >
-                    {playerReadout(npc)}
-                  </p>
-                </button>
-              );
-            })}
+                    <span className="truncate text-[12px] font-semibold leading-4 text-foreground">
+                      {npc.persona.name}
+                    </span>
+                    <span className={`shrink-0 text-[13px] font-semibold leading-4 ${npcRiskClassName}`}>
+                      {npcRisk}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

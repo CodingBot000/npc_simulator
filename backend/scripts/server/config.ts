@@ -1,47 +1,55 @@
-import fs from "node:fs";
 import path from "node:path";
-import type { LlmProviderMode, RuntimeArtifactKind } from "@/lib/types";
+import type {
+  LlmProviderMode,
+  RuntimeArtifactKind,
+} from "@backend-contracts/api";
+import {
+  canonicalModelCatalog,
+  canonicalModelConfig,
+} from "@server/config/canonical-models";
+import {
+  DATA_DIR,
+  PROJECT_ROOT,
+  serverRuntimeContext,
+} from "@server/config/runtime-context";
+import {
+  getServerEnv,
+  getProcessEnv,
+  hasServerEnv,
+} from "@server/config/env-loader";
+import { buildBasetenRemoteProvider } from "@server/remote-provider";
 
 export const DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL =
-  "unsloth/Meta-Llama-3.1-8B-Instruct";
+  canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
+    .localTrainingBaseModelId;
 export const DEFAULT_LOCAL_REPLY_MLX_MODEL =
-  "mlx-community/Llama-3.1-8B-Instruct-4bit";
+  canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
+    .localReplyMlxModelId;
 export const DEFAULT_REMOTE_TRAINING_BASE_MODEL =
-  "meta-llama/Meta-Llama-3.1-8B-Instruct-Reference";
+  canonicalModelCatalog.families[canonicalModelCatalog.defaultFamily]
+    .remoteTrainingBaseModelId;
 export const DEFAULT_SHADOW_COMPARE_LABEL = "Local Llama Shadow";
 
-type LocalReplyAdapterMode = "off" | "on" | "auto";
+type FinalReplyMode = "off" | "on" | "auto";
+type FinalReplyBackend =
+  | "off"
+  | "local_llama"
+  | "local_qwen"
+  | "promoted"
+  | "codex"
+  | "openai_api"
+  | "together"
+  | "baseten"
+  | "runpod";
 type LocalReplyModelFamily = "llama" | "qwen";
 type LocalReplyPromptFormat =
   | "raw_json"
   | "situation_card"
   | "direct_scene"
   | "scene_state_min";
+type InteractionJudgeMode = "off" | "on";
+type InteractionJudgeEnforcement = "off" | "warn" | "retry" | "reject";
 
-function detectProjectRoot() {
-  const explicitRoot = process.env.NPC_SIMULATOR_ROOT;
-
-  if (explicitRoot) {
-    return path.resolve(explicitRoot);
-  }
-
-  const cwd = process.cwd();
-  const candidates = [cwd, path.dirname(cwd)];
-
-  for (const candidate of candidates) {
-    if (
-      fs.existsSync(path.join(candidate, "data")) &&
-      fs.existsSync(path.join(candidate, "docs"))
-    ) {
-      return candidate;
-    }
-  }
-
-  return cwd;
-}
-
-export const PROJECT_ROOT = detectProjectRoot();
-export const DATA_DIR = path.join(PROJECT_ROOT, "data");
 export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   PROJECT_ROOT,
   "outputs",
@@ -49,77 +57,6 @@ export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   "manual_llama31_local_check_20260421_025259",
   "runtime",
 );
-
-let localEnvValues: Map<string, string> | null = null;
-
-function trimToNull(value: string | null | undefined) {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-}
-
-function parseEnvValue(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return "";
-  }
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function readLocalEnvValues() {
-  if (localEnvValues) {
-    return localEnvValues;
-  }
-
-  const values = new Map<string, string>();
-  const envPath = path.join(PROJECT_ROOT, ".env.local");
-
-  if (!fs.existsSync(envPath)) {
-    localEnvValues = values;
-    return values;
-  }
-
-  const raw = fs.readFileSync(envPath, "utf8");
-  for (const line of raw.split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separatorIndex = trimmed.indexOf("=");
-    if (separatorIndex <= 0) {
-      continue;
-    }
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = parseEnvValue(trimmed.slice(separatorIndex + 1));
-    if (key) {
-      values.set(key, value);
-    }
-  }
-
-  localEnvValues = values;
-  return values;
-}
-
-export function getServerEnv(key: string) {
-  const directValue = trimToNull(process.env[key]);
-  if (directValue) {
-    return directValue;
-  }
-
-  const fallback = trimToNull(readLocalEnvValues().get(key));
-  if (fallback) {
-    process.env[key] = fallback;
-  }
-  return fallback;
-}
 
 function parseBooleanEnv(key: string, defaultValue: boolean) {
   const rawValue = getServerEnv(key);
@@ -137,8 +74,20 @@ function parseBooleanEnv(key: string, defaultValue: boolean) {
   return defaultValue;
 }
 
+export {
+  DATA_DIR,
+  PROJECT_ROOT,
+  getProcessEnv,
+  getServerEnv,
+  hasServerEnv,
+  serverRuntimeContext,
+};
+
 function resolveProjectPath(rawPath: string | null | undefined) {
-  const trimmed = trimToNull(rawPath);
+  const trimmed =
+    typeof rawPath === "string" && rawPath.trim().length > 0
+      ? rawPath.trim()
+      : null;
   if (!trimmed) {
     return null;
   }
@@ -147,8 +96,10 @@ function resolveProjectPath(rawPath: string | null | undefined) {
     : path.join(PROJECT_ROOT, trimmed);
 }
 
-function parseLocalReplyAdapterMode(): LocalReplyAdapterMode {
-  const rawValue = getServerEnv("LOCAL_REPLY_ADAPTER_MODE");
+function parseFinalReplyMode(): FinalReplyMode {
+  const rawValue =
+    getServerEnv("FINAL_REPLY_MODE") ??
+    getServerEnv("LOCAL_REPLY_ADAPTER_MODE");
   if (rawValue === "on" || rawValue === "auto" || rawValue === "off") {
     return rawValue;
   }
@@ -156,9 +107,7 @@ function parseLocalReplyAdapterMode(): LocalReplyAdapterMode {
 }
 
 function parseLocalReplyModelFamily(): LocalReplyModelFamily {
-  return getServerEnv("LOCAL_REPLY_MODEL_FAMILY") === "qwen"
-    ? "qwen"
-    : "llama";
+  return canonicalModelConfig.localReplyRuntimeFamily;
 }
 
 function parseLocalReplyPromptFormat(
@@ -192,22 +141,138 @@ function parseRuntimeArtifactKind(
   return defaultValue;
 }
 
-const providerMode =
-  getServerEnv("LLM_PROVIDER_MODE") === "openai"
-    ? "openai"
-    : getServerEnv("LLM_PROVIDER_MODE") === "deterministic"
-      ? "deterministic"
-      : "codex";
-const localReplyAdapterMode = parseLocalReplyAdapterMode();
+function parseInteractionJudgeMode(): InteractionJudgeMode {
+  const rawValue = getServerEnv("INTERACTION_JUDGE_MODE");
+  if (rawValue === "on" || rawValue === "off") {
+    return rawValue;
+  }
+  return "off";
+}
+
+function parseInteractionJudgeEnforcement(): InteractionJudgeEnforcement {
+  const rawValue = getServerEnv("INTERACTION_JUDGE_ENFORCEMENT");
+  if (
+    rawValue === "off" ||
+    rawValue === "warn" ||
+    rawValue === "retry" ||
+    rawValue === "reject"
+  ) {
+    return rawValue;
+  }
+  return "off";
+}
+
+function parseProviderMode(): LlmProviderMode {
+  const rawValue = getServerEnv("LLM_PROVIDER_MODE");
+  if (rawValue === "codex") {
+    if (serverRuntimeContext.isCloudMode) {
+      throw new Error(
+        "LLM_PROVIDER_MODE=codex is not allowed in cloud mode. Use openai or deterministic.",
+      );
+    }
+    return rawValue;
+  }
+  if (rawValue === "openai" || rawValue === "deterministic") {
+    return rawValue;
+  }
+  return serverRuntimeContext.isCloudMode ? "openai" : "codex";
+}
+
+function resolveRunpodRemoteProvider(endpointId: string | null) {
+  return endpointId ? `runpod:${endpointId}` : null;
+}
+
+function resolveBasetenRemoteProvider(modelId: string | null) {
+  return modelId ? buildBasetenRemoteProvider(modelId) : null;
+}
+
+function parseFinalReplyBackend(params: {
+  mode: FinalReplyMode;
+  localModelFamily: LocalReplyModelFamily;
+  usePromoted: boolean;
+}): FinalReplyBackend {
+  const rawValue = getServerEnv("FINAL_REPLY_BACKEND");
+
+  if (rawValue === "codex" && serverRuntimeContext.isCloudMode) {
+    throw new Error(
+      "FINAL_REPLY_BACKEND=codex is not allowed in cloud mode. Use openai_api, together, baseten, runpod, or off.",
+    );
+  }
+
+  if (
+    rawValue === "off" ||
+    rawValue === "local_llama" ||
+    rawValue === "local_qwen" ||
+    rawValue === "promoted" ||
+    rawValue === "codex" ||
+    rawValue === "openai_api" ||
+    rawValue === "together" ||
+    rawValue === "baseten" ||
+    rawValue === "runpod"
+  ) {
+    return rawValue;
+  }
+
+  if (params.mode === "off") {
+    return "off";
+  }
+
+  if (params.usePromoted) {
+    return "promoted";
+  }
+
+  return params.localModelFamily === "qwen" ? "local_qwen" : "local_llama";
+}
+
+const providerMode = parseProviderMode();
+const finalReplyMode = parseFinalReplyMode();
 const localReplyModelFamily = parseLocalReplyModelFamily();
 const localReplyUsePromoted = parseBooleanEnv(
-  "LOCAL_REPLY_USE_PROMOTED",
-  localReplyModelFamily === "qwen",
+  "FINAL_REPLY_USE_PROMOTED",
+  parseBooleanEnv(
+    "LOCAL_REPLY_USE_PROMOTED",
+    localReplyModelFamily === "qwen",
+  ),
 );
+const finalReplyBackend = parseFinalReplyBackend({
+  mode: finalReplyMode,
+  localModelFamily: localReplyModelFamily,
+  usePromoted: localReplyUsePromoted,
+});
+const finalReplyPromptFormat = parseLocalReplyPromptFormat(
+  "FINAL_REPLY_PROMPT_FORMAT",
+  parseLocalReplyPromptFormat(
+    "LOCAL_REPLY_LLAMA_PROMPT_FORMAT",
+    "scene_state_min",
+  ),
+);
+const finalReplyRunpodEndpointId =
+  getServerEnv("FINAL_REPLY_RUNPOD_ENDPOINT_ID") ||
+  getServerEnv("RUNPOD_ENDPOINT_ID");
+const finalReplyBasetenModelId =
+  getServerEnv("FINAL_REPLY_BASETEN_MODEL_ID") ||
+  getServerEnv("BASETEN_MODEL_ID");
+const finalReplyRemoteProvider =
+  getServerEnv("FINAL_REPLY_REMOTE_PROVIDER") ||
+  (finalReplyBackend === "runpod"
+    ? resolveRunpodRemoteProvider(finalReplyRunpodEndpointId)
+    : finalReplyBackend === "baseten"
+      ? resolveBasetenRemoteProvider(finalReplyBasetenModelId)
+    : finalReplyBackend === "together"
+      ? "together"
+      : null);
 
 export const appConfig = {
-  providerMode: providerMode as LlmProviderMode,
-  localReplyAdapterMode: localReplyAdapterMode as LocalReplyAdapterMode,
+  runtime: serverRuntimeContext,
+  providerMode,
+  localReplyAdapterMode: finalReplyMode,
+  canonicalModel: {
+    familyId: canonicalModelConfig.familyId,
+    displayName: canonicalModelConfig.family.displayName,
+    localTrainingBaseModelId: canonicalModelConfig.localTrainingBaseModelId,
+    localReplyMlxModelId: canonicalModelConfig.localReplyMlxModelId,
+    remoteTrainingBaseModelId: canonicalModelConfig.remoteTrainingBaseModelId,
+  },
   models: {
     interactionModel:
       getServerEnv("INTERACTION_MODEL") ||
@@ -228,10 +293,41 @@ export const appConfig = {
     premiumFallbackModel:
       getServerEnv("PREMIUM_FALLBACK_MODEL") || "gpt-5.4-mini",
   },
+  finalReply: {
+    mode: finalReplyMode,
+    backend: finalReplyBackend,
+    promptFormat: finalReplyPromptFormat,
+    maxTokens: Number(
+      getServerEnv("FINAL_REPLY_MAX_TOKENS") ||
+      getServerEnv("LOCAL_REPLY_MAX_TOKENS") ||
+      "160",
+    ),
+    models: {
+      primary:
+        getServerEnv("FINAL_REPLY_MODEL") ||
+        getServerEnv("PREMIUM_MODEL") ||
+        getServerEnv("OPENAI_MODEL") ||
+        "gpt-5.4",
+      fallback:
+        getServerEnv("FINAL_REPLY_FALLBACK_MODEL") ||
+        getServerEnv("PREMIUM_FALLBACK_MODEL") ||
+        getServerEnv("LOW_COST_FALLBACK_MODEL") ||
+        "gpt-5.4-mini",
+    },
+    remote: {
+      provider: finalReplyRemoteProvider,
+      modelName: getServerEnv("FINAL_REPLY_REMOTE_MODEL_NAME"),
+      runpodEndpointId: finalReplyRunpodEndpointId,
+      basetenModelId: finalReplyBasetenModelId,
+      basetenModelUrl:
+        getServerEnv("FINAL_REPLY_BASETEN_MODEL_URL") ||
+        getServerEnv("BASETEN_MODEL_URL"),
+    },
+  },
   localReply: {
-    family: localReplyModelFamily as LocalReplyModelFamily,
+    family: localReplyModelFamily,
     usePromoted: localReplyUsePromoted,
-    mlxModel: getServerEnv("LOCAL_REPLY_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL,
+    mlxModel: canonicalModelConfig.localReplyMlxModelId,
     maxTokens: Number(getServerEnv("LOCAL_REPLY_MAX_TOKENS") || "160"),
     llamaRuntimePath:
       resolveProjectPath(getServerEnv("LOCAL_REPLY_LLAMA_RUNTIME_PATH")) ||
@@ -239,7 +335,7 @@ export const appConfig = {
     llamaPromptFormat: parseLocalReplyPromptFormat(
       "LOCAL_REPLY_LLAMA_PROMPT_FORMAT",
       "scene_state_min",
-    ) as LocalReplyPromptFormat,
+    ),
   },
   shadowCompare: {
     enabled: parseBooleanEnv("SHADOW_COMPARE_ENABLED", false),
@@ -251,7 +347,24 @@ export const appConfig = {
       "SHADOW_COMPARE_RUNTIME_ARTIFACT_KIND",
       "mlx_fused_model",
     ),
-    mlxModel: getServerEnv("SHADOW_COMPARE_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL,
+    mlxModel:
+      getServerEnv("SHADOW_COMPARE_MLX_MODEL") ||
+      canonicalModelConfig.localReplyMlxModelId,
     maxTokens: Number(getServerEnv("SHADOW_COMPARE_MAX_TOKENS") || "360"),
+  },
+  interactionJudge: {
+    mode: parseInteractionJudgeMode(),
+    model: getServerEnv("INTERACTION_JUDGE_MODEL") || "gpt-4.1-nano",
+    timeoutMs: Number(getServerEnv("INTERACTION_JUDGE_TIMEOUT_MS") || "4000"),
+    maxOutputTokens: Number(
+      getServerEnv("INTERACTION_JUDGE_MAX_OUTPUT_TOKENS") || "96",
+    ),
+    enforcement: parseInteractionJudgeEnforcement(),
+    confidenceThreshold: Number(
+      getServerEnv("INTERACTION_JUDGE_CONFIDENCE_THRESHOLD") || "0.8",
+    ),
+  },
+  npcAutonomy: {
+    debugSeed: getServerEnv("NPC_AUTONOMY_DEBUG_SEED"),
   },
 };

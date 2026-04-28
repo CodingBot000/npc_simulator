@@ -1,5 +1,7 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+<!-- BEGIN:project-stack-rules -->
+# Current project stack
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+This repository no longer uses a live Next.js frontend. The active frontend is React + Vite under `frontend/`, and the backend is Spring Boot under `backend/` with Node workers under `backend/scripts/`.
+
+Historical docs may still mention `Next.js`, `src/app`, `next start`, `next.config.*`, or `NEXT_PUBLIC_*`. Treat those as migration-era notes unless the current source tree still contains the referenced file.
+<!-- END:project-stack-rules -->

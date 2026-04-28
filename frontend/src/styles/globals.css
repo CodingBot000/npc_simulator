@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Noto Sans KR Variable";
+  src: url("../assets/fonts/NotoSansKR-Variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk Variable";
+  src: url("../assets/fonts/SpaceGrotesk-Variable.ttf") format("truetype");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --background: #07131e;
+  --foreground: #e5f1f7;
+  --ink-muted: #8aa6b5;
+  --panel: rgba(8, 24, 36, 0.82);
+  --panel-strong: rgba(12, 33, 48, 0.94);
+  --panel-border: rgba(117, 151, 174, 0.22);
+  --accent: #d16f4c;
+  --accent-soft: rgba(209, 111, 76, 0.14);
+  --teal: #4cc2c8;
+  --teal-soft: rgba(76, 194, 200, 0.12);
+  --danger: #d65a5a;
+  --success: #4aa67c;
+  --shadow: 0 22px 50px rgba(2, 10, 17, 0.4);
+  --font-body: "Noto Sans KR Variable";
+  --font-display: "Space Grotesk Variable";
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  position: relative;
+  min-height: 100vh;
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-body), "Apple SD Gothic Neo", sans-serif;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(76, 194, 200, 0.14), transparent 25%),
+    radial-gradient(circle at 100% 0%, rgba(209, 111, 76, 0.18), transparent 30%),
+    linear-gradient(180deg, #0b1927 0%, #08131e 48%, #050a10 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image:
+    linear-gradient(rgba(116, 151, 174, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116, 151, 174, 0.22) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(76, 194, 200, 0.04), transparent 20%),
+    radial-gradient(circle at 50% 0%, rgba(76, 194, 200, 0.12), transparent 35%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(209, 111, 76, 0.88);
+  color: #fff;
+}
+
+.panel-surface {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.play-session-card :where(p, span, button, select, textarea, option, li, label, h3) {
+  font-size: 0.75rem !important;
+}
+
+.display-heading {
+  font-family: var(--font-display), serif;
+  letter-spacing: 0.03em;
+}
+
+.text-muted {
+  color: var(--ink-muted);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(138, 166, 181, 0.35);
+  border-radius: 999px;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(138, 166, 181, 0.35) transparent;
+  scrollbar-gutter: stable;
+}

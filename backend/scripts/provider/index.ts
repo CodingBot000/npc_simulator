@@ -1,0 +1,44 @@
+import type {
+  ChatMessage,
+  ConsensusBoardEntry,
+  EventLogEntry,
+  InteractionRequestPayload,
+  LlmInteractionResult,
+  LlmProviderMode,
+  NpcState,
+  RetrievedKnowledgeEvidence,
+  RetrievedMemoryEntry,
+  RoundState,
+  WorldMeta,
+} from "@backend-contracts/api";
+import type { PersistedNpcState } from "@backend-domain";
+import type { PlayerAction } from "@sim-shared/types";
+
+export interface NormalizedInteractionInput {
+  text: string;
+  action: PlayerAction | null;
+  actionLabel: string | null;
+  promptSummary: string;
+}
+
+export interface GenerateInteractionInput {
+  request: InteractionRequestPayload;
+  world: WorldMeta;
+  npc: NpcState;
+  targetNpc: PersistedNpcState | null;
+  round: RoundState;
+  consensusBoard: ConsensusBoardEntry[];
+  recentEvents: EventLogEntry[];
+  recentConversation: ChatMessage[];
+  retrievedMemories: RetrievedMemoryEntry[];
+  retrievedKnowledge: RetrievedKnowledgeEvidence[];
+  normalizedInput: NormalizedInteractionInput;
+  promptContextSummary: string;
+}
+
+export interface LlmProvider {
+  mode: LlmProviderMode;
+  generateInteraction(
+    input: GenerateInteractionInput,
+  ): Promise<LlmInteractionResult>;
+}

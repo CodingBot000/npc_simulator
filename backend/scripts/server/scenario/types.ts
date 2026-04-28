@@ -1,13 +1,16 @@
 import type {
   EventLogEntry,
-  JudgementState,
-  KnowledgeEvidence,
   MemoryEntry,
-  PersistedNpcState,
   ResolutionState,
   RoundState,
   WorldMeta,
-} from "@/lib/types";
+} from "@backend-contracts/api";
+import type { JudgementState } from "@backend-persistence";
+import type {
+  KnowledgeEvidence,
+  PersistedNpcState,
+} from "@backend-domain";
+import type { AutonomyMoveType, PlayerAction } from "@sim-shared/types";
 
 export interface ScenarioPrompt {
   systemContext: string;
@@ -26,7 +29,7 @@ export interface ScenarioPresentation {
 }
 
 export interface ScenarioActionDefinition {
-  id: import("@/lib/types").PlayerAction;
+  id: PlayerAction;
   label: string;
   description: string;
   requiresTarget: boolean;
@@ -49,6 +52,52 @@ export interface ScenarioScoringConfig {
   leadGapThreshold: number;
 }
 
+export interface ScenarioRuntimeMetadata {
+  id: string;
+  presentation: ScenarioPresentation;
+  actions: ScenarioActionDefinition[];
+  scoring: ScenarioScoringConfig;
+}
+
+export interface ScenarioRuntimeMetadataSeed {
+  id: string;
+  presentation: ScenarioPresentation;
+  actionIds: PlayerAction[];
+  scoring: ScenarioScoringConfig;
+}
+
+export interface ScenarioAutonomyRoundVolatility {
+  fromRound: number;
+  toRound: number;
+  scale: number;
+}
+
+export interface ScenarioAutonomyActorBias {
+  actorWeight: number;
+  preferredTargets?: string[];
+  protectedTargets?: string[];
+  moveWeights?: Partial<Record<AutonomyMoveType, number>>;
+  eventTagAffinity?: string[];
+}
+
+export interface ScenarioAutonomyEventBias {
+  tag: string;
+  actorWeights?: Record<string, number>;
+  targetWeights?: Record<string, number>;
+  moveWeights?: Partial<Record<AutonomyMoveType, number>>;
+}
+
+export interface ScenarioAutonomyConfig {
+  enabled: boolean;
+  minStepsPerTurn: number;
+  maxStepsPerTurn: number;
+  debugSeed: string | null;
+  moveWeights: Record<AutonomyMoveType, number>;
+  roundVolatility: ScenarioAutonomyRoundVolatility[];
+  actorBias: Record<string, ScenarioAutonomyActorBias>;
+  eventBiases: ScenarioAutonomyEventBias[];
+}
+
 export interface ScenarioSeeds {
   world: WorldMeta;
   npcs: PersistedNpcState[];
@@ -67,5 +116,6 @@ export interface ScenarioDefinition {
   roundEvents: ScenarioRoundEvent[];
   knowledge: KnowledgeEvidence[];
   scoring: ScenarioScoringConfig;
+  autonomy: ScenarioAutonomyConfig;
   seeds: ScenarioSeeds;
 }

@@ -10,14 +10,12 @@ import type {
   ReviewTrainingRuntimeArtifactKind,
   ReviewTrainingRunView,
   ReviewTrainingStatusView,
-} from "@/lib/review-types";
+} from "@backend-contracts/review";
+import { buildBackendRuntimeChildEnv } from "@backend-support/bootstrap";
 import {
-  DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL,
-  DEFAULT_LOCAL_REPLY_MLX_MODEL,
-  DEFAULT_REMOTE_TRAINING_BASE_MODEL,
   PROJECT_ROOT,
-  getServerEnv,
 } from "@server/config";
+import { reviewTrainingConfig } from "@server/config/training";
 import { getReviewFinalizeStatus } from "./finalize";
 import {
   appendTrainingRunEventInDb,
@@ -88,75 +86,21 @@ const DERIVE_MLX_RUNTIME_SCRIPT_PATH = path.join(
   "derive-mlx-runtime-from-peft.py",
 );
 
-const TOGETHER_REMOTE_PROVIDER = "together";
-const LEGACY_CANONICAL_TRAINING_BASE_MODEL = getServerEnv(
-  "CANONICAL_TRAINING_BASE_MODEL",
-);
-const TRAINING_EXECUTION_MODE: ReviewTrainingBackend =
-  getServerEnv("TRAINING_EXECUTION_MODE") === "together_serverless_lora"
-    ? "together_serverless_lora"
-    : getServerEnv("TRAINING_EXECUTION_MODE") === "smoke" ||
-        getServerEnv("LOCAL_TRAINING_EXECUTION_MODE") === "smoke"
-      ? "smoke"
-      : "local_peft";
-const LOCAL_CANONICAL_TRAINING_BASE_MODEL =
-  getServerEnv("LOCAL_CANONICAL_TRAINING_BASE_MODEL") ||
-  LEGACY_CANONICAL_TRAINING_BASE_MODEL ||
-  DEFAULT_LOCAL_CANONICAL_TRAINING_BASE_MODEL;
-const LOCAL_REPLY_MLX_MODEL =
-  getServerEnv("LOCAL_REPLY_MLX_MODEL") || DEFAULT_LOCAL_REPLY_MLX_MODEL;
-const REMOTE_TRAINING_BASE_MODEL =
-  getServerEnv("REMOTE_TRAINING_BASE_MODEL") ||
-  LEGACY_CANONICAL_TRAINING_BASE_MODEL ||
-  DEFAULT_REMOTE_TRAINING_BASE_MODEL;
-const TRAINING_BASE_MODEL =
-  TRAINING_EXECUTION_MODE === "together_serverless_lora"
-    ? REMOTE_TRAINING_BASE_MODEL
-    : LOCAL_CANONICAL_TRAINING_BASE_MODEL;
-const TOGETHER_POLL_INTERVAL_MS = Number(
-  getServerEnv("TOGETHER_POLL_INTERVAL_MS") || "10000",
-);
-const TOGETHER_TRAINING_SUFFIX_PREFIX =
-  getServerEnv("TOGETHER_TRAINING_SUFFIX_PREFIX") || "npc-sim";
-const TOGETHER_TRAINING_N_EVALS = Number(
-  getServerEnv("TOGETHER_TRAINING_N_EVALS") || "8",
-);
-const TOGETHER_TRAINING_N_CHECKPOINTS = Number(
-  getServerEnv("TOGETHER_TRAINING_N_CHECKPOINTS") || "1",
-);
-const TOGETHER_TRAINING_EPOCHS = Number(
-  getServerEnv("TOGETHER_TRAINING_EPOCHS") || "3",
-);
-const TOGETHER_TRAINING_BATCH_SIZE = Number(
-  getServerEnv("TOGETHER_TRAINING_BATCH_SIZE") || "8",
-);
-const TOGETHER_TRAINING_LEARNING_RATE = Number(
-  getServerEnv("TOGETHER_TRAINING_LEARNING_RATE") || "1e-5",
-);
-const TOGETHER_TRAINING_WARMUP_RATIO = Number(
-  getServerEnv("TOGETHER_TRAINING_WARMUP_RATIO") || "0",
-);
-const SFT_TRAINING_ARGS = {
-  batchSize: Number(getServerEnv("LOCAL_TRAINING_SFT_BATCH_SIZE") || "1"),
-  iters: Number(getServerEnv("LOCAL_TRAINING_SFT_ITERS") || "40"),
-  learningRate: getServerEnv("LOCAL_TRAINING_SFT_LEARNING_RATE") || "1e-6",
-  numLayers: Number(getServerEnv("LOCAL_TRAINING_SFT_NUM_LAYERS") || "2"),
-  stepsPerReport: Number(getServerEnv("LOCAL_TRAINING_SFT_STEPS_PER_REPORT") || "10"),
-  stepsPerEval: Number(getServerEnv("LOCAL_TRAINING_SFT_STEPS_PER_EVAL") || "10"),
-  saveEvery: Number(getServerEnv("LOCAL_TRAINING_SFT_SAVE_EVERY") || "20"),
-  maxSeqLength: Number(getServerEnv("LOCAL_TRAINING_SFT_MAX_SEQ_LENGTH") || "2048"),
-};
-const DPO_TRAINING_ARGS = {
-  batchSize: Number(getServerEnv("LOCAL_TRAINING_DPO_BATCH_SIZE") || "1"),
-  iters: Number(getServerEnv("LOCAL_TRAINING_DPO_ITERS") || "30"),
-  learningRate: getServerEnv("LOCAL_TRAINING_DPO_LEARNING_RATE") || "5e-7",
-  numLayers: Number(getServerEnv("LOCAL_TRAINING_DPO_NUM_LAYERS") || "2"),
-  stepsPerReport: Number(getServerEnv("LOCAL_TRAINING_DPO_STEPS_PER_REPORT") || "5"),
-  stepsPerEval: Number(getServerEnv("LOCAL_TRAINING_DPO_STEPS_PER_EVAL") || "10"),
-  saveEvery: Number(getServerEnv("LOCAL_TRAINING_DPO_SAVE_EVERY") || "10"),
-  beta: getServerEnv("LOCAL_TRAINING_DPO_BETA") || "0.1",
-  maxSeqLength: Number(getServerEnv("LOCAL_TRAINING_DPO_MAX_SEQ_LENGTH") || "2048"),
-};
+const TRAINING_EXECUTION_MODE = reviewTrainingConfig.executionMode;
+const TRAINING_BASE_MODEL = reviewTrainingConfig.baseModels.active;
+const LOCAL_REPLY_MLX_MODEL = reviewTrainingConfig.baseModels.localReplyMlx;
+const CANONICAL_MODEL_FAMILY = reviewTrainingConfig.baseModels.canonicalFamily;
+const TOGETHER_REMOTE_PROVIDER = reviewTrainingConfig.together.remoteProvider;
+const TOGETHER_POLL_INTERVAL_MS = reviewTrainingConfig.together.pollIntervalMs;
+const TOGETHER_TRAINING_SUFFIX_PREFIX = reviewTrainingConfig.together.suffixPrefix;
+const TOGETHER_TRAINING_N_EVALS = reviewTrainingConfig.together.nEvals;
+const TOGETHER_TRAINING_N_CHECKPOINTS = reviewTrainingConfig.together.nCheckpoints;
+const TOGETHER_TRAINING_EPOCHS = reviewTrainingConfig.together.epochs;
+const TOGETHER_TRAINING_BATCH_SIZE = reviewTrainingConfig.together.batchSize;
+const TOGETHER_TRAINING_LEARNING_RATE = reviewTrainingConfig.together.learningRate;
+const TOGETHER_TRAINING_WARMUP_RATIO = reviewTrainingConfig.together.warmupRatio;
+const SFT_TRAINING_ARGS = reviewTrainingConfig.localTraining.sft;
+const DPO_TRAINING_ARGS = reviewTrainingConfig.localTraining.dpo;
 
 interface SnapshotSummary {
   snapshotId: number;
@@ -171,6 +115,7 @@ interface TrainingRunSpec {
   runUid: string;
   kind: ReviewTrainingKind;
   trainingBackend: ReviewTrainingBackend;
+  canonicalModelFamily: string;
   fingerprint: string;
   sourceFingerprint: string;
   sourceSnapshotId: number | null;
@@ -205,6 +150,7 @@ type TrainingArtifactSpec = {
   runUid?: string;
   runId?: string;
   kind: ReviewTrainingKind;
+  canonicalModelFamily: string;
   trainingBackend?: ReviewTrainingBackend | null;
   sourceDatasetVersion: string | null;
   sourceFingerprint: string;
@@ -227,6 +173,7 @@ function trainingArtifactMetadata(spec: TrainingArtifactSpec, artifactPhase: str
   return {
     runId: trainingRunId(spec),
     kind: spec.kind,
+    canonicalModelFamily: spec.canonicalModelFamily,
     trainingBackend: spec.trainingBackend ?? null,
     artifactPhase,
     baseModel: spec.baseModel,
@@ -793,6 +740,8 @@ async function buildRunSpec(params: {
             DERIVE_MLX_RUNTIME_SCRIPT_PATH,
             "--model",
             TRAINING_BASE_MODEL,
+            "--canonical-model-family",
+            CANONICAL_MODEL_FAMILY,
             "--runtime-base-model",
             LOCAL_REPLY_MLX_MODEL,
             "--adapter-dir",
@@ -817,6 +766,7 @@ async function buildRunSpec(params: {
     runUid,
     kind: params.kind,
     trainingBackend: TRAINING_EXECUTION_MODE,
+    canonicalModelFamily: CANONICAL_MODEL_FAMILY,
     fingerprint,
     sourceFingerprint,
     sourceSnapshotId: snapshot?.snapshotId ?? null,
@@ -875,6 +825,7 @@ export async function runReviewTraining(payload: {
     runUid: spec.runUid,
     kind: spec.kind,
     trainingBackend: spec.trainingBackend,
+    canonicalModelFamily: spec.canonicalModelFamily,
     state: "running",
     currentStep: "build_dataset",
     message:
@@ -904,10 +855,7 @@ export async function runReviewTraining(payload: {
 
   const worker = spawn(TSX_BINARY_PATH, [WORKER_SCRIPT_PATH, "--run-id", spec.runUid], {
     cwd: PROJECT_ROOT,
-    env: {
-      ...process.env,
-      NPC_SIMULATOR_ROOT: PROJECT_ROOT,
-    },
+    env: buildBackendRuntimeChildEnv(PROJECT_ROOT),
     detached: true,
     stdio: "ignore",
   });
@@ -948,11 +896,9 @@ async function runLoggedCommand(params: {
     };
     const child = spawn(params.command, params.args, {
       cwd: PROJECT_ROOT,
-      env: {
-        ...process.env,
-        NPC_SIMULATOR_ROOT: PROJECT_ROOT,
+      env: buildBackendRuntimeChildEnv(PROJECT_ROOT, {
         TOKENIZERS_PARALLELISM: "true",
-      },
+      }),
     });
 
     child.stdout.on("data", (chunk) => {
@@ -1180,6 +1126,7 @@ async function runTogetherTrainingWorker(
       const trainingResult = {
         generatedAt: finishedAt,
         runId: spec.runId,
+        canonicalModelFamily: spec.canonicalModelFamily,
         trainingBackend: spec.trainingBackend,
         provider: spec.remoteProvider ?? TOGETHER_REMOTE_PROVIDER,
         baseModel: spec.baseModel,

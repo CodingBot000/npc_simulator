@@ -3,6 +3,7 @@ package com.npcsimulator.infra.bridge;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -21,24 +22,28 @@ import org.springframework.stereotype.Service;
 public class NodeBridgeService {
 
     private final ObjectMapper objectMapper;
-    private final Path repoRoot;
+    private final BackendRuntimeLayout runtimeLayout;
     private final boolean bridgeEnabled;
+    private final long bridgeTimeoutSeconds;
     private final String datasourceUrl;
     private final String datasourceUsername;
     private final String datasourcePassword;
 
     public NodeBridgeService(
+        BackendRuntimeLayout runtimeLayout,
         @Value("${npc-simulator.bridge.enabled:true}") boolean bridgeEnabled,
+        @Value("${npc-simulator.bridge.timeout-seconds:420}") long bridgeTimeoutSeconds,
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${spring.datasource.username:}") String datasourceUsername,
         @Value("${spring.datasource.password:}") String datasourcePassword
     ) {
         this.objectMapper = JsonMapper.builder().findAndAddModules().build();
+        this.runtimeLayout = runtimeLayout;
         this.bridgeEnabled = bridgeEnabled;
+        this.bridgeTimeoutSeconds = Math.max(1L, bridgeTimeoutSeconds);
         this.datasourceUrl = datasourceUrl;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
-        this.repoRoot = resolveRepoRoot();
     }
 
     public BridgeEnvelope invoke(String operation, HttpHeaders headers, Object body) {
@@ -50,15 +55,15 @@ public class NodeBridgeService {
         }
 
         try {
-            Path tsxPath = repoRoot.resolve("node_modules/.bin/tsx");
+            Path tsxPath = runtimeLayout.tsxBinary();
             if (!Files.isExecutable(tsxPath)) {
-                throw new IllegalStateException("tsx executable is missing. Run npm install at repo root.");
+                throw new IllegalStateException("tsx executable is missing. Check NPC_SIMULATOR_NODE_BIN_DIR or run npm install.");
             }
 
-            Path scriptPath = repoRoot.resolve("backend/scripts/api/bridge.ts");
+            Path scriptPath = runtimeLayout.bridgeScript();
             ProcessBuilder processBuilder = new ProcessBuilder(buildCommand(tsxPath, scriptPath, operation));
-            processBuilder.directory(repoRoot.toFile());
-            processBuilder.environment().putIfAbsent("NPC_SIMULATOR_ROOT", repoRoot.toString());
+            processBuilder.directory(runtimeLayout.workingDirectory().toFile());
+            processBuilder.environment().putIfAbsent("NPC_SIMULATOR_ROOT", runtimeLayout.projectRoot().toString());
             if (datasourceUrl != null && !datasourceUrl.isBlank()) {
                 processBuilder.environment().put("SPRING_DATASOURCE_URL", datasourceUrl);
             }
@@ -80,10 +85,10 @@ public class NodeBridgeService {
 
             CompletableFuture<String> stdoutFuture = readStream(process.getInputStream());
             CompletableFuture<String> stderrFuture = readStream(process.getErrorStream());
-            boolean finished = process.waitFor(2, TimeUnit.MINUTES);
+            boolean finished = process.waitFor(bridgeTimeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
-                process.destroyForcibly();
-                throw new IllegalStateException("Node bridge timed out.");
+                destroyProcessTree(process);
+                throw new IllegalStateException("Node bridge timed out after " + bridgeTimeoutSeconds + "s.");
             }
 
             String stdout = stdoutFuture.get(5, TimeUnit.SECONDS).trim();
@@ -124,30 +129,16 @@ public class NodeBridgeService {
         });
     }
 
+    private void destroyProcessTree(Process process) {
+        process.toHandle().descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
+    }
+
     private List<String> buildCommand(Path tsxPath, Path scriptPath, String operation) {
         List<String> command = new ArrayList<>();
         command.add(tsxPath.toString());
         command.add(scriptPath.toString());
         command.add(operation);
         return command;
-    }
-
-    private Path resolveRepoRoot() {
-        String explicit = System.getenv("NPC_SIMULATOR_ROOT");
-        if (explicit != null && !explicit.isBlank()) {
-            return Path.of(explicit).toAbsolutePath().normalize();
-        }
-
-        Path cwd = Path.of("").toAbsolutePath().normalize();
-        if (Files.exists(cwd.resolve("frontend")) && Files.exists(cwd.resolve("backend"))) {
-            return cwd;
-        }
-
-        Path parent = cwd.getParent();
-        if (parent != null && Files.exists(parent.resolve("frontend")) && Files.exists(parent.resolve("backend"))) {
-            return parent;
-        }
-
-        return cwd;
     }
 }

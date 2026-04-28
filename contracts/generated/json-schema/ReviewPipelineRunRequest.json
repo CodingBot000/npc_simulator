@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewPipelineRunRequest",
+  "definitions": {
+    "ReviewPipelineRunRequest": {
+      "type": "object",
+      "properties": {
+        "sourceMode": {
+          "$ref": "#/definitions/ReviewSourceMode"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReviewSourceMode": {
+      "type": "string",
+      "enum": [
+        "human_required",
+        "human_reviewed",
+        "llm_completed"
+      ]
+    }
+  }
+}

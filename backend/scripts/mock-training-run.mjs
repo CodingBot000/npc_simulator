@@ -84,6 +84,7 @@ async function runTrainMode(
   runtimeArtifactPath,
   runtimeArtifactKind,
   runtimeBaseModel,
+  canonicalModelFamily,
   manifestPath,
   datasetDir,
   runId,
@@ -128,6 +129,7 @@ async function runTrainMode(
     runId: runId ?? null,
     datasetDir: datasetDir ?? null,
     referenceAdapterPath: referenceAdapterPath ?? null,
+    canonicalModelFamily: canonicalModelFamily ?? null,
     runtimeBaseModelId: runtimeBaseModel ?? null,
     canonicalArtifact: {
       kind: "peft_adapter",
@@ -156,6 +158,11 @@ async function main() {
   const runtimeArtifactPath = getStringOption(options, "runtime-artifact-path", null);
   const runtimeArtifactKind = getStringOption(options, "runtime-artifact-kind", null);
   const runtimeBaseModel = getStringOption(options, "runtime-base-model", null);
+  const canonicalModelFamily = getStringOption(
+    options,
+    "canonical-model-family",
+    null,
+  );
   const manifestPath = getStringOption(options, "manifest-path", null);
   const runId = getStringOption(options, "run-id", null);
   const snapshotId = getStringOption(options, "snapshot-id", null);
@@ -174,6 +181,7 @@ async function main() {
       runtimeArtifactPath,
       runtimeArtifactKind,
       runtimeBaseModel,
+      canonicalModelFamily,
       manifestPath,
       datasetDir,
       runId,

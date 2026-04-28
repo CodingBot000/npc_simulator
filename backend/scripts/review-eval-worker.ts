@@ -1,13 +1,8 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { closeTrainingEvalResources, runTrainingGoldenEvalWorker } from "./review/eval";
+import { ensureNpcSimulatorRoot } from "@backend-support/bootstrap";
 
-const repoRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
+ensureNpcSimulatorRoot(import.meta.url, "..", "..");
 
-process.env.NPC_SIMULATOR_ROOT ??= repoRoot;
+const reviewEvalModulePromise = import("./review/eval");
 
 function readRequiredOption(flag: string) {
   const index = process.argv.indexOf(flag);
@@ -24,6 +19,7 @@ function readOptionalOption(flag: string) {
 }
 
 async function main() {
+  const { runTrainingGoldenEvalWorker } = await reviewEvalModulePromise;
   const summary = await runTrainingGoldenEvalWorker({
     runId: readRequiredOption("--run-id"),
     bindingKey: readRequiredOption("--binding-key"),
@@ -45,5 +41,6 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    const { closeTrainingEvalResources } = await reviewEvalModulePromise;
     await closeTrainingEvalResources();
   });

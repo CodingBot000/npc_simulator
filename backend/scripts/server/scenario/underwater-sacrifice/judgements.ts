@@ -1,5 +1,6 @@
-import { DEFAULT_PLAYER_ID } from "@/lib/constants";
-import type { JudgementDimensions, JudgementState } from "@/lib/types";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
+import type { JudgementState } from "@backend-persistence";
+import type { JudgementDimensions } from "@sim-shared/types";
 
 function judgementScore(dimensions: JudgementDimensions) {
   return (

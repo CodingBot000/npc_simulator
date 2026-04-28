@@ -1,10 +1,13 @@
 import type {
   GenerateInteractionInput,
+  LlmProvider,
+} from "@backend-provider";
+import type {
   LlmInteractionResult,
-} from "@/lib/types";
+} from "@backend-contracts/api";
 import { buildFallbackInteractionResult } from "@server/engine/fallback-interaction";
 
-export class DeterministicProvider {
+export class DeterministicProvider implements LlmProvider {
   readonly mode = "deterministic" as const;
 
   async generateInteraction(

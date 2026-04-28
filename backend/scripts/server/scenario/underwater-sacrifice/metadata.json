@@ -1,0 +1,28 @@
+{
+  "id": "underwater-sacrifice",
+  "presentation": {
+    "appTitle": "펠라지아-9 탈출 협상",
+    "npcListTitle": "지금 말 걸 사람",
+    "npcListSubtitle": "누구를 움직일지 먼저 고르고, 그 입에서 다른 사람 이름이 나오게 만들어라.",
+    "interactionTitle": "한 턴 시작하기",
+    "interactionSubtitle": "한 사람을 설득해 다른 누군가를 더 위험하게 만들거나, 자신에게 몰린 시선을 흩뜨린다.",
+    "interactionPlaceholder": "예: 마지막 중단 결정을 미룬 쪽이 누구였는지부터 다시 짚어봅시다.",
+    "boardTitle": "현재 가장 위험한 사람",
+    "boardSubtitle": "지금 방 안에서 가장 많이 몰리고 있는 사람부터 읽어라."
+  },
+  "actionIds": [
+    "make_case",
+    "expose",
+    "appeal",
+    "ally",
+    "deflect",
+    "stall",
+    "confess"
+  ],
+  "scoring": {
+    "minRoundsBeforeResolution": 4,
+    "maxRounds": 7,
+    "instantConsensusVotes": 3,
+    "leadGapThreshold": 140
+  }
+}

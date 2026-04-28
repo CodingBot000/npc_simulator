@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewDecisionRequest",
+  "definitions": {
+    "ReviewDecisionRequest": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sft"
+            },
+            "reviewId": {
+              "type": "string"
+            },
+            "decision": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "include",
+                "exclude",
+                "escalate",
+                null
+              ]
+            },
+            "reviewer": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reviewId",
+            "decision"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "pair"
+            },
+            "reviewId": {
+              "type": "string"
+            },
+            "decision": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "include",
+                "flip",
+                "exclude",
+                "escalate",
+                null
+              ]
+            },
+            "reviewer": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reviewId",
+            "decision"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

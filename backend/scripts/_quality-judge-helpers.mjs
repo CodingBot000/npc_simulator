@@ -3,6 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import {
+  buildScriptSpawnEnv,
+  ensureScriptProjectRoot,
+  getScriptEnv,
+} from "./_script-runtime.mjs";
+import {
   appendJsonLine,
   basenameLabel,
   errorMessage,
@@ -13,6 +18,8 @@ import {
   totalPressureDelta,
   writeJsonFile,
 } from "./_episode-cli-helpers.mjs";
+
+const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
 
 const VALID_ACTIONS = new Set([
   "accuse",
@@ -999,13 +1006,13 @@ function getEvalModelCandidates(explicitModel) {
   }
 
   return uniqueStrings([
-    process.env.EVAL_MODEL,
-    process.env.PREMIUM_MODEL,
-    process.env.OPENAI_MODEL,
+    getScriptEnv("EVAL_MODEL", PROJECT_ROOT),
+    getScriptEnv("PREMIUM_MODEL", PROJECT_ROOT),
+    getScriptEnv("OPENAI_MODEL", PROJECT_ROOT),
     "gpt-5.4",
-    process.env.EVAL_FALLBACK_MODEL,
-    process.env.PREMIUM_FALLBACK_MODEL,
-    process.env.LOW_COST_FALLBACK_MODEL,
+    getScriptEnv("EVAL_FALLBACK_MODEL", PROJECT_ROOT),
+    getScriptEnv("PREMIUM_FALLBACK_MODEL", PROJECT_ROOT),
+    getScriptEnv("LOW_COST_FALLBACK_MODEL", PROJECT_ROOT),
     "gpt-4.1-nano",
   ]);
 }
@@ -1028,8 +1035,8 @@ function extractOpenAiOutputText(payload) {
 function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      cwd: process.cwd(),
-      env: process.env,
+      cwd: PROJECT_ROOT,
+      env: buildScriptSpawnEnv(PROJECT_ROOT),
     });
 
     let stdout = "";
@@ -1085,7 +1092,7 @@ async function runCodexStructuredPrompt(params) {
         "--skip-git-repo-check",
         "--dangerously-bypass-approvals-and-sandbox",
         "-C",
-        process.cwd(),
+        PROJECT_ROOT,
         "-m",
         params.model,
         "--output-schema",
@@ -1118,7 +1125,9 @@ async function runCodexStructuredPrompt(params) {
 }
 
 async function runOpenAiStructuredPrompt(params) {
-  if (!process.env.OPENAI_API_KEY) {
+  const openAiApiKey = getScriptEnv("OPENAI_API_KEY", PROJECT_ROOT);
+
+  if (!openAiApiKey) {
     throw new Error("OPENAI_API_KEY is required for provider=openai");
   }
 
@@ -1126,7 +1135,7 @@ async function runOpenAiStructuredPrompt(params) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${openAiApiKey}`,
     },
     body: JSON.stringify({
       model: params.model,
@@ -1717,7 +1726,7 @@ export function summarizeFilterRun(params) {
 
   return {
     generatedAt: new Date().toISOString(),
-    inputFiles: params.inputFiles.map((filePath) => path.relative(process.cwd(), filePath)),
+    inputFiles: params.inputFiles.map((filePath) => path.relative(PROJECT_ROOT, filePath)),
     processedCount: params.results.length,
     decisions,
     averageHeuristicScores: Object.fromEntries(
@@ -1780,7 +1789,7 @@ export function summarizeJudgeRun(params) {
 
   return {
     generatedAt: new Date().toISOString(),
-    inputFiles: params.inputFiles.map((filePath) => path.relative(process.cwd(), filePath)),
+    inputFiles: params.inputFiles.map((filePath) => path.relative(PROJECT_ROOT, filePath)),
     processedCount: params.results.length,
     mode: params.mode,
     provider: params.provider,

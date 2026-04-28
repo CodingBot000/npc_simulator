@@ -16,11 +16,13 @@
 import type {
   CandidateId,
   ConsensusBoardEntry,
-  JudgementDimensions,
-  PlayerAction,
   RelationshipDelta,
   RoundState,
-} from "@/lib/types";
+} from "@backend-contracts/api";
+import type {
+  JudgementDimensions,
+  PlayerAction,
+} from "@sim-shared/types";
 
 export type PressureRole = "player" | "target";
 export type DimensionKey = keyof JudgementDimensions;

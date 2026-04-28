@@ -5,8 +5,8 @@ import type {
   InteractionLogFile,
   NpcMemoryFile,
   WorldStateFile,
-} from "@/lib/types";
-import { DATA_FILES } from "@/lib/constants";
+} from "@backend-persistence";
+import { DATA_FILES } from "@backend-support/constants";
 import { dbQuery, withDbTransaction } from "@server/db/postgres";
 import { getCurrentScenario } from "@server/scenario";
 import type {

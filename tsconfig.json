@@ -8,6 +8,39 @@
       "@/*": [
         "./frontend/src/*"
       ],
+      "@contracts/*": [
+        "./contracts/generated/*"
+      ],
+      "@sim-shared/*": [
+        "./shared/simulator-rules/*"
+      ],
+      "@sim-presentation/*": [
+        "./shared/simulator-presentation/*"
+      ],
+      "@backend-contracts/api": [
+        "./backend/scripts/contracts/api.ts"
+      ],
+      "@backend-contracts/review": [
+        "./backend/scripts/contracts/review.ts"
+      ],
+      "@backend-persistence": [
+        "./backend/scripts/persistence/index.ts"
+      ],
+      "@backend-provider": [
+        "./backend/scripts/provider/index.ts"
+      ],
+      "@backend-domain": [
+        "./backend/scripts/domain/index.ts"
+      ],
+      "@backend-support/constants": [
+        "./backend/scripts/support/constants.ts"
+      ],
+      "@backend-support/bootstrap": [
+        "./backend/scripts/support/bootstrap.ts"
+      ],
+      "@backend-support/utils": [
+        "./backend/scripts/support/utils.ts"
+      ],
       "@server/*": [
         "./backend/scripts/server/*"
       ]
@@ -20,6 +53,7 @@
   "include": [
     "backend/scripts/**/*.ts",
     "frontend/src/**/*.ts",
-    "frontend/src/**/*.tsx"
+    "frontend/src/**/*.tsx",
+    "shared/**/*.ts"
   ]
 }
