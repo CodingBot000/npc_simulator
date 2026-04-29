@@ -7,9 +7,11 @@ import type {
 
 interface MissionBriefCardProps {
   busy: boolean;
+  conversationDebugEnabled: boolean;
   round: RoundState;
   scoring?: ScenarioScoringSnapshot | null;
   world: WorldMeta;
+  onToggleConversationDebug: () => void;
   onRestart: () => void;
 }
 
@@ -43,9 +45,11 @@ function resolutionRuleText(
 
 export function MissionBriefCard({
   busy,
+  conversationDebugEnabled,
   round,
   scoring,
   world,
+  onToggleConversationDebug,
   onRestart,
 }: MissionBriefCardProps) {
   return (
@@ -55,14 +59,28 @@ export function MissionBriefCard({
       subtitle="사람을 고르고, 말을 던지고, 압력 변화를 읽어라."
       className="play-session-card"
       trailing={
-        <button
-          type="button"
-          onClick={onRestart}
-          disabled={busy}
-          className="rounded-full bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {busy ? "정리 중..." : "처음부터 다시"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-pressed={conversationDebugEnabled}
+            onClick={onToggleConversationDebug}
+            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              conversationDebugEnabled
+                ? "border-[var(--teal)] bg-[var(--teal)] text-white hover:brightness-105"
+                : "border-[var(--panel-border)] bg-white/10 text-foreground hover:border-[var(--teal)] hover:bg-white/18"
+            }`}
+          >
+            대화창 디버그 {conversationDebugEnabled ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            onClick={onRestart}
+            disabled={busy}
+            className="rounded-full bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busy ? "정리 중..." : "처음부터 다시"}
+          </button>
+        </div>
       }
       contentClassName="space-y-4"
     >

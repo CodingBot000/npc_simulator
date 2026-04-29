@@ -17,6 +17,10 @@ public class SystemController {
     private final String openAiApiKey;
     private final String finalReplyMode;
     private final String finalReplyBackend;
+    private final String finalReplyRemoteModelName;
+    private final String finalReplyBasetenModelId;
+    private final String finalReplyBasetenModelUrl;
+    private final String finalReplyRunpodEndpointId;
     private final String togetherApiKey;
     private final String runpodApiKey;
     private final String basetenApiKey;
@@ -28,6 +32,10 @@ public class SystemController {
         @Value("${OPENAI_API_KEY:}") String openAiApiKey,
         @Value("${FINAL_REPLY_MODE:off}") String finalReplyMode,
         @Value("${FINAL_REPLY_BACKEND:off}") String finalReplyBackend,
+        @Value("${FINAL_REPLY_REMOTE_MODEL_NAME:}") String finalReplyRemoteModelName,
+        @Value("${FINAL_REPLY_BASETEN_MODEL_ID:${BASETEN_MODEL_ID:}}") String finalReplyBasetenModelId,
+        @Value("${FINAL_REPLY_BASETEN_MODEL_URL:${BASETEN_MODEL_URL:}}") String finalReplyBasetenModelUrl,
+        @Value("${FINAL_REPLY_RUNPOD_ENDPOINT_ID:${RUNPOD_ENDPOINT_ID:}}") String finalReplyRunpodEndpointId,
         @Value("${TOGETHER_API_KEY:}") String togetherApiKey,
         @Value("${RUNPOD_API_KEY:}") String runpodApiKey,
         @Value("${BASETEN_API_KEY:}") String basetenApiKey
@@ -38,6 +46,10 @@ public class SystemController {
         this.openAiApiKey = openAiApiKey;
         this.finalReplyMode = normalizeMode(finalReplyMode, "off");
         this.finalReplyBackend = normalizeMode(finalReplyBackend, "off");
+        this.finalReplyRemoteModelName = finalReplyRemoteModelName;
+        this.finalReplyBasetenModelId = finalReplyBasetenModelId;
+        this.finalReplyBasetenModelUrl = finalReplyBasetenModelUrl;
+        this.finalReplyRunpodEndpointId = finalReplyRunpodEndpointId;
         this.togetherApiKey = togetherApiKey;
         this.runpodApiKey = runpodApiKey;
         this.basetenApiKey = basetenApiKey;
@@ -167,21 +179,23 @@ public class SystemController {
             );
             case "together" -> keyBackedFinalReply(
                 "together",
-                !blank(togetherApiKey),
-                "missing_together_api_key",
-                "TOGETHER_API_KEY를 backend 환경변수로 설정하세요."
+                !blank(togetherApiKey) && !blank(finalReplyRemoteModelName),
+                blank(togetherApiKey) ? "missing_together_api_key" : "missing_final_reply_model",
+                "TOGETHER_API_KEY와 FINAL_REPLY_REMOTE_MODEL_NAME을 backend 환경변수로 설정하세요."
             );
             case "runpod" -> keyBackedFinalReply(
                 "runpod",
-                !blank(runpodApiKey),
-                "missing_runpod_api_key",
-                "RUNPOD_API_KEY와 endpoint 설정을 backend 환경변수로 설정하세요."
+                !blank(runpodApiKey) && !blank(finalReplyRunpodEndpointId) && !blank(finalReplyRemoteModelName),
+                runpodMissingStatus(),
+                "RUNPOD_API_KEY, FINAL_REPLY_RUNPOD_ENDPOINT_ID, FINAL_REPLY_REMOTE_MODEL_NAME을 backend 환경변수로 설정하세요."
             );
             case "baseten" -> keyBackedFinalReply(
                 "baseten",
-                !blank(basetenApiKey),
-                "missing_baseten_api_key",
-                "BASETEN_API_KEY와 model URL/ID를 backend 환경변수로 설정하세요."
+                !blank(basetenApiKey)
+                    && (!blank(finalReplyBasetenModelId) || !blank(finalReplyBasetenModelUrl))
+                    && !blank(finalReplyRemoteModelName),
+                basetenMissingStatus(),
+                "BASETEN_API_KEY, FINAL_REPLY_BASETEN_MODEL_ID 또는 FINAL_REPLY_BASETEN_MODEL_URL, FINAL_REPLY_REMOTE_MODEL_NAME을 backend 환경변수로 설정하세요."
             );
             case "codex" -> new SystemInfoResponse.FinalReplyReadiness(
                 finalReplyMode,
@@ -221,6 +235,26 @@ public class SystemController {
                 : "선택한 final reply backend에 필요한 API key가 backend 환경에 없습니다.",
             configured ? "추가 조치가 필요 없습니다." : actionGuide
         );
+    }
+
+    private String runpodMissingStatus() {
+        if (blank(runpodApiKey)) {
+            return "missing_runpod_api_key";
+        }
+        if (blank(finalReplyRunpodEndpointId)) {
+            return "missing_runpod_endpoint";
+        }
+        return "missing_final_reply_model";
+    }
+
+    private String basetenMissingStatus() {
+        if (blank(basetenApiKey)) {
+            return "missing_baseten_api_key";
+        }
+        if (blank(finalReplyBasetenModelId) && blank(finalReplyBasetenModelUrl)) {
+            return "missing_baseten_model_target";
+        }
+        return "missing_final_reply_model";
     }
 
     private String normalizeMode(String value, String fallback) {

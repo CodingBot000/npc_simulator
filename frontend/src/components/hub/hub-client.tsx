@@ -39,6 +39,22 @@ type LocalConversationMessage = ChatMessage & {
   deliveryStatus?: "failed";
 };
 
+function createClientMessageId(prefix: string) {
+  const randomUuid = globalThis.crypto?.randomUUID?.();
+  if (randomUuid) {
+    return `${prefix}-${randomUuid}`;
+  }
+
+  const randomPart =
+    globalThis.crypto?.getRandomValues
+      ? Array.from(globalThis.crypto.getRandomValues(new Uint32Array(2)))
+          .map((value) => value.toString(36))
+          .join("")
+      : Math.random().toString(36).slice(2);
+
+  return `${prefix}-${Date.now().toString(36)}-${randomPart}`;
+}
+
 function findLatestNpcReplyMessage(
   conversation: ChatMessage[],
   replyText: string,
@@ -87,6 +103,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
   >({});
   const [showStickySummary, setShowStickySummary] = useState(false);
   const [stickyPinned, setStickyPinned] = useState(false);
+  const [conversationDebugEnabled, setConversationDebugEnabled] = useState(false);
   const [gameOverOpen, setGameOverOpen] = useState(
     initialWorld.resolution.resolved,
   );
@@ -203,7 +220,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
           DEFAULT_PLAYER_LABEL
         : null;
     const pendingPlayerMessage: ChatMessage = {
-      id: `pending-${crypto.randomUUID()}`,
+      id: createClientMessageId("pending"),
       npcId: selectedNpc.persona.id,
       speaker: "player",
       text: formatPlayerConversationText({
@@ -259,7 +276,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
       setPendingConversationTurn(null);
       setDraft("");
     } catch (fetchError) {
-      const failedReplyId = `failed-${crypto.randomUUID()}`;
+      const failedReplyId = createClientMessageId("failed");
       const failedAt = nowIso();
       const errorMessage =
         fetchError instanceof Error
@@ -377,9 +394,13 @@ export function HubClient({ initialWorld }: HubClientProps) {
         <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
           <MissionBriefCard
             busy={busy}
+            conversationDebugEnabled={conversationDebugEnabled}
             round={world.round}
             scoring={world.scoring}
             world={world.world}
+            onToggleConversationDebug={() => {
+              setConversationDebugEnabled((current) => !current);
+            }}
             onRestart={() => {
               void resetWorld();
             }}
@@ -446,6 +467,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
                 round={world.round}
                 resolution={world.resolution}
                 lastOutcome={lastOutcome}
+                conversationDebugEnabled={conversationDebugEnabled}
                 draftWarning={draftWarning}
                 onDraftChange={(value) => {
                   setDraft(value);
