@@ -21,16 +21,11 @@ import {
   CardSurface,
   TextBlock,
 } from "./review-dashboard-primitives";
-import {
-  formatDuration,
-  formatTimestamp,
-} from "./review-formatters";
+import { formatTimestamp } from "./review-formatters";
+import { ReviewFinalizePanel } from "./review-finalize-panel";
 import { CompactReviewCard } from "./review-item-card";
-import {
-  decisionLabel,
-  decisionTone,
-  type ReviewItem,
-} from "./review-item-model";
+import { type ReviewItem } from "./review-item-model";
+import { ReviewModeControls } from "./review-mode-controls";
 import {
   persistReviewer,
   readStoredReviewer,
@@ -38,33 +33,6 @@ import {
 import { ShadowInvalidCaseCard } from "./review-shadow-invalid-card";
 import { ReviewTrainingPanel } from "./review-training-panel";
 import { useReviewTraining } from "./use-review-training";
-
-function summarize(items: ReviewItem[]) {
-  return items.reduce(
-    (accumulator, item) => {
-      accumulator.total += 1;
-      if (item.status === "reviewed" || item.decision) {
-        accumulator.reviewed += 1;
-      } else {
-        accumulator.pending += 1;
-      }
-
-      const key = item.decision ?? "undecided";
-      accumulator.decisions[key] = (accumulator.decisions[key] ?? 0) + 1;
-      return accumulator;
-    },
-    {
-      total: 0,
-      reviewed: 0,
-      pending: 0,
-      decisions: {} as Record<string, number>,
-    },
-  );
-}
-
-function totalCount(dataset: ReviewDatasetView) {
-  return dataset.sftItems.length + dataset.pairItems.length;
-}
 
 function isHumanReviewed(item: ReviewItem) {
   return item.decision !== null;
@@ -148,7 +116,6 @@ export function ReviewDashboard({
     }
   }, [data.llmCompleted, humanRequiredDataset, humanReviewedDataset, sourceMode]);
   const items = kind === "sft" ? activeDataset.sftItems : activeDataset.pairItems;
-  const stats = summarize(items);
   const pendingRequiredTotal = useMemo(
     () =>
       data.humanRequired.sftItems.filter((item) => !item.decision).length +
@@ -349,202 +316,26 @@ export function ReviewDashboard({
 
       <CardSurface>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              {([
-                ["human_required", "사람 검수 필요", totalCount(humanRequiredDataset)],
-                ["human_reviewed", "사람 검수 완료", totalCount(humanReviewedDataset)],
-                ["llm_completed", "LLM 검수 완료", totalCount(data.llmCompleted)],
-              ] as const).map(([entry, label, count]) => (
-                <button
-                  key={entry}
-                  type="button"
-                  onClick={() => setSourceMode(entry)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    sourceMode === entry
-                      ? "bg-[var(--teal)] text-black"
-                      : "border border-white/10 bg-white/6 text-foreground/85 hover:bg-white/10"
-                  }`}
-                >
-                  {label} {count}
-                </button>
-              ))}
-            </div>
+          <ReviewModeControls
+            sourceMode={sourceMode}
+            onSourceModeChange={setSourceMode}
+            kind={kind}
+            onKindChange={setKind}
+            reviewer={reviewer}
+            onReviewerChange={setReviewer}
+            humanRequiredDataset={humanRequiredDataset}
+            humanReviewedDataset={humanReviewedDataset}
+            llmCompletedDataset={data.llmCompleted}
+            activeDataset={activeDataset}
+            items={items}
+          />
 
-            <span
-              aria-hidden="true"
-              className="px-1 text-sm font-semibold text-[var(--ink-muted)]"
-            >
-              |
-            </span>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {(["sft", "pair"] as const).map((entry) => (
-                <button
-                  key={entry}
-                  type="button"
-                  onClick={() => setKind(entry)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    kind === entry
-                      ? "bg-[var(--accent)] text-white"
-                      : "border border-white/10 bg-white/6 text-foreground/85 hover:bg-white/10"
-                  }`}
-                >
-                  {entry === "sft"
-                    ? `SFT ${activeDataset.sftItems.length}`
-                    : `Pair ${activeDataset.pairItems.length}`}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {Object.entries(stats.decisions).map(([decision, count]) => (
-              <span
-                key={decision}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${decisionTone(
-                  decision as ReviewItem["decision"],
-                )}`}
-              >
-                {decisionLabel(decision as ReviewItem["decision"])} {count}
-              </span>
-            ))}
-            <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
-              전체 {stats.total}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
-              대기 {stats.pending}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
-              완료 {stats.reviewed}
-            </span>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-            {sourceMode === "human_required" ? (
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-foreground">reviewer</span>
-                <input
-                  value={reviewer}
-                  onChange={(event) => setReviewer(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm outline-none placeholder:text-[var(--ink-muted)]"
-                  placeholder="이름"
-                />
-              </label>
-            ) : sourceMode === "human_reviewed" ? (
-              <TextBlock>
-                <p className="mb-2 text-sm font-semibold text-foreground">읽기 전용</p>
-                <p className="text-sm text-[var(--ink-muted)]">
-                  이 탭은 사람이 이미 검수한 결과를 다시 확인하는 용도입니다.
-                </p>
-              </TextBlock>
-            ) : (
-              <TextBlock>
-                <p className="mb-2 text-sm font-semibold text-foreground">읽기 전용</p>
-                <p className="text-sm text-[var(--ink-muted)]">
-                  이 탭은 LLM이 이미 1차 판정한 결과를 확인하는 용도입니다.
-                </p>
-              </TextBlock>
-            )}
-
-            <TextBlock>
-              <p className="mb-2 text-sm font-semibold text-foreground">
-                현재 모드:{" "}
-                {sourceMode === "human_required"
-                  ? "사람 검수 필요"
-                  : sourceMode === "human_reviewed"
-                    ? "사람 검수 완료"
-                    : "LLM 검수 완료"}{" "}
-                / {kind === "sft" ? "SFT" : "Pair / DPO"}
-              </p>
-              <p className="text-sm text-[var(--ink-muted)]">
-                {sourceMode === "human_required"
-                  ? kind === "sft"
-                    ? "아직 사람이 직접 판정해야 하는 SFT 응답만 따로 보여줍니다."
-                    : "아직 사람이 직접 판정해야 하는 pair만 따로 보여줍니다."
-                  : sourceMode === "human_reviewed"
-                    ? kind === "sft"
-                      ? "사람이 이미 판정한 SFT 응답만 읽기 전용으로 다시 확인합니다."
-                      : "사람이 이미 판정한 pair만 읽기 전용으로 다시 확인합니다."
-                    : kind === "sft"
-                      ? "전체 LLM 판정 결과 중 추가 사람 검수 없이 통과한 응답만 읽기 전용으로 확인합니다."
-                      : "전체 pair 판정 결과 중 추가 사람 검수 없이 통과한 pair만 읽기 전용으로 확인합니다."}
-              </p>
-            </TextBlock>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/12 px-4 py-4">
-              <p className="text-sm font-semibold text-foreground">Finalize</p>
-              <p className="text-sm text-[var(--ink-muted)]">
-                사람 검수 미완료가 `0`이면 최종 학습 데이터셋을 다시 생성할 수 있습니다.
-              </p>
-              <button
-                type="button"
-                onClick={handleFinalize}
-                disabled={
-                  finalizeStatus
-                    ? !finalizeStatus.canFinalize
-                    : pendingRequiredTotal > 0
-                }
-                className="rounded-full bg-[var(--teal)] px-5 py-2.5 text-sm font-semibold text-black transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {finalizeStatus?.state === "running"
-                  ? "Finalize 실행 중..."
-                  : "Finalize 실행"}
-              </button>
-              <p className="text-xs text-[var(--ink-muted)]">
-                로컬 실측: SFT 약 55ms, preference 약 47ms, 전체 약 0.1초
-              </p>
-            </div>
-
-            <TextBlock>
-              <p className="mb-2 text-sm font-semibold text-foreground">현재 상태</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
-                  사람 검수 미완료 {pendingRequiredTotal}
-                </span>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    finalizeStatus?.state === "succeeded"
-                      ? "bg-[rgba(74,166,124,0.16)] text-[var(--success)]"
-                      : finalizeStatus?.state === "failed"
-                        ? "bg-[rgba(214,90,90,0.16)] text-[var(--danger)]"
-                        : finalizeStatus?.state === "running"
-                          ? "bg-[rgba(76,194,200,0.16)] text-[var(--teal)]"
-                          : "bg-white/6 text-[var(--ink-muted)]"
-                  }`}
-                >
-                  {finalizeStatus?.state === "succeeded"
-                    ? "완료"
-                    : finalizeStatus?.state === "failed"
-                      ? "실패"
-                      : finalizeStatus?.state === "running"
-                        ? "실행 중"
-                        : "대기"}
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[var(--ink-muted)]">
-                  단계{" "}
-                  {finalizeStatus?.currentStep === "finalize_sft"
-                    ? "SFT finalize"
-                    : finalizeStatus?.currentStep === "finalize_preference"
-                      ? "Preference finalize"
-                      : "-"}
-                </span>
-              </div>
-
-              <div className="mt-4 space-y-2 text-sm text-[var(--ink-muted)]">
-                <p>메시지: {finalizeError ?? finalizeStatus?.message ?? "-"}</p>
-                <p>시작: {formatTimestamp(finalizeStatus?.startedAt ?? null)}</p>
-                <p>완료: {formatTimestamp(finalizeStatus?.finishedAt ?? null)}</p>
-                <p>
-                  소요: SFT {formatDuration(finalizeStatus?.durations.sftMs ?? null)} / Preference{" "}
-                  {formatDuration(finalizeStatus?.durations.preferenceMs ?? null)} / 전체{" "}
-                  {formatDuration(finalizeStatus?.durations.totalMs ?? null)}
-                </p>
-              </div>
-            </TextBlock>
-          </div>
+          <ReviewFinalizePanel
+            status={finalizeStatus}
+            error={finalizeError}
+            pendingRequiredTotal={pendingRequiredTotal}
+            onFinalize={handleFinalize}
+          />
 
           <ReviewTrainingPanel controller={training} />
         </div>
