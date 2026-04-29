@@ -15,3 +15,7 @@ interface Window {
     source?: "NPC_SIMULATOR_API_BASE_URL" | "VITE_API_BASE_URL" | null;
   };
 }
+
+declare module "virtual:npc-simulator-source-version" {
+  export const sourceVersion: string;
+}

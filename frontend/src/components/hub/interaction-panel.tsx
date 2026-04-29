@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { sourceVersion } from "virtual:npc-simulator-source-version";
 import type {
   AvailableActionDefinition,
   ChatMessage,
@@ -50,7 +51,6 @@ type InteractionTraceTurn = {
 const SHOW_INTERACTION_FAILURE_DEBUG =
   (import.meta.env.VITE_SHOW_INTERACTION_FAILURE_DEBUG ?? "true").toLowerCase() !==
   "false";
-const ROOM_CONVERSATION_UI_VERSION = "conv-ui-2026-04-29_01-45-judge";
 
 function roundStatus(round: RoundState) {
   if (round.currentRound === 0) {
@@ -774,7 +774,7 @@ export function InteractionPanel({
                     방 안 대화
                   </p>
                   <span className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)]">
-                    {ROOM_CONVERSATION_UI_VERSION}
+                    {sourceVersion}
                   </span>
                   <button
                     type="button"
