@@ -119,6 +119,13 @@ async function main() {
       action: "make_case",
       text: "살아남아 수습해야 한다는 말은 예산 삭감을 밀어붙인 사람에게 면죄부가 될 수 없습니다.",
     },
+    {
+      npcId: "supervisor",
+      targetNpcId: "doctor",
+      inputMode: "action",
+      action: "expose",
+      text: "대피보다 샘플 보존을 먼저 본 기록이 있다면 그 판단도 희생 후보에서 빠질 수 없습니다.",
+    },
   ];
 
   const freeTextOutcomes = [];

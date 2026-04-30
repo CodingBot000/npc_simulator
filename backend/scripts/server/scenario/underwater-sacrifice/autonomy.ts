@@ -8,15 +8,15 @@ export const underwaterAutonomyConfig: Omit<
   minStepsPerTurn: 1,
   maxStepsPerTurn: 2,
   moveWeights: {
-    pile_on: 1,
+    pile_on: 1.12,
     shield: 1.15,
-    redirect: 1.22,
-    freeze: 0.78,
+    redirect: 1.34,
+    freeze: 0.68,
   },
   roundVolatility: [
-    { fromRound: 0, toRound: 2, scale: 0.9 },
-    { fromRound: 3, toRound: 4, scale: 1 },
-    { fromRound: 5, toRound: 7, scale: 1.12 },
+    { fromRound: 0, toRound: 3, scale: 0.9 },
+    { fromRound: 4, toRound: 5, scale: 1 },
+    { fromRound: 6, toRound: 8, scale: 1.12 },
   ],
   actorBias: {
     director: {

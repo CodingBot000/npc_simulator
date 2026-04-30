@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import { createAutonomyRandom, createAutonomyRuntimeState } from "@server/engine/npc-autonomy/random";
 import { determineAutonomyStepCount, planAutonomyStep } from "@server/engine/npc-autonomy/planner";
 import { buildAutonomyTestFixture } from "@server/engine/npc-autonomy/test-fixtures";
@@ -69,4 +70,45 @@ test("step count stays within configured bounds", () => {
 
   assert.ok(count >= fixture.autonomy.minStepsPerTurn);
   assert.ok(count <= fixture.autonomy.maxStepsPerTurn);
+});
+
+test("overfocused non-player leader redirects pressure toward the safest candidate", () => {
+  const fixture = buildAutonomyTestFixture();
+  const rng = createAutonomyRandom(createAutonomyRuntimeState("planner-overfocus"));
+  const judgements = fixture.judgements.map((entry) => {
+    if (entry.candidateId === "supervisor") {
+      return {
+        ...entry,
+        sacrificePreference: entry.sacrificePreference + 120,
+      };
+    }
+
+    if (entry.candidateId === "engineer") {
+      return {
+        ...entry,
+        sacrificePreference: entry.sacrificePreference - 20,
+      };
+    }
+
+    return entry;
+  });
+
+  const step = planAutonomyStep(
+    {
+      autonomy: fixture.autonomy,
+      npcs: fixture.npcs,
+      judgements,
+      round: fixture.round,
+      recentEvents: fixture.recentEvents,
+      excludedActorNpcIds: [],
+    },
+    rng,
+  );
+
+  assert.ok(step);
+  assert.equal(step.actorNpcId, "supervisor");
+  assert.equal(step.moveType, "redirect");
+  assert.equal(step.secondaryTargetNpcId, "supervisor");
+  assert.notEqual(step.targetNpcId, DEFAULT_PLAYER_ID);
+  assert.equal(step.targetNpcId, "engineer");
 });
