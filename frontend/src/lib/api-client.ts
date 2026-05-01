@@ -18,6 +18,10 @@ import type {
 } from "@/lib/api-contract";
 import { resolveClientApiBaseUrlConfig } from "@/lib/runtime-config";
 
+const WORLD_INSTANCE_HEADER = "x-world-instance-id";
+const WORLD_INSTANCE_STORAGE_KEY = "npc-simulator-world-instance-id";
+const WORLD_INSTANCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+
 export function getClientApiBaseUrlSource() {
   return resolveClientApiBaseUrlConfig().source;
 }
@@ -35,6 +39,39 @@ function createApiClient() {
   return createClient<OpenApiPaths>({
     baseUrl: getClientApiBaseUrl(),
   });
+}
+
+function createBrowserWorldInstanceId() {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  const rawId = uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+  return `browser_${rawId.replace(/[^A-Za-z0-9_-]/gu, "_")}`.slice(0, 128);
+}
+
+function getBrowserWorldInstanceId() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const stored = window.localStorage.getItem(WORLD_INSTANCE_STORAGE_KEY)?.trim();
+  if (stored && WORLD_INSTANCE_ID_PATTERN.test(stored)) {
+    return stored;
+  }
+
+  const nextId = createBrowserWorldInstanceId();
+  window.localStorage.setItem(WORLD_INSTANCE_STORAGE_KEY, nextId);
+  return nextId;
+}
+
+function gameWorldHeaders(headers?: HeadersInit) {
+  const instanceId = getBrowserWorldInstanceId();
+  const nextHeaders = new Headers(headers);
+
+  if (instanceId) {
+    nextHeaders.set(WORLD_INSTANCE_HEADER, instanceId);
+  }
+
+  return nextHeaders;
 }
 
 async function readApiErrorMessage(response: Response, fallbackMessage: string) {
@@ -66,14 +103,19 @@ export function apiGetWorld(options?: {
   cache?: RequestCache;
 }) {
   return ensureApiResponse<WorldSnapshot>(
-    createApiClient().GET("/api/world", options),
+    createApiClient().GET("/api/world", {
+      ...options,
+      headers: gameWorldHeaders(),
+    }),
     "월드 데이터를 불러오지 못했습니다.",
   );
 }
 
 export function apiResetWorld() {
   return ensureApiResponse<WorldSnapshot>(
-    createApiClient().POST("/api/reset"),
+    createApiClient().POST("/api/reset", {
+      headers: gameWorldHeaders(),
+    }),
     "상태 초기화에 실패했습니다.",
   );
 }
@@ -82,9 +124,9 @@ export function apiInteract(body: InteractionRequestPayload) {
   return ensureApiResponse<InteractionResponsePayload>(
     createApiClient().POST("/api/interact", {
       body,
-      headers: {
+      headers: gameWorldHeaders({
         "Content-Type": "application/json",
-      },
+      }),
     }),
     "상호작용 처리에 실패했습니다.",
   );

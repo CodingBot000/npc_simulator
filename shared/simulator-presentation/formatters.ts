@@ -76,15 +76,15 @@ export function candidateLabel(
 }
 
 export function pressureSummary(entry: ConsensusBoardEntry) {
-  if (entry.totalPressure >= 90) {
+  if (entry.totalPressure >= 180) {
     return "즉시 희생 가능성 매우 높음";
   }
 
-  if (entry.totalPressure >= 70) {
+  if (entry.totalPressure >= 130) {
     return "방 안의 시선이 빠르게 몰리는 중";
   }
 
-  if (entry.totalPressure >= 50) {
+  if (entry.totalPressure >= 90) {
     return "위험권 진입";
   }
 

@@ -63,16 +63,13 @@ public class NodeBridgeService {
             Path scriptPath = runtimeLayout.bridgeScript();
             ProcessBuilder processBuilder = new ProcessBuilder(buildCommand(tsxPath, scriptPath, operation));
             processBuilder.directory(runtimeLayout.workingDirectory().toFile());
-            processBuilder.environment().putIfAbsent("NPC_SIMULATOR_ROOT", runtimeLayout.projectRoot().toString());
-            if (datasourceUrl != null && !datasourceUrl.isBlank()) {
-                processBuilder.environment().put("SPRING_DATASOURCE_URL", datasourceUrl);
-            }
-            if (datasourceUsername != null && !datasourceUsername.isBlank()) {
-                processBuilder.environment().put("SPRING_DATASOURCE_USERNAME", datasourceUsername);
-            }
-            if (datasourcePassword != null && !datasourcePassword.isBlank()) {
-                processBuilder.environment().put("SPRING_DATASOURCE_PASSWORD", datasourcePassword);
-            }
+            BackendProcessEnvironment.apply(
+                processBuilder.environment(),
+                runtimeLayout,
+                datasourceUrl,
+                datasourceUsername,
+                datasourcePassword
+            );
 
             Process process = processBuilder.start();
             var input = objectMapper.createObjectNode();

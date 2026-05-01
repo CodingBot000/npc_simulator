@@ -6,5 +6,34 @@ public record SystemInfoResponse(
     String service,
     String status,
     String phase,
-    List<String> pendingMigrations
-) {}
+    List<String> pendingMigrations,
+    String deploymentMode,
+    DatabaseInfo database,
+    ProviderReadiness provider,
+    FinalReplyReadiness finalReply
+) {
+    public record DatabaseInfo(
+        String kind,
+        boolean configured,
+        String detail
+    ) {}
+
+    public record ProviderReadiness(
+        String mode,
+        boolean configured,
+        String credentialStatus,
+        String label,
+        String detail,
+        String actionGuide
+    ) {}
+
+    public record FinalReplyReadiness(
+        String mode,
+        String backend,
+        boolean configured,
+        String credentialStatus,
+        String label,
+        String detail,
+        String actionGuide
+    ) {}
+}

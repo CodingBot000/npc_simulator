@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { sourceVersion } from "virtual:npc-simulator-source-version";
 import type {
   AvailableActionDefinition,
   ChatMessage,
@@ -28,6 +29,7 @@ interface InteractionPanelProps {
   round: RoundState;
   resolution: ResolutionState;
   lastOutcome: InteractionResponsePayload | null;
+  conversationDebugEnabled: boolean;
   draftWarning: string | null;
   onDraftChange: (value: string) => void;
   onTargetChange: (value: string | null) => void;
@@ -50,7 +52,6 @@ type InteractionTraceTurn = {
 const SHOW_INTERACTION_FAILURE_DEBUG =
   (import.meta.env.VITE_SHOW_INTERACTION_FAILURE_DEBUG ?? "true").toLowerCase() !==
   "false";
-const ROOM_CONVERSATION_UI_VERSION = "conv-ui-2026-04-29_01-45-judge";
 
 function roundStatus(round: RoundState) {
   if (round.currentRound === 0) {
@@ -534,6 +535,7 @@ export function InteractionPanel({
   round,
   resolution,
   lastOutcome,
+  conversationDebugEnabled,
   draftWarning,
   onDraftChange,
   onTargetChange,
@@ -618,7 +620,13 @@ export function InteractionPanel({
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [conversation.length, loadingDotCount, npc.persona.id, waitingForReply]);
+  }, [
+    conversation.length,
+    conversationDebugEnabled,
+    loadingDotCount,
+    npc.persona.id,
+    waitingForReply,
+  ]);
 
   function handleDraftValueChange(value: string) {
     setDraftConfirmed(false);
@@ -774,15 +782,17 @@ export function InteractionPanel({
                     방 안 대화
                   </p>
                   <span className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)]">
-                    {ROOM_CONVERSATION_UI_VERSION}
+                    {sourceVersion}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setTraceModalOpen(true)}
-                    className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)] transition hover:border-[var(--teal)] hover:bg-white/18"
-                  >
-                    처리 기록
-                  </button>
+                  {conversationDebugEnabled ? (
+                    <button
+                      type="button"
+                      onClick={() => setTraceModalOpen(true)}
+                      className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)] transition hover:border-[var(--teal)] hover:bg-white/18"
+                    >
+                      처리 기록
+                    </button>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
                   방금 누구에게 뭐라고 했는지와 돌아온 말을 여기서 읽는다.
@@ -812,6 +822,8 @@ export function InteractionPanel({
                         : null;
                     const failureDebugEntries: FailureDebugEntry[] =
                       message.speaker === "npc" ? message.failureDebug ?? [] : [];
+                    const traceEntries =
+                      message.speaker === "npc" ? message.interactionTrace ?? [] : [];
                     const failed = message.deliveryStatus === "failed";
 
                     return (
@@ -834,7 +846,9 @@ export function InteractionPanel({
                             replyElapsedByMessageId[message.id] !== undefined
                               ? ` · 응답 ${formatElapsedDuration(replyElapsedByMessageId[message.id])}`
                               : ""}
-                            {replyRewriteLabel ? ` · ${replyRewriteLabel}` : ""}
+                            {conversationDebugEnabled && replyRewriteLabel
+                              ? ` · ${replyRewriteLabel}`
+                              : ""}
                           </p>
                           <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                             {failed ? (
@@ -842,19 +856,55 @@ export function InteractionPanel({
                                 생성 실패
                               </span>
                             ) : null}
-                            {message.speaker === "npc" && message.fallbackUsed ? (
+                            {conversationDebugEnabled &&
+                            message.speaker === "npc" &&
+                            message.fallbackUsed ? (
                               <span className="rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
                                 fallback
                               </span>
                             ) : null}
                           </div>
                         </div>
-                        {replyRewriteReason ? (
+                        {conversationDebugEnabled && message.speaker === "npc" ? (
+                          <div className="mt-2 space-y-2 rounded-2xl border border-[rgba(76,194,200,0.2)] bg-[rgba(76,194,200,0.07)] px-3 py-3 text-[11px] leading-5 text-[var(--ink-muted)]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-foreground">debug</span>
+                              {replyRewriteLabel ? <span>{replyRewriteLabel}</span> : null}
+                              {message.replyJudge ? (
+                                <span>
+                                  judge={message.replyJudge.status}
+                                  {message.replyJudge.durationMs !== null
+                                    ? `/${formatTraceDuration(message.replyJudge.durationMs)}`
+                                    : ""}
+                                </span>
+                              ) : null}
+                            </div>
+                            {traceEntries.length > 0 ? (
+                              <div className="space-y-1">
+                                {traceEntries.map((entry, index) => (
+                                  <p
+                                    key={`${message.id}-inline-trace-${index}`}
+                                    className="break-words"
+                                  >
+                                    {entry.label}: {formatTraceStatus(entry.status)} ·{" "}
+                                    {formatTraceDuration(entry.durationMs)}
+                                    {entry.sourceRef ? ` · ${entry.sourceRef}` : ""}
+                                    {entry.detail ? ` · ${entry.detail}` : ""}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : (
+                              <p>trace 없음</p>
+                            )}
+                          </div>
+                        ) : null}
+                        {conversationDebugEnabled && replyRewriteReason ? (
                           <p className="mt-2 text-[11px] leading-5 text-[var(--danger)]">
                             탈락 사유: {replyRewriteReason}
                           </p>
                         ) : null}
-                        {SHOW_INTERACTION_FAILURE_DEBUG &&
+                        {conversationDebugEnabled &&
+                        SHOW_INTERACTION_FAILURE_DEBUG &&
                         failureDebugEntries.length > 0 ? (
                           <div className="mt-2 space-y-2 rounded-2xl border border-[rgba(181,43,48,0.24)] bg-[rgba(181,43,48,0.08)] px-3 py-3 text-[11px] leading-5 text-[var(--danger)]">
                             {failureDebugEntries.map((entry: FailureDebugEntry, index: number) => (

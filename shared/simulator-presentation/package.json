@@ -1,0 +1,12 @@
+{
+  "name": "@npc-simulator/simulator-presentation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./actions": "./player-actions.ts",
+    "./formatters": "./formatters.ts",
+    "./player-actions.json": "./player-actions.json",
+    ".": "./index.ts"
+  }
+}

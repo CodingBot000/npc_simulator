@@ -15,6 +15,8 @@ function statusLabel(status: ApiDiagnosticsSnapshot["status"]) {
   switch (status) {
     case "reachable":
       return "정상";
+    case "credential_required":
+      return "자격 증명 필요";
     case "http_error":
       return "HTTP 오류";
     case "network_error":
@@ -30,6 +32,8 @@ function statusClassName(status: ApiDiagnosticsSnapshot["status"]) {
   switch (status) {
     case "reachable":
       return "bg-emerald-500/18 text-emerald-200 border border-emerald-400/25";
+    case "credential_required":
+      return "bg-sky-500/18 text-sky-100 border border-sky-300/25";
     case "http_error":
       return "bg-amber-500/18 text-amber-100 border border-amber-400/25";
     case "network_error":
@@ -44,6 +48,8 @@ function diagnosticToneClass(status: ApiDiagnosticsSnapshot["status"]) {
   switch (status) {
     case "reachable":
       return "text-emerald-100";
+    case "credential_required":
+      return "text-sky-100";
     case "http_error":
       return "text-amber-100";
     case "network_error":
@@ -178,7 +184,7 @@ export function ApiDiagnosticsPanel() {
             ) : null}
 
             {snapshot.systemInfo ? (
-              <div>
+              <div className="space-y-3">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
                   Backend
                 </p>
@@ -186,6 +192,26 @@ export function ApiDiagnosticsPanel() {
                   {snapshot.systemInfo.service} / {snapshot.systemInfo.status} /{" "}
                   {snapshot.systemInfo.phase}
                 </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">
+                      Provider
+                    </p>
+                    <p className="mt-1 font-semibold">{snapshot.systemInfo.provider.label}</p>
+                    <p className="mt-1 leading-5 text-white/75">
+                      {snapshot.systemInfo.provider.actionGuide}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">
+                      Final Reply
+                    </p>
+                    <p className="mt-1 font-semibold">{snapshot.systemInfo.finalReply.label}</p>
+                    <p className="mt-1 leading-5 text-white/75">
+                      {snapshot.systemInfo.finalReply.actionGuide}
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : null}
 

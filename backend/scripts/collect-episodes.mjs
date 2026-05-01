@@ -332,7 +332,7 @@ function usage() {
     "  --input-file <path>            JSON/JSONL turn file",
     "",
     "Options:",
-    "  --base-url <url>               API base URL (default: http://localhost:3000)",
+    "  --base-url <url>               Backend API base URL (default: http://localhost:8080)",
     "  --max-episodes <n>             number of episodes to run (default: 1)",
     "  --strategy-mode <cycle|weighted-random>",
     "  --strategy-weights <name:weight,...>",

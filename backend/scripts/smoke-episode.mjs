@@ -4,9 +4,13 @@ import {
   ensureScriptProjectRoot,
   getScriptEnv,
 } from "./_script-runtime.mjs";
+import { DEFAULT_BASE_URL } from "./_episode-cli-helpers.mjs";
 
 const PROJECT_ROOT = ensureScriptProjectRoot(import.meta.url, "..", "..");
-const baseUrl = getScriptEnv("SMOKE_BASE_URL", PROJECT_ROOT) || "http://localhost:3000";
+const baseUrl =
+  getScriptEnv("SMOKE_BASE_URL", PROJECT_ROOT) ||
+  getScriptEnv("NPC_SIMULATOR_API_BASE_URL", PROJECT_ROOT) ||
+  DEFAULT_BASE_URL;
 const instanceId =
   getScriptEnv("SMOKE_INSTANCE_ID", PROJECT_ROOT) ||
   `smoke-${crypto.randomUUID().slice(0, 8)}`;
@@ -114,6 +118,13 @@ async function main() {
       inputMode: "action",
       action: "make_case",
       text: "살아남아 수습해야 한다는 말은 예산 삭감을 밀어붙인 사람에게 면죄부가 될 수 없습니다.",
+    },
+    {
+      npcId: "supervisor",
+      targetNpcId: "doctor",
+      inputMode: "action",
+      action: "expose",
+      text: "대피보다 샘플 보존을 먼저 본 기록이 있다면 그 판단도 희생 후보에서 빠질 수 없습니다.",
     },
   ];
 

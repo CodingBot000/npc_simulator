@@ -4,6 +4,8 @@ WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/package.json
 COPY backend/scripts/package.json backend/scripts/package.json
+COPY shared/simulator-rules/package.json shared/simulator-rules/package.json
+COPY shared/simulator-presentation/package.json shared/simulator-presentation/package.json
 
 RUN npm ci
 
@@ -40,6 +42,8 @@ ENV NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
 
 COPY --from=node-deps /workspace/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
+COPY contracts contracts
+COPY shared shared
 COPY backend/scripts backend/scripts
 COPY data data
 COPY --from=build /workspace/backend/build/libs/*.jar /app/app.jar

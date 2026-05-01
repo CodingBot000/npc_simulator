@@ -1,4 +1,7 @@
-import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
+import {
+  DEFAULT_PLAYER_ID,
+  DEFAULT_PLAYER_LABEL,
+} from "@backend-support/constants";
 import type {
   ConsensusBoardEntry,
   EventLogEntry,
@@ -42,6 +45,52 @@ function boardRankWeight(index: number) {
   return 1.05;
 }
 
+const OVERFOCUS_REDIRECT_PRESSURE_MIN = 135;
+const OVERFOCUS_REDIRECT_GAP = 36;
+const OVERFOCUS_REDIRECT_TOP_VOTES = 2;
+
+function boundedOpinion(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function targetCandidateIds(params: {
+  input: AutonomyPlannerInput;
+  actorNpcId: string;
+  excludedCandidateId?: string | null;
+}) {
+  return [
+    DEFAULT_PLAYER_ID,
+    ...params.input.npcs.map((npc) => npc.persona.id),
+  ].filter(
+    (candidateId) =>
+      candidateId !== params.actorNpcId &&
+      candidateId !== params.excludedCandidateId,
+  );
+}
+
+function playerTargetPressureScale(board: ConsensusBoardEntry[]) {
+  const playerIndex = board.findIndex(
+    (entry) => entry.candidateId === DEFAULT_PLAYER_ID,
+  );
+
+  if (playerIndex <= 0) {
+    return 0.58;
+  }
+
+  if (playerIndex === 1) {
+    return 0.86;
+  }
+
+  return 1.16;
+}
+
+function playerLabelAwareNames(npcs: PersistedNpcState[]) {
+  return {
+    [DEFAULT_PLAYER_ID]: DEFAULT_PLAYER_LABEL,
+    ...Object.fromEntries(npcs.map((npc) => [npc.persona.id, npc.persona.name])),
+  };
+}
+
 function recentToneWeight(events: EventLogEntry[]) {
   if (events.some((event) => event.tone === "danger")) {
     return AUTONOMY_STEP_RULES.dangerToneBonus;
@@ -67,6 +116,16 @@ function evaluatorJudgements(
 }
 
 function evaluatorOpinion(actor: PersistedNpcState, targetNpcId: string) {
+  if (targetNpcId === DEFAULT_PLAYER_ID) {
+    return boundedOpinion(
+      (
+        actor.relationship.playerTrust +
+        actor.relationship.playerAffinity +
+        (100 - actor.relationship.playerTension)
+      ) / 3,
+    );
+  }
+
   return actor.relationship.npcOpinions[targetNpcId] ?? 30;
 }
 
@@ -170,42 +229,48 @@ function pickPileOnTarget(params: {
 }) {
   const { actor, input, board, eventBiases, rng } = params;
   const actorBias = input.autonomy.actorBias[actor.persona.id];
-  const ranked = npcOnlyBoard(board, input.npcs);
+  const ranked = board;
 
   return rng.pickWeighted(
-    input.npcs
-      .filter((candidate) => candidate.persona.id !== actor.persona.id)
-      .map((candidate) => {
+    targetCandidateIds({
+      input,
+      actorNpcId: actor.persona.id,
+    })
+      .map((candidateId) => {
         const boardIndex = ranked.findIndex(
-          (entry) => entry.candidateId === candidate.persona.id,
+          (entry) => entry.candidateId === candidateId,
         );
-        const opinion = evaluatorOpinion(actor, candidate.persona.id);
-        let weight = 0.25;
+        const opinion = evaluatorOpinion(actor, candidateId);
+        let weight = candidateId === DEFAULT_PLAYER_ID ? 0.2 : 0.25;
 
         if (boardIndex >= 0) {
           weight *= boardRankWeight(boardIndex);
         }
 
-        if (actor.decision.initialTargets.includes(candidate.persona.id)) {
-          weight *= 1.38;
+        if (actor.decision.initialTargets.includes(candidateId)) {
+          weight *= candidateId === DEFAULT_PLAYER_ID ? 1.22 : 1.38;
         }
 
-        if (actorBias?.preferredTargets?.includes(candidate.persona.id)) {
+        if (actorBias?.preferredTargets?.includes(candidateId)) {
           weight *= 1.28;
         }
 
-        if (actorBias?.protectedTargets?.includes(candidate.persona.id)) {
+        if (actorBias?.protectedTargets?.includes(candidateId)) {
           weight *= 0.4;
         }
 
         weight *= opinion <= 50 ? 1 + (50 - opinion) / 50 : 0.82;
 
+        if (candidateId === DEFAULT_PLAYER_ID) {
+          weight *= playerTargetPressureScale(board);
+        }
+
         for (const bias of eventBiases) {
-          weight *= bias.targetWeights?.[candidate.persona.id] ?? 1;
+          weight *= bias.targetWeights?.[candidateId] ?? 1;
         }
 
         return {
-          value: candidate.persona.id,
+          value: candidateId,
           weight,
         };
       }),
@@ -300,43 +365,46 @@ function pickRedirectTargets(params: {
   }
 
   const toTarget = rng.pickWeighted(
-    input.npcs
-      .filter(
-        (candidate) =>
-          candidate.persona.id !== actor.persona.id &&
-          candidate.persona.id !== fromTarget,
-      )
-      .map((candidate) => {
+    targetCandidateIds({
+      input,
+      actorNpcId: actor.persona.id,
+      excludedCandidateId: fromTarget,
+    })
+      .map((candidateId) => {
         const boardIndex = ranked.findIndex(
-          (entry) => entry.candidateId === candidate.persona.id,
+          (entry) => entry.candidateId === candidateId,
         );
-        const opinion = evaluatorOpinion(actor, candidate.persona.id);
-        let weight = 0.18;
+        const opinion = evaluatorOpinion(actor, candidateId);
+        let weight = candidateId === DEFAULT_PLAYER_ID ? 0.16 : 0.18;
 
         if (boardIndex >= 0) {
           weight *= boardRankWeight(Math.min(boardIndex + 1, 2));
         }
 
-        if (actor.decision.initialTargets.includes(candidate.persona.id)) {
-          weight *= 1.35;
+        if (actor.decision.initialTargets.includes(candidateId)) {
+          weight *= candidateId === DEFAULT_PLAYER_ID ? 1.2 : 1.35;
         }
 
-        if (actorBias?.preferredTargets?.includes(candidate.persona.id)) {
+        if (actorBias?.preferredTargets?.includes(candidateId)) {
           weight *= 1.24;
         }
 
-        if (actorBias?.protectedTargets?.includes(candidate.persona.id)) {
+        if (actorBias?.protectedTargets?.includes(candidateId)) {
           weight *= 0.4;
         }
 
         weight *= opinion <= 50 ? 1 + (50 - opinion) / 50 : 0.86;
 
+        if (candidateId === DEFAULT_PLAYER_ID) {
+          weight *= playerTargetPressureScale(board);
+        }
+
         for (const bias of eventBiases) {
-          weight *= bias.targetWeights?.[candidate.persona.id] ?? 1;
+          weight *= bias.targetWeights?.[candidateId] ?? 1;
         }
 
         return {
-          value: candidate.persona.id,
+          value: candidateId,
           weight,
         };
       }),
@@ -396,6 +464,69 @@ function defaultTone(moveType: AutonomyMoveType): EventLogEntry["tone"] {
   return moveType === "pile_on" || moveType === "redirect" ? "warning" : "info";
 }
 
+function planOverfocusRedirect(params: {
+  input: AutonomyPlannerInput;
+  board: ConsensusBoardEntry[];
+}): AutonomyPlannedStep | null {
+  const npcBoard = npcOnlyBoard(params.board, params.input.npcs);
+  const leader = npcBoard[0] ?? null;
+  const runnerUp = npcBoard[1] ?? null;
+
+  if (!leader || !runnerUp) {
+    return null;
+  }
+
+  const leadGap = leader.totalPressure - runnerUp.totalPressure;
+  const isOverfocused =
+    leader.totalPressure >= OVERFOCUS_REDIRECT_PRESSURE_MIN &&
+    (
+      leadGap >= OVERFOCUS_REDIRECT_GAP ||
+      (leader.topVotes >= OVERFOCUS_REDIRECT_TOP_VOTES && leadGap >= OVERFOCUS_REDIRECT_GAP / 2)
+    );
+
+  if (!isOverfocused) {
+    return null;
+  }
+
+  // Let the just-addressed NPC self-deflect once, but do not reuse an actor twice
+  // within the same autonomy phase.
+  if (
+    params.input.excludedActorNpcIds.length > 1 &&
+    params.input.excludedActorNpcIds.includes(leader.candidateId)
+  ) {
+    return null;
+  }
+
+  const actor = params.input.npcs.find(
+    (npc) => npc.persona.id === leader.candidateId,
+  );
+  const target = [...params.board]
+    .filter((entry) => entry.candidateId !== leader.candidateId)
+    .sort((left, right) => left.totalPressure - right.totalPressure)[0] ?? null;
+
+  if (!actor || !target) {
+    return null;
+  }
+
+  const labels = playerLabelAwareNames(params.input.npcs);
+  const targetLabel = labels[target.candidateId] ?? target.candidateId;
+  const leaderLabel = labels[leader.candidateId] ?? leader.candidateId;
+
+  return {
+    actorNpcId: actor.persona.id,
+    moveType: "redirect",
+    targetNpcId: target.candidateId,
+    secondaryTargetNpcId: leader.candidateId,
+    rationale: `${leaderLabel}은(는) 자신에게 굳어지는 책임선을 피하려고 가장 안전해 보이는 ${targetLabel} 쪽으로 시선을 밀어낸다.`,
+    tone: "warning",
+    volatilityScale: getAutonomyRoundVolatilityScale(
+      params.input.autonomy,
+      params.input.round.currentRound,
+    ),
+    boardBefore: params.board,
+  };
+}
+
 function stepRationale(params: {
   actor: PersistedNpcState;
   moveType: AutonomyMoveType;
@@ -404,9 +535,7 @@ function stepRationale(params: {
   input: AutonomyPlannerInput;
 }) {
   const { actor, moveType, targetNpcId, secondaryTargetNpcId, input } = params;
-  const namesById = Object.fromEntries(
-    input.npcs.map((npc) => [npc.persona.id, npc.persona.name]),
-  );
+  const namesById = playerLabelAwareNames(input.npcs);
   const targetLabel = targetNpcId ? namesById[targetNpcId] ?? targetNpcId : "판세";
   const secondaryLabel =
     secondaryTargetNpcId ? namesById[secondaryTargetNpcId] ?? secondaryTargetNpcId : "현재 선두";
@@ -489,6 +618,15 @@ export function planAutonomyStep(
     npcs: input.npcs,
   });
   const eventBiases = matchingEventBiases(input);
+  const overfocusRedirect = planOverfocusRedirect({
+    input,
+    board,
+  });
+
+  if (overfocusRedirect) {
+    return overfocusRedirect;
+  }
+
   const actor = rng.pickWeighted(
     input.npcs
       .filter((npc) => !input.excludedActorNpcIds.includes(npc.persona.id))

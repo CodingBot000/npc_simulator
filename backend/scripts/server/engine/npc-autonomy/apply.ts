@@ -146,7 +146,7 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
   const plannedStep = input.plannedStep;
 
   const applyOpinionChange = (npcId: string | null, delta: number) => {
-    if (!npcId || delta === 0) {
+    if (!npcId || npcId === actor.persona.id || delta === 0) {
       return;
     }
 
@@ -301,6 +301,12 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
     );
   }
 
+  const playerOpinionDelta = opinionDeltas
+    .filter((entry) => entry.npcId === DEFAULT_PLAYER_ID)
+    .reduce((sum, entry) => sum + entry.delta, 0);
+  const npcOpinionDeltas = opinionDeltas.filter(
+    (entry) => entry.npcId !== DEFAULT_PLAYER_ID,
+  );
   const emotionMagnitude = sampleOpinionDelta({
     range: moveRule.emotionDelta,
     sign:
@@ -314,10 +320,25 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
     ...actor,
     relationship: {
       ...actor.relationship,
+      playerTrust: clamp(
+        actor.relationship.playerTrust + playerOpinionDelta,
+        0,
+        100,
+      ),
+      playerAffinity: clamp(
+        actor.relationship.playerAffinity + Math.round(playerOpinionDelta / 2),
+        0,
+        100,
+      ),
+      playerTension: clamp(
+        actor.relationship.playerTension - playerOpinionDelta,
+        0,
+        100,
+      ),
       npcOpinions: {
         ...actor.relationship.npcOpinions,
         ...Object.fromEntries(
-          opinionDeltas.map((entry) => [
+          npcOpinionDeltas.map((entry) => [
             entry.npcId,
             clamp(
               (actor.relationship.npcOpinions[entry.npcId] ?? 30) + entry.delta,

@@ -65,6 +65,20 @@ export type ReviewDecisionRequest =
 
 export interface ReviewPipelineRunRequest {
   sourceMode?: ReviewSourceMode;
+  mode?: "heuristic" | "llm" | "hybrid" | null;
+  provider?: "codex" | "openai" | null;
+  limit?: number | null;
+  dryRun?: boolean | null;
+  verbose?: boolean | null;
+  input?: string | null;
+  output?: string | null;
+  reviewInput?: string | null;
+  pairsInput?: string | null;
+  collectorInput?: string | null;
+  outputDir?: string | null;
+  skipDbSync?: boolean | null;
+  sftInput?: string | null;
+  pairInput?: string | null;
 }
 
 export interface ReviewPipelineRunResult {
@@ -86,6 +100,33 @@ export interface SystemInfo {
   status: string;
   phase: string;
   pendingMigrations: string[];
+  deploymentMode: string;
+  database: {
+    kind: string;
+    configured: boolean;
+    detail: string;
+  };
+  provider: {
+    mode: string;
+    configured: boolean;
+    credentialStatus: string;
+    label: string;
+    detail: string;
+    actionGuide: string;
+  };
+  finalReply: {
+    mode: string;
+    backend: string;
+    configured: boolean;
+    credentialStatus: string;
+    label: string;
+    detail: string;
+    actionGuide: string;
+  };
+}
+
+export interface ErrorResponse {
+  message: string;
 }
 
 export type ContractInteractionRequest = InteractionRequestPayload;
@@ -109,3 +150,4 @@ export type ContractReviewPipelineRunRequest = ReviewPipelineRunRequest;
 export type ContractReviewPipelineRunResult = ReviewPipelineRunResult;
 export type ContractReviewPipelineStatus = ReviewPipelineStatus;
 export type ContractSystemInfo = SystemInfo;
+export type ContractErrorResponse = ErrorResponse;

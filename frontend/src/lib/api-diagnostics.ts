@@ -7,6 +7,7 @@ import { resolveClientApiBaseUrlConfig } from "@/lib/runtime-config";
 export type ApiDiagnosticStatus =
   | "checking"
   | "reachable"
+  | "credential_required"
   | "http_error"
   | "network_error"
   | "cors_suspected";
@@ -55,6 +56,16 @@ function trimToNull(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
+function buildCredentialDetail(systemInfo: SystemInfo) {
+  const notices = [systemInfo.provider, systemInfo.finalReply]
+    .filter((entry) => entry && !entry.configured)
+    .map((entry) => `${entry.label}: ${entry.actionGuide}`);
+
+  return notices.length > 0
+    ? notices.join(" ")
+    : "선택한 실행 모드에서 필요한 backend 자격 증명 상태를 확인하세요.";
+}
+
 async function readResponseMessage(response: Response) {
   const payload = (await response.clone().json().catch(() => null)) as
     | { message?: string }
@@ -98,6 +109,19 @@ export async function probeApiDiagnostics(
     }
 
     const systemInfo = (await response.json()) as SystemInfo;
+    const credentialRequired =
+      !systemInfo.provider.configured || !systemInfo.finalReply.configured;
+
+    if (credentialRequired) {
+      return {
+        ...base,
+        status: "credential_required",
+        summary: "실행 자격 증명 확인이 필요합니다.",
+        detail: buildCredentialDetail(systemInfo),
+        checkedAt,
+        systemInfo,
+      };
+    }
 
     return {
       ...base,

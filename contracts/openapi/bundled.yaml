@@ -1,0 +1,6232 @@
+# Generated from contracts/openapi/current.yaml. Do not edit by hand.
+openapi: 3.1.0
+info:
+  title: NPC Simulator Backend API
+  version: 2026-04-15
+  description: |
+    Current backend-facing contract snapshot after the Spring Boot bridge cut.
+    Core runtime and review DTOs are sourced from generated JSON Schema so the
+    OpenAPI contract stays aligned with the TypeScript runtime models.
+servers:
+  - url: http://localhost:8080
+    description: Local Spring Boot backend
+  - url: https://api.example.com
+    description: Cloud backend placeholder; replace with the AWS backend URL
+paths:
+  /api/world:
+    get:
+      operationId: getWorld
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current world snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldSnapshot"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/reset:
+    post:
+      operationId: resetWorld
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reset world snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldSnapshot"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/interact:
+    post:
+      operationId: interact
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InteractionRequest"
+      responses:
+        "200":
+          description: Interaction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InteractionResponse"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/inspector:
+    get:
+      operationId: getInspector
+      parameters:
+        - in: header
+          name: x-world-instance-id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest inspector payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectorResponse"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review:
+    get:
+      operationId: getReviewDashboard
+      responses:
+        "200":
+          description: Review dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewDashboardData"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+    patch:
+      operationId: patchReviewDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewDecisionRequest"
+      responses:
+        "200":
+          description: Updated review item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewMutationResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/finalize:
+    get:
+      operationId: getReviewFinalizeStatus
+      responses:
+        "200":
+          description: Finalize job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewFinalizeStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+    post:
+      operationId: runReviewFinalize
+      responses:
+        "200":
+          description: Finalize job status after execution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewFinalizeStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/training:
+    get:
+      operationId: getReviewTrainingStatus
+      responses:
+        "200":
+          description: Training job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+    post:
+      operationId: runReviewTraining
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingRequest"
+      responses:
+        "200":
+          description: Training job status after launch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/training/evaluate:
+    post:
+      operationId: runReviewTrainingEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingRunActionRequest"
+      responses:
+        "200":
+          description: Training status after evaluation launch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/training/decision:
+    post:
+      operationId: updateReviewTrainingDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingDecisionRequest"
+      responses:
+        "200":
+          description: Training status after decision update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/training/promote:
+    post:
+      operationId: promoteReviewTrainingRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewTrainingRunActionRequest"
+      responses:
+        "200":
+          description: Training status after model promotion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTrainingStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/pipeline:
+    get:
+      operationId: getReviewPipelineStatus
+      responses:
+        "200":
+          description: Review pipeline status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineStatus"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/pipeline/judge:
+    post:
+      operationId: runJudgeReviewQueue
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPipelineRunRequest"
+      responses:
+        "200":
+          description: Pipeline command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineRunResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/pipeline/prepare-human-review:
+    post:
+      operationId: runPrepareHumanReview
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPipelineRunRequest"
+      responses:
+        "200":
+          description: Pipeline command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineRunResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/review/pipeline/llm-first-pass:
+    post:
+      operationId: runReviewLlmFirstPass
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPipelineRunRequest"
+      responses:
+        "200":
+          description: Pipeline command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPipelineRunResult"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+  /api/system/info:
+    get:
+      operationId: getSystemInfo
+      responses:
+        "200":
+          description: Backend system info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
+        default:
+          $ref: "#/components/responses/ErrorResponse"
+components:
+  responses:
+    ErrorResponse:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    InteractionRequest:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/InteractionRequestPayload"
+      definitions:
+        InteractionRequestPayload:
+          type: "object"
+          properties:
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            inputMode:
+              "$ref": "#/definitions/InputMode"
+            text:
+              type: "string"
+            action:
+              anyOf:
+                -
+                  "$ref": "#/definitions/PlayerAction"
+                -
+                  type: "null"
+            playerId:
+              type: "string"
+          required:
+            - "npcId"
+            - "targetNpcId"
+            - "inputMode"
+            - "text"
+            - "action"
+            - "playerId"
+          additionalProperties: false
+        InputMode:
+          type: "string"
+          enum:
+            - "free_text"
+            - "action"
+            - "combined"
+        PlayerAction:
+          type: "string"
+          enum:
+            - "make_case"
+            - "expose"
+            - "appeal"
+            - "ally"
+            - "deflect"
+            - "stall"
+            - "confess"
+    InteractionResponse:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/InteractionResponsePayload"
+      definitions:
+        InteractionResponsePayload:
+          type: "object"
+          properties:
+            reply:
+              "$ref": "#/definitions/ReplyPayload"
+            relationshipDelta:
+              "$ref": "#/definitions/RelationshipDelta"
+            pressureChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/PressureChange"
+            eventLogEntry:
+              "$ref": "#/definitions/EventLogEntry"
+            inspector:
+              "$ref": "#/definitions/InspectorPayload"
+            resolution:
+              "$ref": "#/definitions/ResolutionState"
+            world:
+              "$ref": "#/definitions/WorldSnapshot"
+          required:
+            - "reply"
+            - "relationshipDelta"
+            - "pressureChanges"
+            - "eventLogEntry"
+            - "inspector"
+            - "resolution"
+            - "world"
+          additionalProperties: false
+        ReplyPayload:
+          type: "object"
+          properties:
+            text:
+              type: "string"
+            rewriteSource:
+              type:
+                - "string"
+                - "null"
+            rewriteReason:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "text"
+          additionalProperties: false
+        RelationshipDelta:
+          type: "object"
+          properties:
+            trust:
+              type: "number"
+            affinity:
+              type: "number"
+            tension:
+              type: "number"
+          required:
+            - "trust"
+            - "affinity"
+            - "tension"
+          additionalProperties: false
+        PressureChange:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            totalPressureDelta:
+              type: "number"
+            dimensionDelta:
+              type: "object"
+              properties:
+                blame:
+                  type: "number"
+                distrust:
+                  type: "number"
+                hostility:
+                  type: "number"
+                dispensability:
+                  type: "number"
+                utility:
+                  type: "number"
+                sympathy:
+                  type: "number"
+              additionalProperties: false
+            factors:
+              type: "array"
+              items:
+                type: "string"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "totalPressureDelta"
+            - "dimensionDelta"
+            - "factors"
+            - "reasons"
+          additionalProperties: false
+        CandidateId:
+          type: "string"
+        EventLogEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            timestamp:
+              type: "string"
+            title:
+              type: "string"
+            detail:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            npcId:
+              type: "string"
+            tone:
+              type: "string"
+              enum:
+                - "info"
+                - "success"
+                - "warning"
+                - "danger"
+          required:
+            - "id"
+            - "timestamp"
+            - "title"
+            - "detail"
+            - "tags"
+            - "npcId"
+            - "tone"
+          additionalProperties: false
+        InspectorPayload:
+          type: "object"
+          properties:
+            timestamp:
+              type: "string"
+            episodeId:
+              type: "string"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            replyText:
+              type: "string"
+            fallbackUsed:
+              type: "boolean"
+            replyRewriteSource:
+              type:
+                - "string"
+                - "null"
+            replyRewriteReason:
+              type:
+                - "string"
+                - "null"
+            replyJudge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InteractionJudgeResult"
+                -
+                  type: "null"
+            failureDebug:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionFailureDebugEntry"
+                -
+                  type: "null"
+            interactionTrace:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionTraceEntry"
+                -
+                  type: "null"
+            retrievedMemories:
+              type: "array"
+              items:
+                "$ref": "#/definitions/RetrievedMemoryEntry"
+            retrievedKnowledge:
+              type: "array"
+              items:
+                "$ref": "#/definitions/RetrievedKnowledgeEvidence"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            intent:
+              "$ref": "#/definitions/IntentSummary"
+            candidateActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/CandidateAction"
+            selectedAction:
+              "$ref": "#/definitions/SelectedAction"
+            selectedActionReason:
+              type: "string"
+            structuredImpact:
+              "$ref": "#/definitions/StructuredImpactInference"
+            relationshipDelta:
+              "$ref": "#/definitions/RelationshipDelta"
+            pressureChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/PressureChange"
+            leaderBefore:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leaderAfter:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leadingCandidateId:
+              anyOf:
+                -
+                  "$ref": "#/definitions/CandidateId"
+                -
+                  type: "null"
+            leadingCandidateLabel:
+              type:
+                - "string"
+                - "null"
+            round:
+              type: "number"
+            resolution:
+              "$ref": "#/definitions/ResolutionState"
+            llmPromptContextSummary:
+              type: "string"
+            datasetExportedAt:
+              type:
+                - "string"
+                - "null"
+            exportPaths:
+              "$ref": "#/definitions/EpisodeExportPaths"
+            shadowComparison:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ShadowComparisonPayload"
+                -
+                  type: "null"
+            autonomyPhase:
+              anyOf:
+                -
+                  "$ref": "#/definitions/AutonomyPhaseResult"
+                -
+                  type: "null"
+          required:
+            - "timestamp"
+            - "episodeId"
+            - "npcId"
+            - "targetNpcId"
+            - "replyText"
+            - "retrievedMemories"
+            - "retrievedKnowledge"
+            - "emotion"
+            - "intent"
+            - "candidateActions"
+            - "selectedAction"
+            - "selectedActionReason"
+            - "structuredImpact"
+            - "relationshipDelta"
+            - "pressureChanges"
+            - "leaderBefore"
+            - "leaderAfter"
+            - "leadingCandidateId"
+            - "leadingCandidateLabel"
+            - "round"
+            - "resolution"
+            - "llmPromptContextSummary"
+            - "datasetExportedAt"
+            - "exportPaths"
+            - "shadowComparison"
+          additionalProperties: false
+        InteractionJudgeResult:
+          type: "object"
+          properties:
+            status:
+              "$ref": "#/definitions/InteractionJudgeStatus"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            model:
+              type:
+                - "string"
+                - "null"
+            aligned:
+              type:
+                - "boolean"
+                - "null"
+            targetMaintained:
+              type:
+                - "boolean"
+                - "null"
+            fatalMismatch:
+              type:
+                - "boolean"
+                - "null"
+            confidence:
+              type:
+                - "number"
+                - "null"
+            reason:
+              type:
+                - "string"
+                - "null"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            error:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "status"
+            - "sourceRef"
+            - "model"
+            - "aligned"
+            - "targetMaintained"
+            - "fatalMismatch"
+            - "confidence"
+            - "reason"
+            - "durationMs"
+            - "error"
+          additionalProperties: false
+        InteractionJudgeStatus:
+          type: "string"
+          enum:
+            - "aligned"
+            - "misaligned"
+            - "skipped"
+            - "failed"
+        InteractionFailureDebugEntry:
+          type: "object"
+          properties:
+            stage:
+              "$ref": "#/definitions/InteractionFailureDebugStage"
+            kind:
+              "$ref": "#/definitions/InteractionFailureDebugKind"
+            summary:
+              type: "string"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            issues:
+              type: "array"
+              items:
+                type: "string"
+            candidateReplyText:
+              type:
+                - "string"
+                - "null"
+            candidateSelectedActionType:
+              anyOf:
+                -
+                  "$ref": "#/definitions/AllowedActionType"
+                -
+                  type: "null"
+            candidateSelectedActionReason:
+              type:
+                - "string"
+                - "null"
+            candidateTargetNpcId:
+              type:
+                - "string"
+                - "null"
+            candidateImpactTags:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ImpactTag"
+          required:
+            - "stage"
+            - "kind"
+            - "summary"
+          additionalProperties: false
+        InteractionFailureDebugStage:
+          type: "string"
+          enum:
+            - "interaction_provider"
+            - "interaction_validation"
+            - "reply_rewrite"
+        InteractionFailureDebugKind:
+          type: "string"
+          enum:
+            - "provider_error"
+            - "contract_validation"
+            - "request_error"
+            - "validation_error"
+        AllowedActionType:
+          type: "string"
+          enum:
+            - "accuse"
+            - "defend"
+            - "deflect"
+            - "appeal"
+            - "ally"
+            - "stall"
+            - "probe"
+        ImpactTag:
+          type: "string"
+          enum:
+            - "player_distrust_up"
+            - "player_distrust_down"
+            - "player_blame_up"
+            - "player_blame_down"
+            - "player_sympathy_up"
+            - "player_sympathy_down"
+            - "target_blame_up"
+            - "target_blame_high_up"
+            - "target_blame_down"
+            - "target_distrust_up"
+            - "target_distrust_down"
+            - "target_hostility_up"
+            - "target_hostility_down"
+            - "target_sympathy_up"
+            - "target_sympathy_down"
+            - "target_utility_down"
+            - "target_utility_up"
+            - "target_dispensability_up"
+            - "target_dispensability_down"
+            - "room_pressure_shift"
+            - "no_major_shift"
+        InteractionTraceEntry:
+          type: "object"
+          properties:
+            stage:
+              "$ref": "#/definitions/InteractionTraceStage"
+            label:
+              type: "string"
+            status:
+              "$ref": "#/definitions/InteractionTraceStatus"
+            startedAtMs:
+              type: "number"
+            finishedAtMs:
+              type: "number"
+            durationMs:
+              type: "number"
+            detail:
+              type:
+                - "string"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "stage"
+            - "label"
+            - "status"
+            - "startedAtMs"
+            - "finishedAtMs"
+            - "durationMs"
+          additionalProperties: false
+        InteractionTraceStage:
+          type: "string"
+          enum:
+            - "prepare_context"
+            - "interaction_provider"
+            - "interaction_validation"
+            - "interaction_fallback"
+            - "reply_rewrite_request"
+            - "reply_rewrite_validation"
+            - "reply_rewrite_retry_request"
+            - "reply_rewrite_retry_validation"
+            - "reply_judge_request"
+            - "reply_judge_result"
+            - "shadow_compare_wait"
+            - "pressure_update"
+            - "round_progress"
+            - "autonomy_phase"
+            - "memory_update"
+            - "log_commit"
+            - "dataset_export"
+            - "turn_total"
+        InteractionTraceStatus:
+          type: "string"
+          enum:
+            - "ok"
+            - "failed"
+            - "fallback"
+            - "skipped"
+        RetrievedMemoryEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            scope:
+              type: "string"
+              enum:
+                - "short"
+                - "long"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            importance:
+              type: "number"
+            timestamp:
+              type: "string"
+            score:
+              type: "number"
+            scoreBreakdown:
+              "$ref": "#/definitions/RetrievalScoreBreakdown"
+            matchReasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "importance"
+            - "matchReasons"
+            - "scope"
+            - "score"
+            - "scoreBreakdown"
+            - "summary"
+            - "tags"
+            - "timestamp"
+          additionalProperties: false
+        RetrievalScoreBreakdown:
+          type: "object"
+          properties:
+            tokenOverlap:
+              type: "number"
+            tagOverlap:
+              type: "number"
+            recency:
+              type: "number"
+            importance:
+              type: "number"
+            priority:
+              type: "number"
+            npcMatch:
+              type: "number"
+            targetMatch:
+              type: "number"
+            eventMatch:
+              type: "number"
+            total:
+              type: "number"
+          required:
+            - "tokenOverlap"
+            - "tagOverlap"
+            - "recency"
+            - "importance"
+            - "priority"
+            - "npcMatch"
+            - "targetMatch"
+            - "eventMatch"
+            - "total"
+          additionalProperties: false
+        RetrievedKnowledgeEvidence:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            sourceType:
+              "$ref": "#/definitions/KnowledgeEvidenceType"
+            title:
+              type: "string"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            relatedNpcIds:
+              type: "array"
+              items:
+                type: "string"
+            priority:
+              type: "number"
+            visibility:
+              type: "string"
+              enum:
+                - "public"
+                - "private"
+                - "conditional"
+            roundIntroduced:
+              type:
+                - "number"
+                - "null"
+            score:
+              type: "number"
+            scoreBreakdown:
+              "$ref": "#/definitions/RetrievalScoreBreakdown"
+            matchReasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "matchReasons"
+            - "priority"
+            - "relatedNpcIds"
+            - "roundIntroduced"
+            - "score"
+            - "scoreBreakdown"
+            - "sourceType"
+            - "summary"
+            - "tags"
+            - "title"
+            - "visibility"
+          additionalProperties: false
+        KnowledgeEvidenceType:
+          type: "string"
+          enum:
+            - "world_fact"
+            - "incident_log"
+            - "private_secret"
+            - "role_record"
+        NpcEmotionState:
+          type: "object"
+          properties:
+            primary:
+              "$ref": "#/definitions/EmotionPrimary"
+            intensity:
+              type: "number"
+            reason:
+              type: "string"
+          required:
+            - "primary"
+            - "intensity"
+            - "reason"
+          additionalProperties: false
+        EmotionPrimary:
+          type: "string"
+          enum:
+            - "focused"
+            - "fearful"
+            - "angry"
+            - "guilty"
+            - "cold"
+            - "desperate"
+        IntentSummary:
+          type: "object"
+          properties:
+            summary:
+              type: "string"
+            stance:
+              type: "string"
+            leverage:
+              type: "string"
+          required:
+            - "summary"
+            - "stance"
+            - "leverage"
+          additionalProperties: false
+        CandidateAction:
+          type: "object"
+          properties:
+            type:
+              "$ref": "#/definitions/AllowedActionType"
+            label:
+              type: "string"
+            reason:
+              type: "string"
+          required:
+            - "type"
+            - "label"
+            - "reason"
+          additionalProperties: false
+        SelectedAction:
+          type: "object"
+          properties:
+            type:
+              "$ref": "#/definitions/AllowedActionType"
+            reason:
+              type: "string"
+          required:
+            - "type"
+            - "reason"
+          additionalProperties: false
+        StructuredImpactInference:
+          type: "object"
+          properties:
+            impactTags:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ImpactTag"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            confidence:
+              type: "number"
+            rationale:
+              type: "string"
+          required:
+            - "impactTags"
+            - "targetNpcId"
+            - "confidence"
+            - "rationale"
+          additionalProperties: false
+        ConsensusBoardEntry:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            totalPressure:
+              type: "number"
+            topVotes:
+              type: "number"
+            trend:
+              type: "string"
+              enum:
+                - "up"
+                - "down"
+                - "flat"
+            summary:
+              type: "string"
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "totalPressure"
+            - "topVotes"
+            - "trend"
+            - "summary"
+          additionalProperties: false
+        ResolutionState:
+          type: "object"
+          properties:
+            resolved:
+              type: "boolean"
+            sacrificedNpcId:
+              anyOf:
+                -
+                  "$ref": "#/definitions/CandidateId"
+                -
+                  type: "null"
+            sacrificedLabel:
+              type:
+                - "string"
+                - "null"
+            resolutionType:
+              "$ref": "#/definitions/ResolutionType"
+            summary:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "resolved"
+            - "sacrificedNpcId"
+            - "sacrificedLabel"
+            - "resolutionType"
+            - "summary"
+          additionalProperties: false
+        ResolutionType:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "threshold"
+            - "consensus"
+            - "max_rounds"
+            - null
+        EpisodeExportPaths:
+          type: "object"
+          properties:
+            richTrace:
+              type:
+                - "string"
+                - "null"
+            sft:
+              type:
+                - "string"
+                - "null"
+            review:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "richTrace"
+            - "sft"
+            - "review"
+          additionalProperties: false
+        ShadowComparisonPayload:
+          type: "object"
+          properties:
+            label:
+              type: "string"
+            mode:
+              type: "string"
+              const: "local_mlx"
+            status:
+              "$ref": "#/definitions/ShadowComparisonStatus"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            artifactKind:
+              anyOf:
+                -
+                  "$ref": "#/definitions/RuntimeArtifactKind"
+                -
+                  type: "null"
+            error:
+              type:
+                - "string"
+                - "null"
+            rawOutput:
+              type:
+                - "string"
+                - "null"
+            result:
+              anyOf:
+                -
+                  "$ref": "#/definitions/LlmInteractionResult"
+                -
+                  type: "null"
+          required:
+            - "label"
+            - "mode"
+            - "status"
+            - "durationMs"
+            - "sourceRef"
+            - "artifactKind"
+            - "error"
+            - "rawOutput"
+            - "result"
+          additionalProperties: false
+        ShadowComparisonStatus:
+          type: "string"
+          enum:
+            - "parsed"
+            - "invalid_json"
+            - "error"
+        RuntimeArtifactKind:
+          type: "string"
+          enum:
+            - "mlx_adapter"
+            - "mlx_fused_model"
+            - "legacy_mlx_adapter"
+        LlmInteractionResult:
+          type: "object"
+          properties:
+            reply:
+              "$ref": "#/definitions/ReplyPayload"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            intent:
+              "$ref": "#/definitions/IntentSummary"
+            candidateActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/CandidateAction"
+            selectedAction:
+              "$ref": "#/definitions/SelectedAction"
+            structuredImpact:
+              "$ref": "#/definitions/StructuredImpactInference"
+          required:
+            - "reply"
+            - "emotion"
+            - "intent"
+            - "candidateActions"
+            - "selectedAction"
+            - "structuredImpact"
+          additionalProperties: false
+        AutonomyPhaseResult:
+          type: "object"
+          properties:
+            executed:
+              type: "boolean"
+            round:
+              type: "number"
+            drawCountBefore:
+              type: "number"
+            drawCountAfter:
+              type: "number"
+            leaderBefore:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leaderAfter:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            boardTopBefore:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            boardTopAfter:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            rngSamples:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyRngSample"
+            steps:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyStepResult"
+          required:
+            - "executed"
+            - "round"
+            - "drawCountBefore"
+            - "drawCountAfter"
+            - "leaderBefore"
+            - "leaderAfter"
+            - "boardTopBefore"
+            - "boardTopAfter"
+            - "rngSamples"
+            - "steps"
+          additionalProperties: false
+        AutonomyRngSample:
+          type: "object"
+          properties:
+            label:
+              type: "string"
+            drawIndex:
+              type: "number"
+            value:
+              type: "number"
+          required:
+            - "label"
+            - "drawIndex"
+            - "value"
+          additionalProperties: false
+        AutonomyStepResult:
+          type: "object"
+          properties:
+            actorNpcId:
+              type: "string"
+            actorLabel:
+              type: "string"
+            moveType:
+              "$ref": "#/definitions/AutonomyMoveType"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            targetLabel:
+              type:
+                - "string"
+                - "null"
+            secondaryTargetNpcId:
+              type:
+                - "string"
+                - "null"
+            secondaryTargetLabel:
+              type:
+                - "string"
+                - "null"
+            rationale:
+              type: "string"
+            summary:
+              type: "string"
+            tone:
+              type: "string"
+              enum:
+                - "info"
+                - "success"
+                - "warning"
+                - "danger"
+            opinionDeltas:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyOpinionDelta"
+            judgementChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyJudgementChange"
+            rngSamples:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyRngSample"
+          required:
+            - "actorNpcId"
+            - "actorLabel"
+            - "moveType"
+            - "targetNpcId"
+            - "targetLabel"
+            - "secondaryTargetNpcId"
+            - "secondaryTargetLabel"
+            - "rationale"
+            - "summary"
+            - "tone"
+            - "opinionDeltas"
+            - "judgementChanges"
+            - "rngSamples"
+          additionalProperties: false
+        AutonomyMoveType:
+          type: "string"
+          enum:
+            - "pile_on"
+            - "shield"
+            - "redirect"
+            - "freeze"
+        AutonomyOpinionDelta:
+          type: "object"
+          properties:
+            npcId:
+              type: "string"
+            npcLabel:
+              type: "string"
+            delta:
+              type: "number"
+          required:
+            - "npcId"
+            - "npcLabel"
+            - "delta"
+          additionalProperties: false
+        AutonomyJudgementChange:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            dimensionDelta:
+              type: "object"
+              properties:
+                blame:
+                  type: "number"
+                distrust:
+                  type: "number"
+                hostility:
+                  type: "number"
+                dispensability:
+                  type: "number"
+                utility:
+                  type: "number"
+                sympathy:
+                  type: "number"
+              additionalProperties: false
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "dimensionDelta"
+          additionalProperties: false
+        WorldSnapshot:
+          type: "object"
+          properties:
+            scenarioId:
+              type: "string"
+            episodeId:
+              type: "string"
+            startedAt:
+              type: "string"
+            endedAt:
+              type:
+                - "string"
+                - "null"
+            datasetExportedAt:
+              type:
+                - "string"
+                - "null"
+            exportPaths:
+              "$ref": "#/definitions/EpisodeExportPaths"
+            presentation:
+              "$ref": "#/definitions/ScenarioPresentationSnapshot"
+            scoring:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ScenarioScoringSnapshot"
+                -
+                  type: "null"
+            availableActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AvailableActionDefinition"
+            world:
+              "$ref": "#/definitions/WorldMeta"
+            npcs:
+              type: "array"
+              items:
+                "$ref": "#/definitions/NpcState"
+            events:
+              type: "array"
+              items:
+                "$ref": "#/definitions/EventLogEntry"
+            conversations:
+              type: "object"
+              additionalProperties:
+                type: "array"
+                items:
+                  "$ref": "#/definitions/ChatMessage"
+            round:
+              "$ref": "#/definitions/RoundState"
+            consensusBoard:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            lastInspector:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InspectorPayload"
+                -
+                  type: "null"
+            runtime:
+              "$ref": "#/definitions/RuntimeStatus"
+            resolution:
+              "$ref": "#/definitions/ResolutionState"
+          required:
+            - "scenarioId"
+            - "episodeId"
+            - "startedAt"
+            - "endedAt"
+            - "datasetExportedAt"
+            - "exportPaths"
+            - "presentation"
+            - "availableActions"
+            - "world"
+            - "npcs"
+            - "events"
+            - "conversations"
+            - "round"
+            - "consensusBoard"
+            - "lastInspector"
+            - "runtime"
+            - "resolution"
+          additionalProperties: false
+        ScenarioPresentationSnapshot:
+          type: "object"
+          properties:
+            appTitle:
+              type: "string"
+            npcListTitle:
+              type: "string"
+            npcListSubtitle:
+              type: "string"
+            interactionTitle:
+              type: "string"
+            interactionSubtitle:
+              type: "string"
+            interactionPlaceholder:
+              type: "string"
+            boardTitle:
+              type: "string"
+            boardSubtitle:
+              type: "string"
+          required:
+            - "appTitle"
+            - "npcListTitle"
+            - "npcListSubtitle"
+            - "interactionTitle"
+            - "interactionSubtitle"
+            - "interactionPlaceholder"
+            - "boardTitle"
+            - "boardSubtitle"
+          additionalProperties: false
+        ScenarioScoringSnapshot:
+          type: "object"
+          properties:
+            minRoundsBeforeResolution:
+              type: "number"
+            maxRounds:
+              type: "number"
+            instantConsensusVotes:
+              type: "number"
+            leadGapThreshold:
+              type: "number"
+          required:
+            - "minRoundsBeforeResolution"
+            - "maxRounds"
+            - "instantConsensusVotes"
+            - "leadGapThreshold"
+          additionalProperties: false
+        AvailableActionDefinition:
+          type: "object"
+          properties:
+            id:
+              "$ref": "#/definitions/PlayerAction"
+            label:
+              type: "string"
+            description:
+              type: "string"
+            requiresTarget:
+              type: "boolean"
+          required:
+            - "id"
+            - "label"
+            - "description"
+            - "requiresTarget"
+          additionalProperties: false
+        PlayerAction:
+          type: "string"
+          enum:
+            - "make_case"
+            - "expose"
+            - "appeal"
+            - "ally"
+            - "deflect"
+            - "stall"
+            - "confess"
+        WorldMeta:
+          type: "object"
+          properties:
+            location:
+              type: "string"
+            time:
+              type: "string"
+            weather:
+              type: "string"
+            mood:
+              type: "string"
+          required:
+            - "location"
+            - "time"
+            - "weather"
+            - "mood"
+          additionalProperties: false
+        NpcState:
+          type: "object"
+          properties:
+            persona:
+              "$ref": "#/definitions/NpcPersona"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            relationship:
+              "$ref": "#/definitions/RelationshipState"
+            goals:
+              "$ref": "#/definitions/NpcGoalState"
+            decision:
+              "$ref": "#/definitions/NpcDecisionProfile"
+            currentLocation:
+              type: "string"
+            statusLine:
+              type: "string"
+            memories:
+              type: "array"
+              items:
+                "$ref": "#/definitions/MemoryEntry"
+          required:
+            - "currentLocation"
+            - "decision"
+            - "emotion"
+            - "goals"
+            - "memories"
+            - "persona"
+            - "relationship"
+            - "statusLine"
+          additionalProperties: false
+        NpcPersona:
+          type: "object"
+          properties:
+            id:
+              "$ref": "#/definitions/NpcId"
+            name:
+              type: "string"
+            role:
+              type: "string"
+            tone:
+              type: "string"
+            traits:
+              type: "array"
+              items:
+                type: "string"
+            values:
+              type: "array"
+              items:
+                type: "string"
+            dislikes:
+              type: "array"
+              items:
+                type: "string"
+            secrets:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "name"
+            - "role"
+            - "tone"
+            - "traits"
+            - "values"
+            - "dislikes"
+            - "secrets"
+          additionalProperties: false
+        NpcId:
+          type: "string"
+        RelationshipState:
+          type: "object"
+          properties:
+            playerTrust:
+              type: "number"
+            playerAffinity:
+              type: "number"
+            playerTension:
+              type: "number"
+            npcOpinions:
+              type: "object"
+              additionalProperties:
+                type: "number"
+          required:
+            - "playerTrust"
+            - "playerAffinity"
+            - "playerTension"
+            - "npcOpinions"
+          additionalProperties: false
+        NpcGoalState:
+          type: "object"
+          properties:
+            currentGoal:
+              type: "string"
+            currentNeed:
+              type: "string"
+            opennessToPlayer:
+              type: "number"
+          required:
+            - "currentGoal"
+            - "currentNeed"
+            - "opennessToPlayer"
+          additionalProperties: false
+        NpcDecisionProfile:
+          type: "object"
+          properties:
+            biasSummary:
+              type: "string"
+            survivalRationale:
+              type: "string"
+            redLines:
+              type: "array"
+              items:
+                type: "string"
+            initialTargets:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "biasSummary"
+            - "survivalRationale"
+            - "redLines"
+            - "initialTargets"
+          additionalProperties: false
+        MemoryEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            scope:
+              type: "string"
+              enum:
+                - "short"
+                - "long"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            importance:
+              type: "number"
+            timestamp:
+              type: "string"
+          required:
+            - "id"
+            - "scope"
+            - "summary"
+            - "tags"
+            - "importance"
+            - "timestamp"
+          additionalProperties: false
+        ChatMessage:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            npcId:
+              type: "string"
+            speaker:
+              type: "string"
+              enum:
+                - "player"
+                - "npc"
+            text:
+              type: "string"
+            timestamp:
+              type: "string"
+            action:
+              anyOf:
+                -
+                  "$ref": "#/definitions/PlayerAction"
+                -
+                  "$ref": "#/definitions/AllowedActionType"
+                -
+                  type: "null"
+            fallbackUsed:
+              type: "boolean"
+            replyRewriteSource:
+              type:
+                - "string"
+                - "null"
+            replyRewriteReason:
+              type:
+                - "string"
+                - "null"
+            replyJudge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InteractionJudgeResult"
+                -
+                  type: "null"
+            failureDebug:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionFailureDebugEntry"
+                -
+                  type: "null"
+            interactionTrace:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionTraceEntry"
+                -
+                  type: "null"
+          required:
+            - "id"
+            - "npcId"
+            - "speaker"
+            - "text"
+            - "timestamp"
+            - "action"
+          additionalProperties: false
+        RoundState:
+          type: "object"
+          properties:
+            currentRound:
+              type: "number"
+            minRoundsBeforeResolution:
+              type: "number"
+            maxRounds:
+              type: "number"
+            resolutionUnlocked:
+              type: "boolean"
+            rescueEtaLabel:
+              type: "string"
+            facilityStatus:
+              type: "string"
+          required:
+            - "currentRound"
+            - "minRoundsBeforeResolution"
+            - "maxRounds"
+            - "resolutionUnlocked"
+            - "rescueEtaLabel"
+            - "facilityStatus"
+          additionalProperties: false
+        RuntimeStatus:
+          type: "object"
+          properties:
+            providerMode:
+              "$ref": "#/definitions/LlmProviderMode"
+            configured:
+              type: "boolean"
+            label:
+              type: "string"
+            detail:
+              type: "string"
+          required:
+            - "providerMode"
+            - "configured"
+            - "label"
+            - "detail"
+          additionalProperties: false
+        LlmProviderMode:
+          type: "string"
+          enum:
+            - "codex"
+            - "openai"
+            - "deterministic"
+    WorldSnapshot:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/WorldSnapshot"
+      definitions:
+        WorldSnapshot:
+          type: "object"
+          properties:
+            scenarioId:
+              type: "string"
+            episodeId:
+              type: "string"
+            startedAt:
+              type: "string"
+            endedAt:
+              type:
+                - "string"
+                - "null"
+            datasetExportedAt:
+              type:
+                - "string"
+                - "null"
+            exportPaths:
+              "$ref": "#/definitions/EpisodeExportPaths"
+            presentation:
+              "$ref": "#/definitions/ScenarioPresentationSnapshot"
+            scoring:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ScenarioScoringSnapshot"
+                -
+                  type: "null"
+            availableActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AvailableActionDefinition"
+            world:
+              "$ref": "#/definitions/WorldMeta"
+            npcs:
+              type: "array"
+              items:
+                "$ref": "#/definitions/NpcState"
+            events:
+              type: "array"
+              items:
+                "$ref": "#/definitions/EventLogEntry"
+            conversations:
+              type: "object"
+              additionalProperties:
+                type: "array"
+                items:
+                  "$ref": "#/definitions/ChatMessage"
+            round:
+              "$ref": "#/definitions/RoundState"
+            consensusBoard:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            lastInspector:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InspectorPayload"
+                -
+                  type: "null"
+            runtime:
+              "$ref": "#/definitions/RuntimeStatus"
+            resolution:
+              "$ref": "#/definitions/ResolutionState"
+          required:
+            - "scenarioId"
+            - "episodeId"
+            - "startedAt"
+            - "endedAt"
+            - "datasetExportedAt"
+            - "exportPaths"
+            - "presentation"
+            - "availableActions"
+            - "world"
+            - "npcs"
+            - "events"
+            - "conversations"
+            - "round"
+            - "consensusBoard"
+            - "lastInspector"
+            - "runtime"
+            - "resolution"
+          additionalProperties: false
+        EpisodeExportPaths:
+          type: "object"
+          properties:
+            richTrace:
+              type:
+                - "string"
+                - "null"
+            sft:
+              type:
+                - "string"
+                - "null"
+            review:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "richTrace"
+            - "sft"
+            - "review"
+          additionalProperties: false
+        ScenarioPresentationSnapshot:
+          type: "object"
+          properties:
+            appTitle:
+              type: "string"
+            npcListTitle:
+              type: "string"
+            npcListSubtitle:
+              type: "string"
+            interactionTitle:
+              type: "string"
+            interactionSubtitle:
+              type: "string"
+            interactionPlaceholder:
+              type: "string"
+            boardTitle:
+              type: "string"
+            boardSubtitle:
+              type: "string"
+          required:
+            - "appTitle"
+            - "npcListTitle"
+            - "npcListSubtitle"
+            - "interactionTitle"
+            - "interactionSubtitle"
+            - "interactionPlaceholder"
+            - "boardTitle"
+            - "boardSubtitle"
+          additionalProperties: false
+        ScenarioScoringSnapshot:
+          type: "object"
+          properties:
+            minRoundsBeforeResolution:
+              type: "number"
+            maxRounds:
+              type: "number"
+            instantConsensusVotes:
+              type: "number"
+            leadGapThreshold:
+              type: "number"
+          required:
+            - "minRoundsBeforeResolution"
+            - "maxRounds"
+            - "instantConsensusVotes"
+            - "leadGapThreshold"
+          additionalProperties: false
+        AvailableActionDefinition:
+          type: "object"
+          properties:
+            id:
+              "$ref": "#/definitions/PlayerAction"
+            label:
+              type: "string"
+            description:
+              type: "string"
+            requiresTarget:
+              type: "boolean"
+          required:
+            - "id"
+            - "label"
+            - "description"
+            - "requiresTarget"
+          additionalProperties: false
+        PlayerAction:
+          type: "string"
+          enum:
+            - "make_case"
+            - "expose"
+            - "appeal"
+            - "ally"
+            - "deflect"
+            - "stall"
+            - "confess"
+        WorldMeta:
+          type: "object"
+          properties:
+            location:
+              type: "string"
+            time:
+              type: "string"
+            weather:
+              type: "string"
+            mood:
+              type: "string"
+          required:
+            - "location"
+            - "time"
+            - "weather"
+            - "mood"
+          additionalProperties: false
+        NpcState:
+          type: "object"
+          properties:
+            persona:
+              "$ref": "#/definitions/NpcPersona"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            relationship:
+              "$ref": "#/definitions/RelationshipState"
+            goals:
+              "$ref": "#/definitions/NpcGoalState"
+            decision:
+              "$ref": "#/definitions/NpcDecisionProfile"
+            currentLocation:
+              type: "string"
+            statusLine:
+              type: "string"
+            memories:
+              type: "array"
+              items:
+                "$ref": "#/definitions/MemoryEntry"
+          required:
+            - "currentLocation"
+            - "decision"
+            - "emotion"
+            - "goals"
+            - "memories"
+            - "persona"
+            - "relationship"
+            - "statusLine"
+          additionalProperties: false
+        NpcPersona:
+          type: "object"
+          properties:
+            id:
+              "$ref": "#/definitions/NpcId"
+            name:
+              type: "string"
+            role:
+              type: "string"
+            tone:
+              type: "string"
+            traits:
+              type: "array"
+              items:
+                type: "string"
+            values:
+              type: "array"
+              items:
+                type: "string"
+            dislikes:
+              type: "array"
+              items:
+                type: "string"
+            secrets:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "name"
+            - "role"
+            - "tone"
+            - "traits"
+            - "values"
+            - "dislikes"
+            - "secrets"
+          additionalProperties: false
+        NpcId:
+          type: "string"
+        NpcEmotionState:
+          type: "object"
+          properties:
+            primary:
+              "$ref": "#/definitions/EmotionPrimary"
+            intensity:
+              type: "number"
+            reason:
+              type: "string"
+          required:
+            - "primary"
+            - "intensity"
+            - "reason"
+          additionalProperties: false
+        EmotionPrimary:
+          type: "string"
+          enum:
+            - "focused"
+            - "fearful"
+            - "angry"
+            - "guilty"
+            - "cold"
+            - "desperate"
+        RelationshipState:
+          type: "object"
+          properties:
+            playerTrust:
+              type: "number"
+            playerAffinity:
+              type: "number"
+            playerTension:
+              type: "number"
+            npcOpinions:
+              type: "object"
+              additionalProperties:
+                type: "number"
+          required:
+            - "playerTrust"
+            - "playerAffinity"
+            - "playerTension"
+            - "npcOpinions"
+          additionalProperties: false
+        NpcGoalState:
+          type: "object"
+          properties:
+            currentGoal:
+              type: "string"
+            currentNeed:
+              type: "string"
+            opennessToPlayer:
+              type: "number"
+          required:
+            - "currentGoal"
+            - "currentNeed"
+            - "opennessToPlayer"
+          additionalProperties: false
+        NpcDecisionProfile:
+          type: "object"
+          properties:
+            biasSummary:
+              type: "string"
+            survivalRationale:
+              type: "string"
+            redLines:
+              type: "array"
+              items:
+                type: "string"
+            initialTargets:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "biasSummary"
+            - "survivalRationale"
+            - "redLines"
+            - "initialTargets"
+          additionalProperties: false
+        MemoryEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            scope:
+              type: "string"
+              enum:
+                - "short"
+                - "long"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            importance:
+              type: "number"
+            timestamp:
+              type: "string"
+          required:
+            - "id"
+            - "scope"
+            - "summary"
+            - "tags"
+            - "importance"
+            - "timestamp"
+          additionalProperties: false
+        EventLogEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            timestamp:
+              type: "string"
+            title:
+              type: "string"
+            detail:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            npcId:
+              type: "string"
+            tone:
+              type: "string"
+              enum:
+                - "info"
+                - "success"
+                - "warning"
+                - "danger"
+          required:
+            - "id"
+            - "timestamp"
+            - "title"
+            - "detail"
+            - "tags"
+            - "npcId"
+            - "tone"
+          additionalProperties: false
+        ChatMessage:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            npcId:
+              type: "string"
+            speaker:
+              type: "string"
+              enum:
+                - "player"
+                - "npc"
+            text:
+              type: "string"
+            timestamp:
+              type: "string"
+            action:
+              anyOf:
+                -
+                  "$ref": "#/definitions/PlayerAction"
+                -
+                  "$ref": "#/definitions/AllowedActionType"
+                -
+                  type: "null"
+            fallbackUsed:
+              type: "boolean"
+            replyRewriteSource:
+              type:
+                - "string"
+                - "null"
+            replyRewriteReason:
+              type:
+                - "string"
+                - "null"
+            replyJudge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InteractionJudgeResult"
+                -
+                  type: "null"
+            failureDebug:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionFailureDebugEntry"
+                -
+                  type: "null"
+            interactionTrace:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionTraceEntry"
+                -
+                  type: "null"
+          required:
+            - "id"
+            - "npcId"
+            - "speaker"
+            - "text"
+            - "timestamp"
+            - "action"
+          additionalProperties: false
+        AllowedActionType:
+          type: "string"
+          enum:
+            - "accuse"
+            - "defend"
+            - "deflect"
+            - "appeal"
+            - "ally"
+            - "stall"
+            - "probe"
+        InteractionJudgeResult:
+          type: "object"
+          properties:
+            status:
+              "$ref": "#/definitions/InteractionJudgeStatus"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            model:
+              type:
+                - "string"
+                - "null"
+            aligned:
+              type:
+                - "boolean"
+                - "null"
+            targetMaintained:
+              type:
+                - "boolean"
+                - "null"
+            fatalMismatch:
+              type:
+                - "boolean"
+                - "null"
+            confidence:
+              type:
+                - "number"
+                - "null"
+            reason:
+              type:
+                - "string"
+                - "null"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            error:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "status"
+            - "sourceRef"
+            - "model"
+            - "aligned"
+            - "targetMaintained"
+            - "fatalMismatch"
+            - "confidence"
+            - "reason"
+            - "durationMs"
+            - "error"
+          additionalProperties: false
+        InteractionJudgeStatus:
+          type: "string"
+          enum:
+            - "aligned"
+            - "misaligned"
+            - "skipped"
+            - "failed"
+        InteractionFailureDebugEntry:
+          type: "object"
+          properties:
+            stage:
+              "$ref": "#/definitions/InteractionFailureDebugStage"
+            kind:
+              "$ref": "#/definitions/InteractionFailureDebugKind"
+            summary:
+              type: "string"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            issues:
+              type: "array"
+              items:
+                type: "string"
+            candidateReplyText:
+              type:
+                - "string"
+                - "null"
+            candidateSelectedActionType:
+              anyOf:
+                -
+                  "$ref": "#/definitions/AllowedActionType"
+                -
+                  type: "null"
+            candidateSelectedActionReason:
+              type:
+                - "string"
+                - "null"
+            candidateTargetNpcId:
+              type:
+                - "string"
+                - "null"
+            candidateImpactTags:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ImpactTag"
+          required:
+            - "stage"
+            - "kind"
+            - "summary"
+          additionalProperties: false
+        InteractionFailureDebugStage:
+          type: "string"
+          enum:
+            - "interaction_provider"
+            - "interaction_validation"
+            - "reply_rewrite"
+        InteractionFailureDebugKind:
+          type: "string"
+          enum:
+            - "provider_error"
+            - "contract_validation"
+            - "request_error"
+            - "validation_error"
+        ImpactTag:
+          type: "string"
+          enum:
+            - "player_distrust_up"
+            - "player_distrust_down"
+            - "player_blame_up"
+            - "player_blame_down"
+            - "player_sympathy_up"
+            - "player_sympathy_down"
+            - "target_blame_up"
+            - "target_blame_high_up"
+            - "target_blame_down"
+            - "target_distrust_up"
+            - "target_distrust_down"
+            - "target_hostility_up"
+            - "target_hostility_down"
+            - "target_sympathy_up"
+            - "target_sympathy_down"
+            - "target_utility_down"
+            - "target_utility_up"
+            - "target_dispensability_up"
+            - "target_dispensability_down"
+            - "room_pressure_shift"
+            - "no_major_shift"
+        InteractionTraceEntry:
+          type: "object"
+          properties:
+            stage:
+              "$ref": "#/definitions/InteractionTraceStage"
+            label:
+              type: "string"
+            status:
+              "$ref": "#/definitions/InteractionTraceStatus"
+            startedAtMs:
+              type: "number"
+            finishedAtMs:
+              type: "number"
+            durationMs:
+              type: "number"
+            detail:
+              type:
+                - "string"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "stage"
+            - "label"
+            - "status"
+            - "startedAtMs"
+            - "finishedAtMs"
+            - "durationMs"
+          additionalProperties: false
+        InteractionTraceStage:
+          type: "string"
+          enum:
+            - "prepare_context"
+            - "interaction_provider"
+            - "interaction_validation"
+            - "interaction_fallback"
+            - "reply_rewrite_request"
+            - "reply_rewrite_validation"
+            - "reply_rewrite_retry_request"
+            - "reply_rewrite_retry_validation"
+            - "reply_judge_request"
+            - "reply_judge_result"
+            - "shadow_compare_wait"
+            - "pressure_update"
+            - "round_progress"
+            - "autonomy_phase"
+            - "memory_update"
+            - "log_commit"
+            - "dataset_export"
+            - "turn_total"
+        InteractionTraceStatus:
+          type: "string"
+          enum:
+            - "ok"
+            - "failed"
+            - "fallback"
+            - "skipped"
+        RoundState:
+          type: "object"
+          properties:
+            currentRound:
+              type: "number"
+            minRoundsBeforeResolution:
+              type: "number"
+            maxRounds:
+              type: "number"
+            resolutionUnlocked:
+              type: "boolean"
+            rescueEtaLabel:
+              type: "string"
+            facilityStatus:
+              type: "string"
+          required:
+            - "currentRound"
+            - "minRoundsBeforeResolution"
+            - "maxRounds"
+            - "resolutionUnlocked"
+            - "rescueEtaLabel"
+            - "facilityStatus"
+          additionalProperties: false
+        ConsensusBoardEntry:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            totalPressure:
+              type: "number"
+            topVotes:
+              type: "number"
+            trend:
+              type: "string"
+              enum:
+                - "up"
+                - "down"
+                - "flat"
+            summary:
+              type: "string"
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "totalPressure"
+            - "topVotes"
+            - "trend"
+            - "summary"
+          additionalProperties: false
+        CandidateId:
+          type: "string"
+        InspectorPayload:
+          type: "object"
+          properties:
+            timestamp:
+              type: "string"
+            episodeId:
+              type: "string"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            replyText:
+              type: "string"
+            fallbackUsed:
+              type: "boolean"
+            replyRewriteSource:
+              type:
+                - "string"
+                - "null"
+            replyRewriteReason:
+              type:
+                - "string"
+                - "null"
+            replyJudge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InteractionJudgeResult"
+                -
+                  type: "null"
+            failureDebug:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionFailureDebugEntry"
+                -
+                  type: "null"
+            interactionTrace:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionTraceEntry"
+                -
+                  type: "null"
+            retrievedMemories:
+              type: "array"
+              items:
+                "$ref": "#/definitions/RetrievedMemoryEntry"
+            retrievedKnowledge:
+              type: "array"
+              items:
+                "$ref": "#/definitions/RetrievedKnowledgeEvidence"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            intent:
+              "$ref": "#/definitions/IntentSummary"
+            candidateActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/CandidateAction"
+            selectedAction:
+              "$ref": "#/definitions/SelectedAction"
+            selectedActionReason:
+              type: "string"
+            structuredImpact:
+              "$ref": "#/definitions/StructuredImpactInference"
+            relationshipDelta:
+              "$ref": "#/definitions/RelationshipDelta"
+            pressureChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/PressureChange"
+            leaderBefore:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leaderAfter:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leadingCandidateId:
+              anyOf:
+                -
+                  "$ref": "#/definitions/CandidateId"
+                -
+                  type: "null"
+            leadingCandidateLabel:
+              type:
+                - "string"
+                - "null"
+            round:
+              type: "number"
+            resolution:
+              "$ref": "#/definitions/ResolutionState"
+            llmPromptContextSummary:
+              type: "string"
+            datasetExportedAt:
+              type:
+                - "string"
+                - "null"
+            exportPaths:
+              "$ref": "#/definitions/EpisodeExportPaths"
+            shadowComparison:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ShadowComparisonPayload"
+                -
+                  type: "null"
+            autonomyPhase:
+              anyOf:
+                -
+                  "$ref": "#/definitions/AutonomyPhaseResult"
+                -
+                  type: "null"
+          required:
+            - "timestamp"
+            - "episodeId"
+            - "npcId"
+            - "targetNpcId"
+            - "replyText"
+            - "retrievedMemories"
+            - "retrievedKnowledge"
+            - "emotion"
+            - "intent"
+            - "candidateActions"
+            - "selectedAction"
+            - "selectedActionReason"
+            - "structuredImpact"
+            - "relationshipDelta"
+            - "pressureChanges"
+            - "leaderBefore"
+            - "leaderAfter"
+            - "leadingCandidateId"
+            - "leadingCandidateLabel"
+            - "round"
+            - "resolution"
+            - "llmPromptContextSummary"
+            - "datasetExportedAt"
+            - "exportPaths"
+            - "shadowComparison"
+          additionalProperties: false
+        RetrievedMemoryEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            scope:
+              type: "string"
+              enum:
+                - "short"
+                - "long"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            importance:
+              type: "number"
+            timestamp:
+              type: "string"
+            score:
+              type: "number"
+            scoreBreakdown:
+              "$ref": "#/definitions/RetrievalScoreBreakdown"
+            matchReasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "importance"
+            - "matchReasons"
+            - "scope"
+            - "score"
+            - "scoreBreakdown"
+            - "summary"
+            - "tags"
+            - "timestamp"
+          additionalProperties: false
+        RetrievalScoreBreakdown:
+          type: "object"
+          properties:
+            tokenOverlap:
+              type: "number"
+            tagOverlap:
+              type: "number"
+            recency:
+              type: "number"
+            importance:
+              type: "number"
+            priority:
+              type: "number"
+            npcMatch:
+              type: "number"
+            targetMatch:
+              type: "number"
+            eventMatch:
+              type: "number"
+            total:
+              type: "number"
+          required:
+            - "tokenOverlap"
+            - "tagOverlap"
+            - "recency"
+            - "importance"
+            - "priority"
+            - "npcMatch"
+            - "targetMatch"
+            - "eventMatch"
+            - "total"
+          additionalProperties: false
+        RetrievedKnowledgeEvidence:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            sourceType:
+              "$ref": "#/definitions/KnowledgeEvidenceType"
+            title:
+              type: "string"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            relatedNpcIds:
+              type: "array"
+              items:
+                type: "string"
+            priority:
+              type: "number"
+            visibility:
+              type: "string"
+              enum:
+                - "public"
+                - "private"
+                - "conditional"
+            roundIntroduced:
+              type:
+                - "number"
+                - "null"
+            score:
+              type: "number"
+            scoreBreakdown:
+              "$ref": "#/definitions/RetrievalScoreBreakdown"
+            matchReasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "matchReasons"
+            - "priority"
+            - "relatedNpcIds"
+            - "roundIntroduced"
+            - "score"
+            - "scoreBreakdown"
+            - "sourceType"
+            - "summary"
+            - "tags"
+            - "title"
+            - "visibility"
+          additionalProperties: false
+        KnowledgeEvidenceType:
+          type: "string"
+          enum:
+            - "world_fact"
+            - "incident_log"
+            - "private_secret"
+            - "role_record"
+        IntentSummary:
+          type: "object"
+          properties:
+            summary:
+              type: "string"
+            stance:
+              type: "string"
+            leverage:
+              type: "string"
+          required:
+            - "summary"
+            - "stance"
+            - "leverage"
+          additionalProperties: false
+        CandidateAction:
+          type: "object"
+          properties:
+            type:
+              "$ref": "#/definitions/AllowedActionType"
+            label:
+              type: "string"
+            reason:
+              type: "string"
+          required:
+            - "type"
+            - "label"
+            - "reason"
+          additionalProperties: false
+        SelectedAction:
+          type: "object"
+          properties:
+            type:
+              "$ref": "#/definitions/AllowedActionType"
+            reason:
+              type: "string"
+          required:
+            - "type"
+            - "reason"
+          additionalProperties: false
+        StructuredImpactInference:
+          type: "object"
+          properties:
+            impactTags:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ImpactTag"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            confidence:
+              type: "number"
+            rationale:
+              type: "string"
+          required:
+            - "impactTags"
+            - "targetNpcId"
+            - "confidence"
+            - "rationale"
+          additionalProperties: false
+        RelationshipDelta:
+          type: "object"
+          properties:
+            trust:
+              type: "number"
+            affinity:
+              type: "number"
+            tension:
+              type: "number"
+          required:
+            - "trust"
+            - "affinity"
+            - "tension"
+          additionalProperties: false
+        PressureChange:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            totalPressureDelta:
+              type: "number"
+            dimensionDelta:
+              type: "object"
+              properties:
+                blame:
+                  type: "number"
+                distrust:
+                  type: "number"
+                hostility:
+                  type: "number"
+                dispensability:
+                  type: "number"
+                utility:
+                  type: "number"
+                sympathy:
+                  type: "number"
+              additionalProperties: false
+            factors:
+              type: "array"
+              items:
+                type: "string"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "totalPressureDelta"
+            - "dimensionDelta"
+            - "factors"
+            - "reasons"
+          additionalProperties: false
+        ResolutionState:
+          type: "object"
+          properties:
+            resolved:
+              type: "boolean"
+            sacrificedNpcId:
+              anyOf:
+                -
+                  "$ref": "#/definitions/CandidateId"
+                -
+                  type: "null"
+            sacrificedLabel:
+              type:
+                - "string"
+                - "null"
+            resolutionType:
+              "$ref": "#/definitions/ResolutionType"
+            summary:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "resolved"
+            - "sacrificedNpcId"
+            - "sacrificedLabel"
+            - "resolutionType"
+            - "summary"
+          additionalProperties: false
+        ResolutionType:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "threshold"
+            - "consensus"
+            - "max_rounds"
+            - null
+        ShadowComparisonPayload:
+          type: "object"
+          properties:
+            label:
+              type: "string"
+            mode:
+              type: "string"
+              const: "local_mlx"
+            status:
+              "$ref": "#/definitions/ShadowComparisonStatus"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            artifactKind:
+              anyOf:
+                -
+                  "$ref": "#/definitions/RuntimeArtifactKind"
+                -
+                  type: "null"
+            error:
+              type:
+                - "string"
+                - "null"
+            rawOutput:
+              type:
+                - "string"
+                - "null"
+            result:
+              anyOf:
+                -
+                  "$ref": "#/definitions/LlmInteractionResult"
+                -
+                  type: "null"
+          required:
+            - "label"
+            - "mode"
+            - "status"
+            - "durationMs"
+            - "sourceRef"
+            - "artifactKind"
+            - "error"
+            - "rawOutput"
+            - "result"
+          additionalProperties: false
+        ShadowComparisonStatus:
+          type: "string"
+          enum:
+            - "parsed"
+            - "invalid_json"
+            - "error"
+        RuntimeArtifactKind:
+          type: "string"
+          enum:
+            - "mlx_adapter"
+            - "mlx_fused_model"
+            - "legacy_mlx_adapter"
+        LlmInteractionResult:
+          type: "object"
+          properties:
+            reply:
+              "$ref": "#/definitions/ReplyPayload"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            intent:
+              "$ref": "#/definitions/IntentSummary"
+            candidateActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/CandidateAction"
+            selectedAction:
+              "$ref": "#/definitions/SelectedAction"
+            structuredImpact:
+              "$ref": "#/definitions/StructuredImpactInference"
+          required:
+            - "reply"
+            - "emotion"
+            - "intent"
+            - "candidateActions"
+            - "selectedAction"
+            - "structuredImpact"
+          additionalProperties: false
+        ReplyPayload:
+          type: "object"
+          properties:
+            text:
+              type: "string"
+            rewriteSource:
+              type:
+                - "string"
+                - "null"
+            rewriteReason:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "text"
+          additionalProperties: false
+        AutonomyPhaseResult:
+          type: "object"
+          properties:
+            executed:
+              type: "boolean"
+            round:
+              type: "number"
+            drawCountBefore:
+              type: "number"
+            drawCountAfter:
+              type: "number"
+            leaderBefore:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leaderAfter:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            boardTopBefore:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            boardTopAfter:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            rngSamples:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyRngSample"
+            steps:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyStepResult"
+          required:
+            - "executed"
+            - "round"
+            - "drawCountBefore"
+            - "drawCountAfter"
+            - "leaderBefore"
+            - "leaderAfter"
+            - "boardTopBefore"
+            - "boardTopAfter"
+            - "rngSamples"
+            - "steps"
+          additionalProperties: false
+        AutonomyRngSample:
+          type: "object"
+          properties:
+            label:
+              type: "string"
+            drawIndex:
+              type: "number"
+            value:
+              type: "number"
+          required:
+            - "label"
+            - "drawIndex"
+            - "value"
+          additionalProperties: false
+        AutonomyStepResult:
+          type: "object"
+          properties:
+            actorNpcId:
+              type: "string"
+            actorLabel:
+              type: "string"
+            moveType:
+              "$ref": "#/definitions/AutonomyMoveType"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            targetLabel:
+              type:
+                - "string"
+                - "null"
+            secondaryTargetNpcId:
+              type:
+                - "string"
+                - "null"
+            secondaryTargetLabel:
+              type:
+                - "string"
+                - "null"
+            rationale:
+              type: "string"
+            summary:
+              type: "string"
+            tone:
+              type: "string"
+              enum:
+                - "info"
+                - "success"
+                - "warning"
+                - "danger"
+            opinionDeltas:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyOpinionDelta"
+            judgementChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyJudgementChange"
+            rngSamples:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyRngSample"
+          required:
+            - "actorNpcId"
+            - "actorLabel"
+            - "moveType"
+            - "targetNpcId"
+            - "targetLabel"
+            - "secondaryTargetNpcId"
+            - "secondaryTargetLabel"
+            - "rationale"
+            - "summary"
+            - "tone"
+            - "opinionDeltas"
+            - "judgementChanges"
+            - "rngSamples"
+          additionalProperties: false
+        AutonomyMoveType:
+          type: "string"
+          enum:
+            - "pile_on"
+            - "shield"
+            - "redirect"
+            - "freeze"
+        AutonomyOpinionDelta:
+          type: "object"
+          properties:
+            npcId:
+              type: "string"
+            npcLabel:
+              type: "string"
+            delta:
+              type: "number"
+          required:
+            - "npcId"
+            - "npcLabel"
+            - "delta"
+          additionalProperties: false
+        AutonomyJudgementChange:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            dimensionDelta:
+              type: "object"
+              properties:
+                blame:
+                  type: "number"
+                distrust:
+                  type: "number"
+                hostility:
+                  type: "number"
+                dispensability:
+                  type: "number"
+                utility:
+                  type: "number"
+                sympathy:
+                  type: "number"
+              additionalProperties: false
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "dimensionDelta"
+          additionalProperties: false
+        RuntimeStatus:
+          type: "object"
+          properties:
+            providerMode:
+              "$ref": "#/definitions/LlmProviderMode"
+            configured:
+              type: "boolean"
+            label:
+              type: "string"
+            detail:
+              type: "string"
+          required:
+            - "providerMode"
+            - "configured"
+            - "label"
+            - "detail"
+          additionalProperties: false
+        LlmProviderMode:
+          type: "string"
+          enum:
+            - "codex"
+            - "openai"
+            - "deterministic"
+    InspectorResponse:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      type: "object"
+      properties:
+        inspector:
+          anyOf:
+            -
+              "$ref": "#/definitions/InspectorPayload"
+            -
+              type: "null"
+      required:
+        - "inspector"
+      additionalProperties: false
+      definitions:
+        InspectorPayload:
+          type: "object"
+          properties:
+            timestamp:
+              type: "string"
+            episodeId:
+              type: "string"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            replyText:
+              type: "string"
+            fallbackUsed:
+              type: "boolean"
+            replyRewriteSource:
+              type:
+                - "string"
+                - "null"
+            replyRewriteReason:
+              type:
+                - "string"
+                - "null"
+            replyJudge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/InteractionJudgeResult"
+                -
+                  type: "null"
+            failureDebug:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionFailureDebugEntry"
+                -
+                  type: "null"
+            interactionTrace:
+              anyOf:
+                -
+                  type: "array"
+                  items:
+                    "$ref": "#/definitions/InteractionTraceEntry"
+                -
+                  type: "null"
+            retrievedMemories:
+              type: "array"
+              items:
+                "$ref": "#/definitions/RetrievedMemoryEntry"
+            retrievedKnowledge:
+              type: "array"
+              items:
+                "$ref": "#/definitions/RetrievedKnowledgeEvidence"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            intent:
+              "$ref": "#/definitions/IntentSummary"
+            candidateActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/CandidateAction"
+            selectedAction:
+              "$ref": "#/definitions/SelectedAction"
+            selectedActionReason:
+              type: "string"
+            structuredImpact:
+              "$ref": "#/definitions/StructuredImpactInference"
+            relationshipDelta:
+              "$ref": "#/definitions/RelationshipDelta"
+            pressureChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/PressureChange"
+            leaderBefore:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leaderAfter:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leadingCandidateId:
+              anyOf:
+                -
+                  "$ref": "#/definitions/CandidateId"
+                -
+                  type: "null"
+            leadingCandidateLabel:
+              type:
+                - "string"
+                - "null"
+            round:
+              type: "number"
+            resolution:
+              "$ref": "#/definitions/ResolutionState"
+            llmPromptContextSummary:
+              type: "string"
+            datasetExportedAt:
+              type:
+                - "string"
+                - "null"
+            exportPaths:
+              "$ref": "#/definitions/EpisodeExportPaths"
+            shadowComparison:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ShadowComparisonPayload"
+                -
+                  type: "null"
+            autonomyPhase:
+              anyOf:
+                -
+                  "$ref": "#/definitions/AutonomyPhaseResult"
+                -
+                  type: "null"
+          required:
+            - "timestamp"
+            - "episodeId"
+            - "npcId"
+            - "targetNpcId"
+            - "replyText"
+            - "retrievedMemories"
+            - "retrievedKnowledge"
+            - "emotion"
+            - "intent"
+            - "candidateActions"
+            - "selectedAction"
+            - "selectedActionReason"
+            - "structuredImpact"
+            - "relationshipDelta"
+            - "pressureChanges"
+            - "leaderBefore"
+            - "leaderAfter"
+            - "leadingCandidateId"
+            - "leadingCandidateLabel"
+            - "round"
+            - "resolution"
+            - "llmPromptContextSummary"
+            - "datasetExportedAt"
+            - "exportPaths"
+            - "shadowComparison"
+          additionalProperties: false
+        InteractionJudgeResult:
+          type: "object"
+          properties:
+            status:
+              "$ref": "#/definitions/InteractionJudgeStatus"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            model:
+              type:
+                - "string"
+                - "null"
+            aligned:
+              type:
+                - "boolean"
+                - "null"
+            targetMaintained:
+              type:
+                - "boolean"
+                - "null"
+            fatalMismatch:
+              type:
+                - "boolean"
+                - "null"
+            confidence:
+              type:
+                - "number"
+                - "null"
+            reason:
+              type:
+                - "string"
+                - "null"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            error:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "status"
+            - "sourceRef"
+            - "model"
+            - "aligned"
+            - "targetMaintained"
+            - "fatalMismatch"
+            - "confidence"
+            - "reason"
+            - "durationMs"
+            - "error"
+          additionalProperties: false
+        InteractionJudgeStatus:
+          type: "string"
+          enum:
+            - "aligned"
+            - "misaligned"
+            - "skipped"
+            - "failed"
+        InteractionFailureDebugEntry:
+          type: "object"
+          properties:
+            stage:
+              "$ref": "#/definitions/InteractionFailureDebugStage"
+            kind:
+              "$ref": "#/definitions/InteractionFailureDebugKind"
+            summary:
+              type: "string"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            issues:
+              type: "array"
+              items:
+                type: "string"
+            candidateReplyText:
+              type:
+                - "string"
+                - "null"
+            candidateSelectedActionType:
+              anyOf:
+                -
+                  "$ref": "#/definitions/AllowedActionType"
+                -
+                  type: "null"
+            candidateSelectedActionReason:
+              type:
+                - "string"
+                - "null"
+            candidateTargetNpcId:
+              type:
+                - "string"
+                - "null"
+            candidateImpactTags:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ImpactTag"
+          required:
+            - "stage"
+            - "kind"
+            - "summary"
+          additionalProperties: false
+        InteractionFailureDebugStage:
+          type: "string"
+          enum:
+            - "interaction_provider"
+            - "interaction_validation"
+            - "reply_rewrite"
+        InteractionFailureDebugKind:
+          type: "string"
+          enum:
+            - "provider_error"
+            - "contract_validation"
+            - "request_error"
+            - "validation_error"
+        AllowedActionType:
+          type: "string"
+          enum:
+            - "accuse"
+            - "defend"
+            - "deflect"
+            - "appeal"
+            - "ally"
+            - "stall"
+            - "probe"
+        ImpactTag:
+          type: "string"
+          enum:
+            - "player_distrust_up"
+            - "player_distrust_down"
+            - "player_blame_up"
+            - "player_blame_down"
+            - "player_sympathy_up"
+            - "player_sympathy_down"
+            - "target_blame_up"
+            - "target_blame_high_up"
+            - "target_blame_down"
+            - "target_distrust_up"
+            - "target_distrust_down"
+            - "target_hostility_up"
+            - "target_hostility_down"
+            - "target_sympathy_up"
+            - "target_sympathy_down"
+            - "target_utility_down"
+            - "target_utility_up"
+            - "target_dispensability_up"
+            - "target_dispensability_down"
+            - "room_pressure_shift"
+            - "no_major_shift"
+        InteractionTraceEntry:
+          type: "object"
+          properties:
+            stage:
+              "$ref": "#/definitions/InteractionTraceStage"
+            label:
+              type: "string"
+            status:
+              "$ref": "#/definitions/InteractionTraceStatus"
+            startedAtMs:
+              type: "number"
+            finishedAtMs:
+              type: "number"
+            durationMs:
+              type: "number"
+            detail:
+              type:
+                - "string"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "stage"
+            - "label"
+            - "status"
+            - "startedAtMs"
+            - "finishedAtMs"
+            - "durationMs"
+          additionalProperties: false
+        InteractionTraceStage:
+          type: "string"
+          enum:
+            - "prepare_context"
+            - "interaction_provider"
+            - "interaction_validation"
+            - "interaction_fallback"
+            - "reply_rewrite_request"
+            - "reply_rewrite_validation"
+            - "reply_rewrite_retry_request"
+            - "reply_rewrite_retry_validation"
+            - "reply_judge_request"
+            - "reply_judge_result"
+            - "shadow_compare_wait"
+            - "pressure_update"
+            - "round_progress"
+            - "autonomy_phase"
+            - "memory_update"
+            - "log_commit"
+            - "dataset_export"
+            - "turn_total"
+        InteractionTraceStatus:
+          type: "string"
+          enum:
+            - "ok"
+            - "failed"
+            - "fallback"
+            - "skipped"
+        RetrievedMemoryEntry:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            scope:
+              type: "string"
+              enum:
+                - "short"
+                - "long"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            importance:
+              type: "number"
+            timestamp:
+              type: "string"
+            score:
+              type: "number"
+            scoreBreakdown:
+              "$ref": "#/definitions/RetrievalScoreBreakdown"
+            matchReasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "importance"
+            - "matchReasons"
+            - "scope"
+            - "score"
+            - "scoreBreakdown"
+            - "summary"
+            - "tags"
+            - "timestamp"
+          additionalProperties: false
+        RetrievalScoreBreakdown:
+          type: "object"
+          properties:
+            tokenOverlap:
+              type: "number"
+            tagOverlap:
+              type: "number"
+            recency:
+              type: "number"
+            importance:
+              type: "number"
+            priority:
+              type: "number"
+            npcMatch:
+              type: "number"
+            targetMatch:
+              type: "number"
+            eventMatch:
+              type: "number"
+            total:
+              type: "number"
+          required:
+            - "tokenOverlap"
+            - "tagOverlap"
+            - "recency"
+            - "importance"
+            - "priority"
+            - "npcMatch"
+            - "targetMatch"
+            - "eventMatch"
+            - "total"
+          additionalProperties: false
+        RetrievedKnowledgeEvidence:
+          type: "object"
+          properties:
+            id:
+              type: "string"
+            sourceType:
+              "$ref": "#/definitions/KnowledgeEvidenceType"
+            title:
+              type: "string"
+            summary:
+              type: "string"
+            tags:
+              type: "array"
+              items:
+                type: "string"
+            relatedNpcIds:
+              type: "array"
+              items:
+                type: "string"
+            priority:
+              type: "number"
+            visibility:
+              type: "string"
+              enum:
+                - "public"
+                - "private"
+                - "conditional"
+            roundIntroduced:
+              type:
+                - "number"
+                - "null"
+            score:
+              type: "number"
+            scoreBreakdown:
+              "$ref": "#/definitions/RetrievalScoreBreakdown"
+            matchReasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "id"
+            - "matchReasons"
+            - "priority"
+            - "relatedNpcIds"
+            - "roundIntroduced"
+            - "score"
+            - "scoreBreakdown"
+            - "sourceType"
+            - "summary"
+            - "tags"
+            - "title"
+            - "visibility"
+          additionalProperties: false
+        KnowledgeEvidenceType:
+          type: "string"
+          enum:
+            - "world_fact"
+            - "incident_log"
+            - "private_secret"
+            - "role_record"
+        NpcEmotionState:
+          type: "object"
+          properties:
+            primary:
+              "$ref": "#/definitions/EmotionPrimary"
+            intensity:
+              type: "number"
+            reason:
+              type: "string"
+          required:
+            - "primary"
+            - "intensity"
+            - "reason"
+          additionalProperties: false
+        EmotionPrimary:
+          type: "string"
+          enum:
+            - "focused"
+            - "fearful"
+            - "angry"
+            - "guilty"
+            - "cold"
+            - "desperate"
+        IntentSummary:
+          type: "object"
+          properties:
+            summary:
+              type: "string"
+            stance:
+              type: "string"
+            leverage:
+              type: "string"
+          required:
+            - "summary"
+            - "stance"
+            - "leverage"
+          additionalProperties: false
+        CandidateAction:
+          type: "object"
+          properties:
+            type:
+              "$ref": "#/definitions/AllowedActionType"
+            label:
+              type: "string"
+            reason:
+              type: "string"
+          required:
+            - "type"
+            - "label"
+            - "reason"
+          additionalProperties: false
+        SelectedAction:
+          type: "object"
+          properties:
+            type:
+              "$ref": "#/definitions/AllowedActionType"
+            reason:
+              type: "string"
+          required:
+            - "type"
+            - "reason"
+          additionalProperties: false
+        StructuredImpactInference:
+          type: "object"
+          properties:
+            impactTags:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ImpactTag"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            confidence:
+              type: "number"
+            rationale:
+              type: "string"
+          required:
+            - "impactTags"
+            - "targetNpcId"
+            - "confidence"
+            - "rationale"
+          additionalProperties: false
+        RelationshipDelta:
+          type: "object"
+          properties:
+            trust:
+              type: "number"
+            affinity:
+              type: "number"
+            tension:
+              type: "number"
+          required:
+            - "trust"
+            - "affinity"
+            - "tension"
+          additionalProperties: false
+        PressureChange:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            totalPressureDelta:
+              type: "number"
+            dimensionDelta:
+              type: "object"
+              properties:
+                blame:
+                  type: "number"
+                distrust:
+                  type: "number"
+                hostility:
+                  type: "number"
+                dispensability:
+                  type: "number"
+                utility:
+                  type: "number"
+                sympathy:
+                  type: "number"
+              additionalProperties: false
+            factors:
+              type: "array"
+              items:
+                type: "string"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "totalPressureDelta"
+            - "dimensionDelta"
+            - "factors"
+            - "reasons"
+          additionalProperties: false
+        CandidateId:
+          type: "string"
+        ConsensusBoardEntry:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            totalPressure:
+              type: "number"
+            topVotes:
+              type: "number"
+            trend:
+              type: "string"
+              enum:
+                - "up"
+                - "down"
+                - "flat"
+            summary:
+              type: "string"
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "totalPressure"
+            - "topVotes"
+            - "trend"
+            - "summary"
+          additionalProperties: false
+        ResolutionState:
+          type: "object"
+          properties:
+            resolved:
+              type: "boolean"
+            sacrificedNpcId:
+              anyOf:
+                -
+                  "$ref": "#/definitions/CandidateId"
+                -
+                  type: "null"
+            sacrificedLabel:
+              type:
+                - "string"
+                - "null"
+            resolutionType:
+              "$ref": "#/definitions/ResolutionType"
+            summary:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "resolved"
+            - "sacrificedNpcId"
+            - "sacrificedLabel"
+            - "resolutionType"
+            - "summary"
+          additionalProperties: false
+        ResolutionType:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "threshold"
+            - "consensus"
+            - "max_rounds"
+            - null
+        EpisodeExportPaths:
+          type: "object"
+          properties:
+            richTrace:
+              type:
+                - "string"
+                - "null"
+            sft:
+              type:
+                - "string"
+                - "null"
+            review:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "richTrace"
+            - "sft"
+            - "review"
+          additionalProperties: false
+        ShadowComparisonPayload:
+          type: "object"
+          properties:
+            label:
+              type: "string"
+            mode:
+              type: "string"
+              const: "local_mlx"
+            status:
+              "$ref": "#/definitions/ShadowComparisonStatus"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            artifactKind:
+              anyOf:
+                -
+                  "$ref": "#/definitions/RuntimeArtifactKind"
+                -
+                  type: "null"
+            error:
+              type:
+                - "string"
+                - "null"
+            rawOutput:
+              type:
+                - "string"
+                - "null"
+            result:
+              anyOf:
+                -
+                  "$ref": "#/definitions/LlmInteractionResult"
+                -
+                  type: "null"
+          required:
+            - "label"
+            - "mode"
+            - "status"
+            - "durationMs"
+            - "sourceRef"
+            - "artifactKind"
+            - "error"
+            - "rawOutput"
+            - "result"
+          additionalProperties: false
+        ShadowComparisonStatus:
+          type: "string"
+          enum:
+            - "parsed"
+            - "invalid_json"
+            - "error"
+        RuntimeArtifactKind:
+          type: "string"
+          enum:
+            - "mlx_adapter"
+            - "mlx_fused_model"
+            - "legacy_mlx_adapter"
+        LlmInteractionResult:
+          type: "object"
+          properties:
+            reply:
+              "$ref": "#/definitions/ReplyPayload"
+            emotion:
+              "$ref": "#/definitions/NpcEmotionState"
+            intent:
+              "$ref": "#/definitions/IntentSummary"
+            candidateActions:
+              type: "array"
+              items:
+                "$ref": "#/definitions/CandidateAction"
+            selectedAction:
+              "$ref": "#/definitions/SelectedAction"
+            structuredImpact:
+              "$ref": "#/definitions/StructuredImpactInference"
+          required:
+            - "reply"
+            - "emotion"
+            - "intent"
+            - "candidateActions"
+            - "selectedAction"
+            - "structuredImpact"
+          additionalProperties: false
+        ReplyPayload:
+          type: "object"
+          properties:
+            text:
+              type: "string"
+            rewriteSource:
+              type:
+                - "string"
+                - "null"
+            rewriteReason:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "text"
+          additionalProperties: false
+        AutonomyPhaseResult:
+          type: "object"
+          properties:
+            executed:
+              type: "boolean"
+            round:
+              type: "number"
+            drawCountBefore:
+              type: "number"
+            drawCountAfter:
+              type: "number"
+            leaderBefore:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            leaderAfter:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ConsensusBoardEntry"
+                -
+                  type: "null"
+            boardTopBefore:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            boardTopAfter:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ConsensusBoardEntry"
+            rngSamples:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyRngSample"
+            steps:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyStepResult"
+          required:
+            - "executed"
+            - "round"
+            - "drawCountBefore"
+            - "drawCountAfter"
+            - "leaderBefore"
+            - "leaderAfter"
+            - "boardTopBefore"
+            - "boardTopAfter"
+            - "rngSamples"
+            - "steps"
+          additionalProperties: false
+        AutonomyRngSample:
+          type: "object"
+          properties:
+            label:
+              type: "string"
+            drawIndex:
+              type: "number"
+            value:
+              type: "number"
+          required:
+            - "label"
+            - "drawIndex"
+            - "value"
+          additionalProperties: false
+        AutonomyStepResult:
+          type: "object"
+          properties:
+            actorNpcId:
+              type: "string"
+            actorLabel:
+              type: "string"
+            moveType:
+              "$ref": "#/definitions/AutonomyMoveType"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            targetLabel:
+              type:
+                - "string"
+                - "null"
+            secondaryTargetNpcId:
+              type:
+                - "string"
+                - "null"
+            secondaryTargetLabel:
+              type:
+                - "string"
+                - "null"
+            rationale:
+              type: "string"
+            summary:
+              type: "string"
+            tone:
+              type: "string"
+              enum:
+                - "info"
+                - "success"
+                - "warning"
+                - "danger"
+            opinionDeltas:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyOpinionDelta"
+            judgementChanges:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyJudgementChange"
+            rngSamples:
+              type: "array"
+              items:
+                "$ref": "#/definitions/AutonomyRngSample"
+          required:
+            - "actorNpcId"
+            - "actorLabel"
+            - "moveType"
+            - "targetNpcId"
+            - "targetLabel"
+            - "secondaryTargetNpcId"
+            - "secondaryTargetLabel"
+            - "rationale"
+            - "summary"
+            - "tone"
+            - "opinionDeltas"
+            - "judgementChanges"
+            - "rngSamples"
+          additionalProperties: false
+        AutonomyMoveType:
+          type: "string"
+          enum:
+            - "pile_on"
+            - "shield"
+            - "redirect"
+            - "freeze"
+        AutonomyOpinionDelta:
+          type: "object"
+          properties:
+            npcId:
+              type: "string"
+            npcLabel:
+              type: "string"
+            delta:
+              type: "number"
+          required:
+            - "npcId"
+            - "npcLabel"
+            - "delta"
+          additionalProperties: false
+        AutonomyJudgementChange:
+          type: "object"
+          properties:
+            candidateId:
+              "$ref": "#/definitions/CandidateId"
+            candidateLabel:
+              type: "string"
+            dimensionDelta:
+              type: "object"
+              properties:
+                blame:
+                  type: "number"
+                distrust:
+                  type: "number"
+                hostility:
+                  type: "number"
+                dispensability:
+                  type: "number"
+                utility:
+                  type: "number"
+                sympathy:
+                  type: "number"
+              additionalProperties: false
+          required:
+            - "candidateId"
+            - "candidateLabel"
+            - "dimensionDelta"
+          additionalProperties: false
+    ReviewDashboardData:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewDashboardData"
+      definitions:
+        ReviewDashboardData:
+          type: "object"
+          properties:
+            humanRequired:
+              "$ref": "#/definitions/ReviewDatasetView"
+            llmCompleted:
+              "$ref": "#/definitions/ReviewDatasetView"
+            shadowInvalidJson:
+              "$ref": "#/definitions/ReviewShadowInvalidSummaryView"
+          required:
+            - "humanRequired"
+            - "llmCompleted"
+            - "shadowInvalidJson"
+          additionalProperties: false
+        ReviewDatasetView:
+          type: "object"
+          properties:
+            sftItems:
+              type: "array"
+              items:
+                "$ref": "#/definitions/SftReviewItemView"
+            pairItems:
+              type: "array"
+              items:
+                "$ref": "#/definitions/PairReviewItemView"
+          required:
+            - "sftItems"
+            - "pairItems"
+          additionalProperties: false
+        SftReviewItemView:
+          type: "object"
+          properties:
+            kind:
+              type: "string"
+              const: "sft"
+            reviewId:
+              type: "string"
+            bucket:
+              type:
+                - "string"
+                - "null"
+            priority:
+              type:
+                - "string"
+                - "null"
+            status:
+              type: "string"
+            decision:
+              "$ref": "#/definitions/SftReviewDecision"
+            reviewer:
+              type:
+                - "string"
+                - "null"
+            reviewedAt:
+              type:
+                - "string"
+                - "null"
+            notes:
+              type: "string"
+            queueReason:
+              type:
+                - "string"
+                - "null"
+            source:
+              "$ref": "#/definitions/ReviewSourceView"
+            judge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewJudgeView"
+                -
+                  type: "null"
+            weightedJudgeScore:
+              type:
+                - "number"
+                - "null"
+            prompt:
+              "$ref": "#/definitions/ReviewPromptView"
+            candidate:
+              "$ref": "#/definitions/ReviewCandidateView"
+            llmFirstPass:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewLlmFirstPassView"
+                -
+                  type: "null"
+          required:
+            - "kind"
+            - "reviewId"
+            - "bucket"
+            - "priority"
+            - "status"
+            - "decision"
+            - "reviewer"
+            - "reviewedAt"
+            - "notes"
+            - "queueReason"
+            - "source"
+            - "judge"
+            - "weightedJudgeScore"
+            - "prompt"
+            - "candidate"
+            - "llmFirstPass"
+          additionalProperties: false
+        SftReviewDecision:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "include"
+            - "exclude"
+            - "escalate"
+            - null
+        ReviewSourceView:
+          type: "object"
+          properties:
+            episodeId:
+              type:
+                - "string"
+                - "null"
+            scenarioId:
+              type: "string"
+            turnIndex:
+              type:
+                - "number"
+                - "null"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            strategyLabel:
+              type:
+                - "string"
+                - "null"
+            exportPath:
+              type:
+                - "string"
+                - "null"
+            sourceLabel:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "episodeId"
+            - "scenarioId"
+            - "turnIndex"
+            - "npcId"
+            - "targetNpcId"
+            - "strategyLabel"
+            - "exportPath"
+            - "sourceLabel"
+          additionalProperties: false
+        ReviewJudgeView:
+          type: "object"
+          properties:
+            responseQuality:
+              type:
+                - "number"
+                - "null"
+            structuredImpactQuality:
+              type:
+                - "number"
+                - "null"
+            groundingQuality:
+              type:
+                - "number"
+                - "null"
+            personaConsistency:
+              type:
+                - "number"
+                - "null"
+            inspectorUsefulness:
+              type:
+                - "number"
+                - "null"
+            verdict:
+              type:
+                - "string"
+                - "null"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "responseQuality"
+            - "structuredImpactQuality"
+            - "groundingQuality"
+            - "personaConsistency"
+            - "inspectorUsefulness"
+            - "verdict"
+            - "reasons"
+          additionalProperties: false
+        ReviewPromptView:
+          type: "object"
+          properties:
+            episodeId:
+              type:
+                - "string"
+                - "null"
+            scenarioId:
+              type: "string"
+            turnIndex:
+              type:
+                - "number"
+                - "null"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            inputMode:
+              type: "string"
+            playerText:
+              type: "string"
+            normalizedInputSummary:
+              type: "string"
+            promptContextSummary:
+              type:
+                - "string"
+                - "null"
+            retrievedMemorySummaries:
+              type: "array"
+              items:
+                type: "string"
+            retrievedKnowledgeTitles:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "episodeId"
+            - "scenarioId"
+            - "turnIndex"
+            - "npcId"
+            - "targetNpcId"
+            - "inputMode"
+            - "playerText"
+            - "normalizedInputSummary"
+            - "promptContextSummary"
+            - "retrievedMemorySummaries"
+            - "retrievedKnowledgeTitles"
+          additionalProperties: false
+        ReviewCandidateView:
+          type: "object"
+          properties:
+            rowId:
+              type: "string"
+            verdict:
+              type:
+                - "string"
+                - "null"
+            weightedScore:
+              type:
+                - "number"
+                - "null"
+            replyText:
+              type: "string"
+            selectedAction:
+              type:
+                - "string"
+                - "null"
+            selectedActionReason:
+              type: "string"
+            impactTags:
+              type: "array"
+              items:
+                type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            rationale:
+              type: "string"
+          required:
+            - "replyText"
+            - "selectedAction"
+            - "selectedActionReason"
+            - "impactTags"
+            - "targetNpcId"
+            - "rationale"
+          additionalProperties: false
+        ReviewLlmFirstPassView:
+          type: "object"
+          properties:
+            provider:
+              type:
+                - "string"
+                - "null"
+            suggestedDecision:
+              "$ref": "#/definitions/LlmSuggestedDecision"
+            verdict:
+              type:
+                - "string"
+                - "null"
+            decision:
+              type:
+                - "string"
+                - "null"
+            confidence:
+              type:
+                - "number"
+                - "null"
+            preferenceStrength:
+              type:
+                - "number"
+                - "null"
+            responseQuality:
+              type:
+                - "number"
+                - "null"
+            structuredImpactQuality:
+              type:
+                - "number"
+                - "null"
+            groundingQuality:
+              type:
+                - "number"
+                - "null"
+            personaConsistency:
+              type:
+                - "number"
+                - "null"
+            inspectorUsefulness:
+              type:
+                - "number"
+                - "null"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+            llmError:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "provider"
+            - "suggestedDecision"
+            - "verdict"
+            - "decision"
+            - "confidence"
+            - "preferenceStrength"
+            - "responseQuality"
+            - "structuredImpactQuality"
+            - "groundingQuality"
+            - "personaConsistency"
+            - "inspectorUsefulness"
+            - "reasons"
+            - "llmError"
+          additionalProperties: false
+        LlmSuggestedDecision:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "include"
+            - "flip"
+            - "exclude"
+            - "escalate"
+            - null
+        PairReviewItemView:
+          type: "object"
+          properties:
+            kind:
+              type: "string"
+              const: "pair"
+            reviewId:
+              type: "string"
+            pairId:
+              type: "string"
+            priority:
+              type:
+                - "string"
+                - "null"
+            status:
+              type: "string"
+            decision:
+              "$ref": "#/definitions/PairReviewDecision"
+            reviewer:
+              type:
+                - "string"
+                - "null"
+            reviewedAt:
+              type:
+                - "string"
+                - "null"
+            notes:
+              type: "string"
+            weightedGap:
+              type:
+                - "number"
+                - "null"
+            pairReason:
+              type: "array"
+              items:
+                type: "string"
+            prompt:
+              "$ref": "#/definitions/ReviewPromptView"
+            chosen:
+              "$ref": "#/definitions/ReviewCandidateView"
+            rejected:
+              "$ref": "#/definitions/ReviewCandidateView"
+            llmFirstPass:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewLlmFirstPassView"
+                -
+                  type: "null"
+          required:
+            - "kind"
+            - "reviewId"
+            - "pairId"
+            - "priority"
+            - "status"
+            - "decision"
+            - "reviewer"
+            - "reviewedAt"
+            - "notes"
+            - "weightedGap"
+            - "pairReason"
+            - "prompt"
+            - "chosen"
+            - "rejected"
+            - "llmFirstPass"
+          additionalProperties: false
+        PairReviewDecision:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "include"
+            - "flip"
+            - "exclude"
+            - "escalate"
+            - null
+        ReviewShadowInvalidSummaryView:
+          type: "object"
+          properties:
+            total:
+              type: "number"
+            latestExportedAt:
+              type:
+                - "string"
+                - "null"
+            cases:
+              type: "array"
+              items:
+                "$ref": "#/definitions/ReviewShadowInvalidCaseView"
+          required:
+            - "total"
+            - "latestExportedAt"
+            - "cases"
+          additionalProperties: false
+        ReviewShadowInvalidCaseView:
+          type: "object"
+          properties:
+            episodeId:
+              type:
+                - "string"
+                - "null"
+            scenarioId:
+              type: "string"
+            turnIndex:
+              type:
+                - "number"
+                - "null"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            playerText:
+              type: "string"
+            activeReplyText:
+              type: "string"
+            shadowLabel:
+              type:
+                - "string"
+                - "null"
+            durationMs:
+              type:
+                - "number"
+                - "null"
+            sourceRef:
+              type:
+                - "string"
+                - "null"
+            error:
+              type:
+                - "string"
+                - "null"
+            rawOutput:
+              type:
+                - "string"
+                - "null"
+            exportPath:
+              type:
+                - "string"
+                - "null"
+            exportedAt:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "episodeId"
+            - "scenarioId"
+            - "turnIndex"
+            - "npcId"
+            - "targetNpcId"
+            - "playerText"
+            - "activeReplyText"
+            - "shadowLabel"
+            - "durationMs"
+            - "sourceRef"
+            - "error"
+            - "rawOutput"
+            - "exportPath"
+            - "exportedAt"
+          additionalProperties: false
+    ReviewMutationResult:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewMutationResult"
+      definitions:
+        ReviewMutationResult:
+          type: "object"
+          properties:
+            kind:
+              "$ref": "#/definitions/ReviewKind"
+            item:
+              anyOf:
+                -
+                  "$ref": "#/definitions/SftReviewItemView"
+                -
+                  "$ref": "#/definitions/PairReviewItemView"
+          required:
+            - "kind"
+            - "item"
+          additionalProperties: false
+        ReviewKind:
+          type: "string"
+          enum:
+            - "sft"
+            - "pair"
+        SftReviewItemView:
+          type: "object"
+          properties:
+            kind:
+              type: "string"
+              const: "sft"
+            reviewId:
+              type: "string"
+            bucket:
+              type:
+                - "string"
+                - "null"
+            priority:
+              type:
+                - "string"
+                - "null"
+            status:
+              type: "string"
+            decision:
+              "$ref": "#/definitions/SftReviewDecision"
+            reviewer:
+              type:
+                - "string"
+                - "null"
+            reviewedAt:
+              type:
+                - "string"
+                - "null"
+            notes:
+              type: "string"
+            queueReason:
+              type:
+                - "string"
+                - "null"
+            source:
+              "$ref": "#/definitions/ReviewSourceView"
+            judge:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewJudgeView"
+                -
+                  type: "null"
+            weightedJudgeScore:
+              type:
+                - "number"
+                - "null"
+            prompt:
+              "$ref": "#/definitions/ReviewPromptView"
+            candidate:
+              "$ref": "#/definitions/ReviewCandidateView"
+            llmFirstPass:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewLlmFirstPassView"
+                -
+                  type: "null"
+          required:
+            - "kind"
+            - "reviewId"
+            - "bucket"
+            - "priority"
+            - "status"
+            - "decision"
+            - "reviewer"
+            - "reviewedAt"
+            - "notes"
+            - "queueReason"
+            - "source"
+            - "judge"
+            - "weightedJudgeScore"
+            - "prompt"
+            - "candidate"
+            - "llmFirstPass"
+          additionalProperties: false
+        SftReviewDecision:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "include"
+            - "exclude"
+            - "escalate"
+            - null
+        ReviewSourceView:
+          type: "object"
+          properties:
+            episodeId:
+              type:
+                - "string"
+                - "null"
+            scenarioId:
+              type: "string"
+            turnIndex:
+              type:
+                - "number"
+                - "null"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            strategyLabel:
+              type:
+                - "string"
+                - "null"
+            exportPath:
+              type:
+                - "string"
+                - "null"
+            sourceLabel:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "episodeId"
+            - "scenarioId"
+            - "turnIndex"
+            - "npcId"
+            - "targetNpcId"
+            - "strategyLabel"
+            - "exportPath"
+            - "sourceLabel"
+          additionalProperties: false
+        ReviewJudgeView:
+          type: "object"
+          properties:
+            responseQuality:
+              type:
+                - "number"
+                - "null"
+            structuredImpactQuality:
+              type:
+                - "number"
+                - "null"
+            groundingQuality:
+              type:
+                - "number"
+                - "null"
+            personaConsistency:
+              type:
+                - "number"
+                - "null"
+            inspectorUsefulness:
+              type:
+                - "number"
+                - "null"
+            verdict:
+              type:
+                - "string"
+                - "null"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "responseQuality"
+            - "structuredImpactQuality"
+            - "groundingQuality"
+            - "personaConsistency"
+            - "inspectorUsefulness"
+            - "verdict"
+            - "reasons"
+          additionalProperties: false
+        ReviewPromptView:
+          type: "object"
+          properties:
+            episodeId:
+              type:
+                - "string"
+                - "null"
+            scenarioId:
+              type: "string"
+            turnIndex:
+              type:
+                - "number"
+                - "null"
+            npcId:
+              type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            inputMode:
+              type: "string"
+            playerText:
+              type: "string"
+            normalizedInputSummary:
+              type: "string"
+            promptContextSummary:
+              type:
+                - "string"
+                - "null"
+            retrievedMemorySummaries:
+              type: "array"
+              items:
+                type: "string"
+            retrievedKnowledgeTitles:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "episodeId"
+            - "scenarioId"
+            - "turnIndex"
+            - "npcId"
+            - "targetNpcId"
+            - "inputMode"
+            - "playerText"
+            - "normalizedInputSummary"
+            - "promptContextSummary"
+            - "retrievedMemorySummaries"
+            - "retrievedKnowledgeTitles"
+          additionalProperties: false
+        ReviewCandidateView:
+          type: "object"
+          properties:
+            rowId:
+              type: "string"
+            verdict:
+              type:
+                - "string"
+                - "null"
+            weightedScore:
+              type:
+                - "number"
+                - "null"
+            replyText:
+              type: "string"
+            selectedAction:
+              type:
+                - "string"
+                - "null"
+            selectedActionReason:
+              type: "string"
+            impactTags:
+              type: "array"
+              items:
+                type: "string"
+            targetNpcId:
+              type:
+                - "string"
+                - "null"
+            rationale:
+              type: "string"
+          required:
+            - "replyText"
+            - "selectedAction"
+            - "selectedActionReason"
+            - "impactTags"
+            - "targetNpcId"
+            - "rationale"
+          additionalProperties: false
+        ReviewLlmFirstPassView:
+          type: "object"
+          properties:
+            provider:
+              type:
+                - "string"
+                - "null"
+            suggestedDecision:
+              "$ref": "#/definitions/LlmSuggestedDecision"
+            verdict:
+              type:
+                - "string"
+                - "null"
+            decision:
+              type:
+                - "string"
+                - "null"
+            confidence:
+              type:
+                - "number"
+                - "null"
+            preferenceStrength:
+              type:
+                - "number"
+                - "null"
+            responseQuality:
+              type:
+                - "number"
+                - "null"
+            structuredImpactQuality:
+              type:
+                - "number"
+                - "null"
+            groundingQuality:
+              type:
+                - "number"
+                - "null"
+            personaConsistency:
+              type:
+                - "number"
+                - "null"
+            inspectorUsefulness:
+              type:
+                - "number"
+                - "null"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+            llmError:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "provider"
+            - "suggestedDecision"
+            - "verdict"
+            - "decision"
+            - "confidence"
+            - "preferenceStrength"
+            - "responseQuality"
+            - "structuredImpactQuality"
+            - "groundingQuality"
+            - "personaConsistency"
+            - "inspectorUsefulness"
+            - "reasons"
+            - "llmError"
+          additionalProperties: false
+        LlmSuggestedDecision:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "include"
+            - "flip"
+            - "exclude"
+            - "escalate"
+            - null
+        PairReviewItemView:
+          type: "object"
+          properties:
+            kind:
+              type: "string"
+              const: "pair"
+            reviewId:
+              type: "string"
+            pairId:
+              type: "string"
+            priority:
+              type:
+                - "string"
+                - "null"
+            status:
+              type: "string"
+            decision:
+              "$ref": "#/definitions/PairReviewDecision"
+            reviewer:
+              type:
+                - "string"
+                - "null"
+            reviewedAt:
+              type:
+                - "string"
+                - "null"
+            notes:
+              type: "string"
+            weightedGap:
+              type:
+                - "number"
+                - "null"
+            pairReason:
+              type: "array"
+              items:
+                type: "string"
+            prompt:
+              "$ref": "#/definitions/ReviewPromptView"
+            chosen:
+              "$ref": "#/definitions/ReviewCandidateView"
+            rejected:
+              "$ref": "#/definitions/ReviewCandidateView"
+            llmFirstPass:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewLlmFirstPassView"
+                -
+                  type: "null"
+          required:
+            - "kind"
+            - "reviewId"
+            - "pairId"
+            - "priority"
+            - "status"
+            - "decision"
+            - "reviewer"
+            - "reviewedAt"
+            - "notes"
+            - "weightedGap"
+            - "pairReason"
+            - "prompt"
+            - "chosen"
+            - "rejected"
+            - "llmFirstPass"
+          additionalProperties: false
+        PairReviewDecision:
+          type:
+            - "string"
+            - "null"
+          enum:
+            - "include"
+            - "flip"
+            - "exclude"
+            - "escalate"
+            - null
+    ReviewFinalizeStatus:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewFinalizeStatusView"
+      definitions:
+        ReviewFinalizeStatusView:
+          type: "object"
+          properties:
+            state:
+              type: "string"
+              enum:
+                - "idle"
+                - "running"
+                - "succeeded"
+                - "failed"
+            canFinalize:
+              type: "boolean"
+            pending:
+              "$ref": "#/definitions/ReviewFinalizePendingView"
+            currentStep:
+              type:
+                - "string"
+                - "null"
+              enum:
+                - "finalize_sft"
+                - "finalize_preference"
+                - null
+            message:
+              type:
+                - "string"
+                - "null"
+            startedAt:
+              type:
+                - "string"
+                - "null"
+            finishedAt:
+              type:
+                - "string"
+                - "null"
+            updatedAt:
+              type:
+                - "string"
+                - "null"
+            durations:
+              "$ref": "#/definitions/ReviewFinalizeDurationsView"
+            outputs:
+              type: "object"
+              properties:
+                sft:
+                  type:
+                    - "string"
+                    - "null"
+                preference:
+                  type:
+                    - "string"
+                    - "null"
+              required:
+                - "sft"
+                - "preference"
+              additionalProperties: false
+          required:
+            - "state"
+            - "canFinalize"
+            - "pending"
+            - "currentStep"
+            - "message"
+            - "startedAt"
+            - "finishedAt"
+            - "updatedAt"
+            - "durations"
+            - "outputs"
+          additionalProperties: false
+        ReviewFinalizePendingView:
+          type: "object"
+          properties:
+            sft:
+              type: "number"
+            pair:
+              type: "number"
+            total:
+              type: "number"
+          required:
+            - "sft"
+            - "pair"
+            - "total"
+          additionalProperties: false
+        ReviewFinalizeDurationsView:
+          type: "object"
+          properties:
+            sftMs:
+              type:
+                - "number"
+                - "null"
+            preferenceMs:
+              type:
+                - "number"
+                - "null"
+            totalMs:
+              type:
+                - "number"
+                - "null"
+          required:
+            - "sftMs"
+            - "preferenceMs"
+            - "totalMs"
+          additionalProperties: false
+    ReviewTrainingStatus:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewTrainingStatusView"
+      definitions:
+        ReviewTrainingStatusView:
+          type: "object"
+          properties:
+            activeRun:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingRunView"
+                -
+                  type: "null"
+            latestRun:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingRunView"
+                -
+                  type: "null"
+            sft:
+              "$ref": "#/definitions/ReviewTrainingPreflightView"
+            dpo:
+              "$ref": "#/definitions/ReviewTrainingPreflightView"
+          required:
+            - "activeRun"
+            - "latestRun"
+            - "sft"
+            - "dpo"
+          additionalProperties: false
+        ReviewTrainingRunView:
+          type: "object"
+          properties:
+            runId:
+              type: "string"
+            kind:
+              "$ref": "#/definitions/ReviewTrainingKind"
+            trainingBackend:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingBackend"
+                -
+                  type: "null"
+            state:
+              type: "string"
+              enum:
+                - "running"
+                - "succeeded"
+                - "failed"
+            currentStep:
+              type:
+                - "string"
+                - "null"
+              enum:
+                - "build_dataset"
+                - "upload_remote_files"
+                - "train_sft"
+                - "train_dpo"
+                - "wait_remote_training"
+                - "derive_runtime"
+                - null
+            message:
+              type:
+                - "string"
+                - "null"
+            startedAt:
+              type:
+                - "string"
+                - "null"
+            finishedAt:
+              type:
+                - "string"
+                - "null"
+            updatedAt:
+              type:
+                - "string"
+                - "null"
+            fingerprint:
+              type:
+                - "string"
+                - "null"
+            sourceFingerprint:
+              type:
+                - "string"
+                - "null"
+            sourceDatasetVersion:
+              type:
+                - "string"
+                - "null"
+            parentRunId:
+              type:
+                - "string"
+                - "null"
+            baseModelId:
+              type:
+                - "string"
+                - "null"
+            datasetDir:
+              type:
+                - "string"
+                - "null"
+            adapterPath:
+              type:
+                - "string"
+                - "null"
+            runtimeArtifactPath:
+              type:
+                - "string"
+                - "null"
+            runtimeArtifactKind:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingRuntimeArtifactKind"
+                -
+                  type: "null"
+            remoteProvider:
+              type:
+                - "string"
+                - "null"
+            remoteJobId:
+              type:
+                - "string"
+                - "null"
+            remoteTrainingFileId:
+              type:
+                - "string"
+                - "null"
+            remoteValidationFileId:
+              type:
+                - "string"
+                - "null"
+            remoteModelName:
+              type:
+                - "string"
+                - "null"
+            logPath:
+              type:
+                - "string"
+                - "null"
+            durations:
+              "$ref": "#/definitions/ReviewTrainingDurationsView"
+            evaluation:
+              "$ref": "#/definitions/ReviewTrainingEvaluationView"
+            decision:
+              "$ref": "#/definitions/ReviewTrainingDecisionView"
+            promotion:
+              "$ref": "#/definitions/ReviewTrainingPromotionView"
+          required:
+            - "runId"
+            - "kind"
+            - "trainingBackend"
+            - "state"
+            - "currentStep"
+            - "message"
+            - "startedAt"
+            - "finishedAt"
+            - "updatedAt"
+            - "fingerprint"
+            - "sourceFingerprint"
+            - "sourceDatasetVersion"
+            - "parentRunId"
+            - "baseModelId"
+            - "datasetDir"
+            - "adapterPath"
+            - "runtimeArtifactPath"
+            - "runtimeArtifactKind"
+            - "remoteProvider"
+            - "remoteJobId"
+            - "remoteTrainingFileId"
+            - "remoteValidationFileId"
+            - "remoteModelName"
+            - "logPath"
+            - "durations"
+            - "evaluation"
+            - "decision"
+            - "promotion"
+          additionalProperties: false
+        ReviewTrainingKind:
+          type: "string"
+          enum:
+            - "sft"
+            - "dpo"
+        ReviewTrainingBackend:
+          type: "string"
+          enum:
+            - "local_peft"
+            - "together_serverless_lora"
+            - "smoke"
+        ReviewTrainingRuntimeArtifactKind:
+          type: "string"
+          enum:
+            - "mlx_adapter"
+            - "mlx_fused_model"
+            - "legacy_mlx_adapter"
+        ReviewTrainingDurationsView:
+          type: "object"
+          properties:
+            buildMs:
+              type:
+                - "number"
+                - "null"
+            trainMs:
+              type:
+                - "number"
+                - "null"
+            totalMs:
+              type:
+                - "number"
+                - "null"
+          required:
+            - "buildMs"
+            - "trainMs"
+            - "totalMs"
+          additionalProperties: false
+        ReviewTrainingEvaluationView:
+          type: "object"
+          properties:
+            state:
+              type: "string"
+              enum:
+                - "idle"
+                - "running"
+                - "succeeded"
+                - "failed"
+            bindingKey:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingBindingKey"
+                -
+                  type: "null"
+            benchmarkId:
+              type:
+                - "string"
+                - "null"
+            baselineLabel:
+              type:
+                - "string"
+                - "null"
+            summaryPath:
+              type:
+                - "string"
+                - "null"
+            message:
+              type:
+                - "string"
+                - "null"
+            startedAt:
+              type:
+                - "string"
+                - "null"
+            finishedAt:
+              type:
+                - "string"
+                - "null"
+            recommendation:
+              type:
+                - "string"
+                - "null"
+              enum:
+                - "promote"
+                - "hold"
+                - null
+            winnerCounts:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingEvalWinnerCountsView"
+                -
+                  type: "null"
+            baselineNaturalness:
+              type:
+                - "number"
+                - "null"
+            candidateNaturalness:
+              type:
+                - "number"
+                - "null"
+            baselinePersonaFit:
+              type:
+                - "number"
+                - "null"
+            candidatePersonaFit:
+              type:
+                - "number"
+                - "null"
+            baselineAntiMeta:
+              type:
+                - "number"
+                - "null"
+            candidateAntiMeta:
+              type:
+                - "number"
+                - "null"
+            confidence:
+              type:
+                - "number"
+                - "null"
+          required:
+            - "state"
+            - "bindingKey"
+            - "benchmarkId"
+            - "baselineLabel"
+            - "summaryPath"
+            - "message"
+            - "startedAt"
+            - "finishedAt"
+            - "recommendation"
+            - "winnerCounts"
+            - "baselineNaturalness"
+            - "candidateNaturalness"
+            - "baselinePersonaFit"
+            - "candidatePersonaFit"
+            - "baselineAntiMeta"
+            - "candidateAntiMeta"
+            - "confidence"
+          additionalProperties: false
+        ReviewTrainingBindingKey:
+          type: "string"
+          enum:
+            - "default"
+            - "doctor"
+            - "supervisor"
+            - "director"
+        ReviewTrainingEvalWinnerCountsView:
+          type: "object"
+          properties:
+            baseline:
+              type: "number"
+            candidate:
+              type: "number"
+            tie:
+              type: "number"
+          required:
+            - "baseline"
+            - "candidate"
+            - "tie"
+          additionalProperties: false
+        ReviewTrainingDecisionView:
+          type: "object"
+          properties:
+            state:
+              type: "string"
+              enum:
+                - "pending"
+                - "accepted"
+                - "rejected"
+            reviewer:
+              type:
+                - "string"
+                - "null"
+            notes:
+              type:
+                - "string"
+                - "null"
+            decidedAt:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "state"
+            - "reviewer"
+            - "notes"
+            - "decidedAt"
+          additionalProperties: false
+        ReviewTrainingPromotionView:
+          type: "object"
+          properties:
+            isPromoted:
+              type: "boolean"
+            bindingKey:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingBindingKey"
+                -
+                  type: "null"
+            promotedAt:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "isPromoted"
+            - "bindingKey"
+            - "promotedAt"
+          additionalProperties: false
+        ReviewTrainingPreflightView:
+          type: "object"
+          properties:
+            kind:
+              "$ref": "#/definitions/ReviewTrainingKind"
+            canStart:
+              type: "boolean"
+            alreadyTrained:
+              type: "boolean"
+            duplicateRunId:
+              type:
+                - "string"
+                - "null"
+            parentRunId:
+              type:
+                - "string"
+                - "null"
+            adapterPath:
+              type:
+                - "string"
+                - "null"
+            sftFingerprintRelation:
+              type:
+                - "string"
+                - "null"
+              enum:
+                - "match"
+                - "mismatch"
+                - null
+            executionMode:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingExecutionMode"
+                -
+                  type: "null"
+            trainingBackend:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingBackend"
+                -
+                  type: "null"
+            blockingIssues:
+              type: "array"
+              items:
+                type: "string"
+            dataset:
+              "$ref": "#/definitions/ReviewTrainingDatasetView"
+          required:
+            - "kind"
+            - "canStart"
+            - "alreadyTrained"
+            - "duplicateRunId"
+            - "parentRunId"
+            - "adapterPath"
+            - "sftFingerprintRelation"
+            - "executionMode"
+            - "trainingBackend"
+            - "blockingIssues"
+            - "dataset"
+          additionalProperties: false
+        ReviewTrainingExecutionMode:
+          anyOf:
+            -
+              "$ref": "#/definitions/ReviewTrainingBackend"
+            -
+              type: "string"
+              const: "needs_new_sft"
+            -
+              type: "string"
+              const: "reuse_existing_sft"
+            -
+              type: "string"
+              const: "unsupported"
+        ReviewTrainingDatasetView:
+          type: "object"
+          properties:
+            exists:
+              type: "boolean"
+            manifestPath:
+              type:
+                - "string"
+                - "null"
+            datasetVersion:
+              type:
+                - "string"
+                - "null"
+            fingerprint:
+              type:
+                - "string"
+                - "null"
+            rowCount:
+              type:
+                - "number"
+                - "null"
+          required:
+            - "exists"
+            - "manifestPath"
+            - "datasetVersion"
+            - "fingerprint"
+            - "rowCount"
+          additionalProperties: false
+    ReviewPipelineStatus:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewPipelineStatus"
+      definitions:
+        ReviewPipelineStatus:
+          type: "object"
+          properties:
+            judgeSummaryPath:
+              type:
+                - "string"
+                - "null"
+            humanReviewSummaryPath:
+              type:
+                - "string"
+                - "null"
+            llmFirstPassSummaryPath:
+              type:
+                - "string"
+                - "null"
+          required:
+            - "judgeSummaryPath"
+            - "humanReviewSummaryPath"
+            - "llmFirstPassSummaryPath"
+          additionalProperties: false
+    ReviewPipelineRunResult:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewPipelineRunResult"
+      definitions:
+        ReviewPipelineRunResult:
+          type: "object"
+          properties:
+            success:
+              type: "boolean"
+            command:
+              type: "string"
+            summaryPath:
+              type:
+                - "string"
+                - "null"
+            stdout:
+              type: "string"
+            stderr:
+              type: "string"
+          required:
+            - "success"
+            - "command"
+            - "summaryPath"
+            - "stdout"
+            - "stderr"
+          additionalProperties: false
+    ReviewTrainingRequest:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewTrainingRequest"
+      definitions:
+        ReviewTrainingRequest:
+          type: "object"
+          properties:
+            kind:
+              "$ref": "#/definitions/ReviewTrainingKind"
+          required:
+            - "kind"
+          additionalProperties: false
+        ReviewTrainingKind:
+          type: "string"
+          enum:
+            - "sft"
+            - "dpo"
+    ReviewTrainingRunActionRequest:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewTrainingRunActionRequest"
+      definitions:
+        ReviewTrainingRunActionRequest:
+          type: "object"
+          properties:
+            runId:
+              type: "string"
+            bindingKey:
+              anyOf:
+                -
+                  "$ref": "#/definitions/ReviewTrainingBindingKey"
+                -
+                  type: "null"
+          required:
+            - "runId"
+          additionalProperties: false
+        ReviewTrainingBindingKey:
+          type: "string"
+          enum:
+            - "default"
+            - "doctor"
+            - "supervisor"
+            - "director"
+    ReviewTrainingDecisionRequest:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewTrainingDecisionRequest"
+      definitions:
+        ReviewTrainingDecisionRequest:
+          type: "object"
+          properties:
+            runId:
+              type: "string"
+            decision:
+              type: "string"
+              enum:
+                - "accepted"
+                - "rejected"
+            reviewer:
+              type:
+                - "string"
+                - "null"
+            notes:
+              type: "string"
+          required:
+            - "runId"
+            - "decision"
+            - "reviewer"
+            - "notes"
+          additionalProperties: false
+    ReviewPipelineRunRequest:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewPipelineRunRequest"
+      definitions:
+        ReviewPipelineRunRequest:
+          type: "object"
+          properties:
+            sourceMode:
+              "$ref": "#/definitions/ReviewSourceMode"
+            mode:
+              type:
+                - "string"
+                - "null"
+              enum:
+                - "heuristic"
+                - "llm"
+                - "hybrid"
+                - null
+            provider:
+              type:
+                - "string"
+                - "null"
+              enum:
+                - "codex"
+                - "openai"
+                - null
+            limit:
+              type:
+                - "number"
+                - "null"
+            dryRun:
+              type:
+                - "boolean"
+                - "null"
+            verbose:
+              type:
+                - "boolean"
+                - "null"
+            input:
+              type:
+                - "string"
+                - "null"
+            output:
+              type:
+                - "string"
+                - "null"
+            reviewInput:
+              type:
+                - "string"
+                - "null"
+            pairsInput:
+              type:
+                - "string"
+                - "null"
+            collectorInput:
+              type:
+                - "string"
+                - "null"
+            outputDir:
+              type:
+                - "string"
+                - "null"
+            skipDbSync:
+              type:
+                - "boolean"
+                - "null"
+            sftInput:
+              type:
+                - "string"
+                - "null"
+            pairInput:
+              type:
+                - "string"
+                - "null"
+          additionalProperties: false
+        ReviewSourceMode:
+          type: "string"
+          enum:
+            - "human_required"
+            - "human_reviewed"
+            - "llm_completed"
+    SystemInfo:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/SystemInfo"
+      definitions:
+        SystemInfo:
+          type: "object"
+          properties:
+            service:
+              type: "string"
+            status:
+              type: "string"
+            phase:
+              type: "string"
+            pendingMigrations:
+              type: "array"
+              items:
+                type: "string"
+            deploymentMode:
+              type: "string"
+            database:
+              type: "object"
+              properties:
+                kind:
+                  type: "string"
+                configured:
+                  type: "boolean"
+                detail:
+                  type: "string"
+              required:
+                - "kind"
+                - "configured"
+                - "detail"
+              additionalProperties: false
+            provider:
+              type: "object"
+              properties:
+                mode:
+                  type: "string"
+                configured:
+                  type: "boolean"
+                credentialStatus:
+                  type: "string"
+                label:
+                  type: "string"
+                detail:
+                  type: "string"
+                actionGuide:
+                  type: "string"
+              required:
+                - "mode"
+                - "configured"
+                - "credentialStatus"
+                - "label"
+                - "detail"
+                - "actionGuide"
+              additionalProperties: false
+            finalReply:
+              type: "object"
+              properties:
+                mode:
+                  type: "string"
+                backend:
+                  type: "string"
+                configured:
+                  type: "boolean"
+                credentialStatus:
+                  type: "string"
+                label:
+                  type: "string"
+                detail:
+                  type: "string"
+                actionGuide:
+                  type: "string"
+              required:
+                - "mode"
+                - "backend"
+                - "configured"
+                - "credentialStatus"
+                - "label"
+                - "detail"
+                - "actionGuide"
+              additionalProperties: false
+          required:
+            - "service"
+            - "status"
+            - "phase"
+            - "pendingMigrations"
+            - "deploymentMode"
+            - "database"
+            - "provider"
+            - "finalReply"
+          additionalProperties: false
+    ErrorResponse:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ErrorResponse"
+      definitions:
+        ErrorResponse:
+          type: "object"
+          properties:
+            message:
+              type: "string"
+          required:
+            - "message"
+          additionalProperties: false
+    ReviewDecisionRequest:
+      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$ref": "#/definitions/ReviewDecisionRequest"
+      definitions:
+        ReviewDecisionRequest:
+          anyOf:
+            -
+              type: "object"
+              properties:
+                kind:
+                  type: "string"
+                  const: "sft"
+                reviewId:
+                  type: "string"
+                decision:
+                  type:
+                    - "string"
+                    - "null"
+                  enum:
+                    - "include"
+                    - "exclude"
+                    - "escalate"
+                    - null
+                reviewer:
+                  type:
+                    - "string"
+                    - "null"
+                notes:
+                  type: "string"
+              required:
+                - "kind"
+                - "reviewId"
+                - "decision"
+              additionalProperties: false
+            -
+              type: "object"
+              properties:
+                kind:
+                  type: "string"
+                  const: "pair"
+                reviewId:
+                  type: "string"
+                decision:
+                  type:
+                    - "string"
+                    - "null"
+                  enum:
+                    - "include"
+                    - "flip"
+                    - "exclude"
+                    - "escalate"
+                    - null
+                reviewer:
+                  type:
+                    - "string"
+                    - "null"
+                notes:
+                  type: "string"
+              required:
+                - "kind"
+                - "reviewId"
+                - "decision"
+              additionalProperties: false

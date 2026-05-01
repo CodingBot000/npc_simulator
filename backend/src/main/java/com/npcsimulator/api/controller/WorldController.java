@@ -2,9 +2,9 @@ package com.npcsimulator.api.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.npcsimulator.api.dto.ErrorResponse;
 import com.npcsimulator.runtime.RuntimeApiException;
 import com.npcsimulator.runtime.RuntimeWorldService;
-import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +33,7 @@ public class WorldController {
         } catch (RuntimeApiException error) {
             return ResponseEntity.status(error.getStatus())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(writeJson(Map.of("message", error.getMessage())));
+                .body(writeJson(new ErrorResponse(error.getMessage())));
         }
     }
 

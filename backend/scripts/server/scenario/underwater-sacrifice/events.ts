@@ -60,11 +60,20 @@ export const underwaterRoundEvents: ScenarioDefinition["roundEvents"] = [
   {
     round: 7,
     title: "최종 침수 경보",
-    detail: "더 이상 결정을 미룰 수 없다. 이 라운드가 끝나면 누군가가 남는다.",
-    tags: ["final", "flooding", "resolution"],
+    detail: "압력 격차가 더 커지면 결론을 되돌리기 어려운 단계에 들어선다.",
+    tags: ["final", "flooding", "pressure"],
     tone: "danger",
     rescueEtaLabel: "구조선 도달 직전, 즉시 분리 필요",
     facilityStatus: "최종 침수 경보, 캡슐 분리 한 번만 가능",
+  },
+  {
+    round: 8,
+    title: "캡슐 분리 명령",
+    detail: "밸브실에 남을 사람을 확정하지 않으면 모두가 압력 붕괴에 휘말린다.",
+    tags: ["final", "flooding", "resolution"],
+    tone: "danger",
+    rescueEtaLabel: "구조선 도달, 즉시 분리",
+    facilityStatus: "캡슐 분리 최종 명령, 추가 협상 불가",
   },
 ];
 

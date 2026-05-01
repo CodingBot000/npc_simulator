@@ -1,159 +1,183 @@
-# Environment And Deployment Examples
+# Environment And Deployment Guide
 
-This repository currently uses three env ownership layers:
+This repository separates real env files from commit-safe templates.
 
-- `.env.example`: local `docker-compose` umbrella env
-- `frontend/.env.example`: frontend runtime env
-- `backend/.env.example`: backend runtime env
+## What Is Committed
 
-Actual `.env`, `.env.local`, and secret-bearing files are intentionally not edited by these examples.
+Commit-safe templates:
 
-## Final reply split (stage 1)
+- `.env.example`: index only
+- `.env.local.example`: root local monorepo/compose template
+- `.env.prod.example`: root production-like compose template
+- `frontend/.env.example`: frontend env index
+- `frontend/.env.local.example`: frontend local template
+- `frontend/.env.prod.example`: frontend production template
+- `backend/.env.example`: backend env index
+- `backend/.env.local.example`: backend local template
+- `backend/.env.prod.example`: backend production template
 
-Two separate switches now exist:
+Deployment/build files that should stay committed:
 
-- `LLM_PROVIDER_MODE=codex|openai|deterministic`
-  - decides the structured interaction engine
-  - returns `reply`, `selectedAction`, `structuredImpact`, `intent`
-- `FINAL_REPLY_BACKEND=off|codex|openai_api|local_llama|local_qwen|promoted|together|runpod`
-  - only rewrites `reply.text` at the end
+- `docker-compose.local.yml`
+- `docker-compose.yml`
+- `backend/Dockerfile`
+- `frontend/Dockerfile`
+- `.dockerignore`
+- `backend/.dockerignore`
+- `run-local-host.sh`
+- `run-local-baseten.sh`
 
-Current stage-1 limitation:
+These files contain wiring and defaults only. Real credentials must be injected
+through ignored env files or platform secret managers.
 
-- `together` and `runpod` are supported as final reply backends
-- they are **not** yet promoted to full structured providers
-- cloud runtime rejects `LLM_PROVIDER_MODE=codex` and `FINAL_REPLY_BACKEND=codex`
+## What Must Not Be Committed
 
-## 1. Local frontend + local docker backend + local Postgres
+Ignored local/secret files:
 
-Use the root compose env as the main source:
+- `.env`
+- `.env.local`
+- `.env.backup-*`
+- `frontend/.env`
+- `frontend/.env.local`
+- `backend/.env`
+- `backend/.env.local`
+- provider keys, DB passwords, private PEM files
+- generated data/artifact directories such as `data/`, `outputs/`, `artifacts/`, `backend/storage/`
+
+Docker build context also excludes env files, so local secrets should not be
+copied into images.
+
+## Normal Local Layout
+
+It is normal to have both root `.env.local` and `frontend/.env.local`, but they
+mean different things.
+
+| File | Owner | Purpose |
+|---|---|---|
+| `.env` | root | Local compose/run umbrella env. Usually copied from `.env.local.example`. |
+| `.env.local` | root/backend scripts | Personal local secrets and server fallback values. Node backend config may read this only in local mode. |
+| `frontend/.env.local` | frontend only | Vite-only browser config. Only `VITE_*` keys are allowed. |
+| `backend/.env` | none by default | Not automatically loaded by Spring Boot in this repo. Prefer root `.env`, shell env, or platform env. |
+
+Recommended rule:
+
+- Keep backend secrets in root `.env.local` or platform secrets.
+- Keep frontend env limited to `VITE_API_BASE_URL` and other public `VITE_*` values.
+- Do not duplicate backend secrets into `frontend/.env.local`.
+
+## Local Integrated Run
+
+For normal local development:
+
+```bash
+cp .env.local.example .env
+# Put real OPENAI_API_KEY or other secrets in .env.local, not in committed files.
+./run-local-host.sh
+```
+
+`run-local-host.sh` loads root `.env` and then root `.env.local`. It exports the
+result to Spring Boot, Node workers, and Vite.
+
+For local Docker:
+
+```bash
+cp .env.local.example .env
+docker compose -f docker-compose.local.yml up --build
+```
+
+`docker-compose.local.yml` reads root `.env` by Docker Compose convention and
+passes only selected values into containers.
+
+## Frontend-Only Local Run
+
+If running the frontend directly without `run-local-host.sh`:
+
+```bash
+cp frontend/.env.local.example frontend/.env.local
+npm --workspace frontend run dev
+```
+
+Only browser-facing keys belong in this file:
 
 ```dotenv
-NPC_SIMULATOR_DEPLOYMENT_MODE=local
 VITE_API_BASE_URL=http://localhost:8080
-NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/npc_simulator
-SPRING_PROFILES_ACTIVE=local
-LLM_PROVIDER_MODE=codex
+VITE_SHOW_INTERACTION_FAILURE_DEBUG=true
+```
+
+## Backend-Only Local Run
+
+Spring Boot does not automatically load `backend/.env`. For backend-only runs,
+either export environment variables in the shell or use the root script.
+
+Reference template:
+
+```bash
+less backend/.env.local.example
+```
+
+If you choose to source a backend env file manually, keep it ignored and never
+commit it.
+
+## Separated Production Deploy
+
+For separated frontend/backend deployment units:
+
+- Use `frontend/.env.prod.example` for frontend build/platform env.
+- Use `backend/.env.prod.example` for backend platform env/secrets.
+- Do not rely on root `.env.local`; cloud mode does not read it.
+
+Frontend production:
+
+```dotenv
+VITE_API_BASE_URL=https://api.example.com
+VITE_SHOW_INTERACTION_FAILURE_DEBUG=false
+```
+
+Backend production essentials:
+
+```dotenv
+NPC_SIMULATOR_DEPLOYMENT_MODE=cloud
+SPRING_PROFILES_ACTIVE=prod
+SPRING_DATASOURCE_URL=jdbc:postgresql://db.example.internal:5432/npc_simulator
+SPRING_DATASOURCE_USERNAME=npc_simulator
+SPRING_DATASOURCE_PASSWORD=replace_me
+NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com
+LLM_PROVIDER_MODE=openai
+OPENAI_API_KEY=replace_me
 FINAL_REPLY_MODE=off
 FINAL_REPLY_BACKEND=off
-CANONICAL_MODEL_FAMILY=llama31_8b_instruct
-NPC_SIMULATOR_ROOT=.
-NPC_SIMULATOR_WORKDIR=.
-NPC_SIMULATOR_SCRIPTS_ROOT=./backend/scripts
-NPC_SIMULATOR_NODE_BIN_DIR=./node_modules/.bin
-NPC_SIMULATOR_DATA_ROOT=./data
-NPC_SIMULATOR_OUTPUTS_ROOT=./outputs
 ```
 
-Notes:
+If hosted final reply rewrite is enabled, configure one of the remote backends in
+the backend env only:
 
-- Frontend browser talks to `http://localhost:8080`
-- Backend may use local CLI-oriented provider flows
-- Training base model, MLX runtime model, and remote training model now derive from
-  `CANONICAL_MODEL_FAMILY` by default
-- Leave `LOCAL_CANONICAL_TRAINING_BASE_MODEL`, `REMOTE_TRAINING_BASE_MODEL`,
-  `LOCAL_REPLY_MLX_MODEL` unset unless a specific runtime must diverge
-- Local final reply testing can mix:
-  - `LLM_PROVIDER_MODE=codex` + `FINAL_REPLY_BACKEND=local_llama`
-  - `LLM_PROVIDER_MODE=codex` + `FINAL_REPLY_BACKEND=openai_api`
-  - `LLM_PROVIDER_MODE=openai` + `FINAL_REPLY_BACKEND=together`
-- Backend may fall back to `PROJECT_ROOT/.env.local` for missing server env values only in local mode
-- Local reply / shadow compare artifact paths may stay enabled locally
+- Baseten: `FINAL_REPLY_BACKEND=baseten`, `FINAL_REPLY_BASETEN_*`, `BASETEN_API_KEY`
+- RunPod: `FINAL_REPLY_BACKEND=runpod`, `FINAL_REPLY_RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`
+- Together: `FINAL_REPLY_BACKEND=together`, `FINAL_REPLY_REMOTE_MODEL_NAME`, `TOGETHER_API_KEY`
 
-## 2. Local frontend + cloud backend + cloud Postgres
+## Provider Split
 
-Frontend local env:
+Two separate switches exist:
 
-```dotenv
-VITE_API_BASE_URL=https://api.example.com
-```
+- `LLM_PROVIDER_MODE=codex|openai|deterministic`
+  - structured interaction engine
+  - returns reply draft, selected action, structured impact, intent
+- `FINAL_REPLY_BACKEND=off|codex|openai_api|local_llama|local_qwen|promoted|together|runpod|baseten`
+  - optional final `reply.text` rewrite backend
 
-Backend cloud env:
+Production/cloud constraints:
 
-```dotenv
-NPC_SIMULATOR_DEPLOYMENT_MODE=cloud
-BACKEND_PORT=8080
-BACKEND_STORAGE_ROOT=/srv/npc-simulator/storage
-SPRING_PROFILES_ACTIVE=prod
-SPRING_DATASOURCE_URL=jdbc:postgresql://db.example.internal:5432/npc_simulator
-SPRING_DATASOURCE_USERNAME=npc_simulator
-SPRING_DATASOURCE_PASSWORD=replace_me
-NPC_SIMULATOR_ROOT=/workspace
-NPC_SIMULATOR_WORKDIR=/workspace
-NPC_SIMULATOR_SCRIPTS_ROOT=/workspace/backend/scripts
-NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
-NPC_SIMULATOR_DATA_ROOT=/workspace/data
-NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
-NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com,http://localhost:3000
-CANONICAL_MODEL_FAMILY=llama31_8b_instruct
-LLM_PROVIDER_MODE=openai
-FINAL_REPLY_MODE=auto
-FINAL_REPLY_BACKEND=together
-FINAL_REPLY_REMOTE_PROVIDER=together
-FINAL_REPLY_REMOTE_MODEL_NAME=meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
-OPENAI_API_KEY=replace_me
-TOGETHER_API_KEY=replace_me
-SHADOW_COMPARE_ENABLED=false
-```
+- `LLM_PROVIDER_MODE=codex` is not allowed in cloud mode.
+- `FINAL_REPLY_BACKEND=codex` is not allowed in cloud mode.
+- Local artifact paths such as `LOCAL_REPLY_LLAMA_RUNTIME_PATH` are local-first
+  and should stay disabled in production unless the backend image or mounted
+  storage contains the artifact.
 
-Notes:
+## Practical Rules
 
-- `http://localhost:3000` must remain in backend CORS while local browser access is needed
-- Cloud runtime bridge requests fail fast if `LLM_PROVIDER_MODE=codex` or `FINAL_REPLY_BACKEND=codex`
-- Final reply rewrite should use API/hosted model backends in cloud
-- Local artifact-based inference is kept off by default in cloud unless the server image explicitly includes those artifacts
-
-## 3. Cloud frontend + cloud backend + cloud Postgres
-
-Frontend cloud env:
-
-```dotenv
-VITE_API_BASE_URL=https://api.example.com
-```
-
-Backend cloud env:
-
-```dotenv
-NPC_SIMULATOR_DEPLOYMENT_MODE=cloud
-BACKEND_PORT=8080
-BACKEND_STORAGE_ROOT=/srv/npc-simulator/storage
-SPRING_PROFILES_ACTIVE=prod
-SPRING_DATASOURCE_URL=jdbc:postgresql://db.example.internal:5432/npc_simulator
-SPRING_DATASOURCE_USERNAME=npc_simulator
-SPRING_DATASOURCE_PASSWORD=replace_me
-NPC_SIMULATOR_ROOT=/workspace
-NPC_SIMULATOR_WORKDIR=/workspace
-NPC_SIMULATOR_SCRIPTS_ROOT=/workspace/backend/scripts
-NPC_SIMULATOR_NODE_BIN_DIR=/workspace/node_modules/.bin
-NPC_SIMULATOR_DATA_ROOT=/workspace/data
-NPC_SIMULATOR_OUTPUTS_ROOT=/workspace/outputs
-NPC_SIMULATOR_CORS_ALLOWED_ORIGINS=https://app.example.com
-CANONICAL_MODEL_FAMILY=llama31_8b_instruct
-LLM_PROVIDER_MODE=openai
-FINAL_REPLY_MODE=auto
-FINAL_REPLY_BACKEND=runpod
-FINAL_REPLY_REMOTE_PROVIDER=runpod:replace_endpoint_id
-FINAL_REPLY_REMOTE_MODEL_NAME=meta-llama/Meta-Llama-3.1-8B-Instruct
-FINAL_REPLY_RUNPOD_ENDPOINT_ID=replace_endpoint_id
-OPENAI_API_KEY=replace_me
-RUNPOD_API_KEY=replace_me
-SHADOW_COMPARE_ENABLED=false
-```
-
-Notes:
-
-- Frontend and backend are fully separate deployment units
-- Browser CORS should point only at the deployed frontend domain
-- Cloud mode resolves server env from process/platform injection only and does not read `.env.local`
-- Cloud runtime bridge requests fail fast if `LLM_PROVIDER_MODE=codex` or `FINAL_REPLY_BACKEND=codex`
-- Current backend image still runs Node bridge/scripts from the packaged workspace, but the Java side now reads explicit runtime layout envs (`NPC_SIMULATOR_*_ROOT`, `NPC_SIMULATOR_NODE_BIN_DIR`, `NPC_SIMULATOR_WORKDIR`) instead of assuming only a repo-root layout
-- Training / review artifact execution remains local-first for now
-
-## Practical rules
-
-- Browser-facing values belong in frontend env only
-- DB credentials and provider secrets belong in backend env only
-- Root `.env` is a local compose convenience file, not the source for separated cloud deploys
-- `contracts/` is the API contract source of truth
-- `shared/simulator-rules/` is only for environment-independent rules and value sets
+- Browser-facing values belong in frontend env only.
+- DB credentials and provider secrets belong in backend env only.
+- Root `.env` is a local compose convenience file.
+- Root `.env.local` is a local secret/override file.
+- `backend/.env` is not a first-class runtime file unless explicitly sourced.
+- Keep examples complete enough to copy, but keep real secrets out of git.

@@ -3,7 +3,9 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend/scripts"
+    "backend/scripts",
+    "shared/simulator-rules",
+    "shared/simulator-presentation"
   ],
   "devDependencies": {
     "openapi-typescript": "^7.10.1",
@@ -19,12 +21,15 @@
     "typecheck": "npm --workspace frontend run typecheck",
     "generate:openapi-contracts": "node contracts/scripts/generate-openapi-contracts.mjs",
     "test:autonomy": "npm --workspace @npc-simulator/backend-scripts run test:autonomy",
+    "test:runtime-contract": "npm --workspace @npc-simulator/backend-scripts run test:runtime-contract",
     "browser:install": "npm --workspace frontend run browser:install",
     "browser:cdp": "npm --workspace frontend run browser:cdp",
     "browser:cdp:check": "npm --workspace frontend run browser:cdp:check",
     "browser:capture": "npm --workspace frontend run browser:capture",
     "smoke:separated-deploy": "npm --workspace @npc-simulator/frontend run build && node frontend/scripts/smoke/separated-deployment.mjs",
+    "smoke:backend-container": "docker build -f backend/Dockerfile -t npc-simulator-backend-smoke . && docker run --rm --entrypoint /workspace/node_modules/.bin/tsx npc-simulator-backend-smoke /workspace/backend/scripts/api/bridge.ts runtime-seed-bundle",
     "smoke:episode": "node backend/scripts/smoke-episode.mjs",
+    "smoke:episode:local": "SMOKE_BASE_URL=${SMOKE_BASE_URL:-http://localhost:8080} node backend/scripts/smoke-episode.mjs",
     "collect:episodes": "node backend/scripts/collect-episodes.mjs",
     "replay:eval": "node backend/scripts/replay-eval-cases.mjs",
     "filter:sft": "node backend/scripts/filter-sft-rows.mjs --input data/datasets/sft --output-dir data/evals/filtered",

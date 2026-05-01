@@ -20,9 +20,9 @@
     "confess"
   ],
   "scoring": {
-    "minRoundsBeforeResolution": 4,
-    "maxRounds": 7,
-    "instantConsensusVotes": 3,
-    "leadGapThreshold": 140
+    "minRoundsBeforeResolution": 5,
+    "maxRounds": 8,
+    "instantConsensusVotes": 4,
+    "leadGapThreshold": 220
   }
 }

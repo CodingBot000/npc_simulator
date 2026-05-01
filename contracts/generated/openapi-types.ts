@@ -314,12 +314,54 @@ export interface components {
         };
         ReviewPipelineRunRequest: {
             sourceMode?: components["schemas"]["ReviewSourceMode"];
+            /** @enum {string|null} */
+            mode?: "heuristic" | "llm" | "hybrid" | null;
+            /** @enum {string|null} */
+            provider?: "codex" | "openai" | null;
+            limit?: number | null;
+            dryRun?: boolean | null;
+            verbose?: boolean | null;
+            input?: string | null;
+            output?: string | null;
+            reviewInput?: string | null;
+            pairsInput?: string | null;
+            collectorInput?: string | null;
+            outputDir?: string | null;
+            skipDbSync?: boolean | null;
+            sftInput?: string | null;
+            pairInput?: string | null;
         };
         SystemInfo: {
             service: string;
             status: string;
             phase: string;
             pendingMigrations: string[];
+            deploymentMode: string;
+            database: {
+                kind: string;
+                configured: boolean;
+                detail: string;
+            };
+            provider: {
+                mode: string;
+                configured: boolean;
+                credentialStatus: string;
+                label: string;
+                detail: string;
+                actionGuide: string;
+            };
+            finalReply: {
+                mode: string;
+                backend: string;
+                configured: boolean;
+                credentialStatus: string;
+                label: string;
+                detail: string;
+                actionGuide: string;
+            };
+        };
+        ErrorResponse: {
+            message: string;
         };
         ReviewDecisionRequest: {
             /** @constant */
@@ -1020,7 +1062,17 @@ export interface components {
         /** @enum {string} */
         ReviewSourceMode: "human_required" | "human_reviewed" | "llm_completed";
     };
-    responses: never;
+    responses: {
+        /** @description Error response */
+        ErrorResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -1048,6 +1100,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorldSnapshot"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     resetWorld: {
@@ -1070,6 +1123,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorldSnapshot"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     interact: {
@@ -1096,6 +1150,7 @@ export interface operations {
                     "application/json": components["schemas"]["InteractionResponsePayload"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     getInspector: {
@@ -1118,6 +1173,7 @@ export interface operations {
                     "application/json": components["schemas"]["InspectorResponse"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     getReviewDashboard: {
@@ -1138,6 +1194,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewDashboardData"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     patchReviewDecision: {
@@ -1162,6 +1219,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewMutationResult"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     getReviewFinalizeStatus: {
@@ -1182,6 +1240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewFinalizeStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     runReviewFinalize: {
@@ -1202,6 +1261,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewFinalizeStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     getReviewTrainingStatus: {
@@ -1222,6 +1282,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewTrainingStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     runReviewTraining: {
@@ -1246,6 +1307,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewTrainingStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     runReviewTrainingEvaluation: {
@@ -1270,6 +1332,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewTrainingStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     updateReviewTrainingDecision: {
@@ -1294,6 +1357,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewTrainingStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     promoteReviewTrainingRun: {
@@ -1318,6 +1382,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewTrainingStatusView"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     getReviewPipelineStatus: {
@@ -1338,6 +1403,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewPipelineStatus"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     runJudgeReviewQueue: {
@@ -1362,6 +1428,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewPipelineRunResult"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     runPrepareHumanReview: {
@@ -1386,6 +1453,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewPipelineRunResult"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     runReviewLlmFirstPass: {
@@ -1410,6 +1478,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewPipelineRunResult"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     getSystemInfo: {
@@ -1430,6 +1499,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemInfo"];
                 };
             };
+            default: components["responses"]["ErrorResponse"];
         };
     };
 }

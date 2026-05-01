@@ -393,7 +393,25 @@ export function resolveIfNeeded(params: {
   }
 
   if (params.round.currentRound >= scenario.scoring.minRoundsBeforeResolution) {
+    const leadGap = runnerUp
+      ? leader.totalPressure - runnerUp.totalPressure
+      : 0;
+    const isFirstUnlockedRound =
+      params.round.currentRound === scenario.scoring.minRoundsBeforeResolution;
+    const earlyConsensusGap = Math.ceil(scenario.scoring.leadGapThreshold * 0.5);
+    const earlyLeadGapThreshold = Math.ceil(scenario.scoring.leadGapThreshold * 1.35);
+
     if (leader.topVotes >= scenario.scoring.instantConsensusVotes) {
+      if (isFirstUnlockedRound && leadGap < earlyConsensusGap) {
+        return {
+          resolved: false,
+          sacrificedNpcId: null,
+          sacrificedLabel: null,
+          resolutionType: null,
+          summary: null,
+        } satisfies ResolutionState;
+      }
+
       return {
         resolved: true,
         sacrificedNpcId: leader.candidateId,
@@ -403,11 +421,12 @@ export function resolveIfNeeded(params: {
       } satisfies ResolutionState;
     }
 
-    const leadGap = runnerUp
-      ? leader.totalPressure - runnerUp.totalPressure
-      : 0;
-
-    if (leadGap >= scenario.scoring.leadGapThreshold) {
+    if (
+      leadGap >=
+      (isFirstUnlockedRound
+        ? earlyLeadGapThreshold
+        : scenario.scoring.leadGapThreshold)
+    ) {
       return {
         resolved: true,
         sacrificedNpcId: leader.candidateId,

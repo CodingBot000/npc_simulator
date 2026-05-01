@@ -1,10 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  ensureScriptProjectRoot,
+  getScriptEnv,
+} from "./_script-runtime.mjs";
 
-export const DEFAULT_BASE_URL = "http://localhost:3000";
+export const projectRoot = ensureScriptProjectRoot(import.meta.url, "..", "..");
+export const DEFAULT_BACKEND_BASE_URL = "http://localhost:8080";
+export const DEFAULT_BASE_URL =
+  getScriptEnv("NPC_SIMULATOR_API_BASE_URL", projectRoot) ||
+  getScriptEnv("BACKEND_API_BASE_URL", projectRoot) ||
+  DEFAULT_BACKEND_BASE_URL;
 export const DEFAULT_PLAYER_ID = "local-player";
 export const WORLD_INSTANCE_HEADER = "x-world-instance-id";
-export const projectRoot = process.cwd();
 
 const truthyValues = new Set(["1", "true", "yes", "on"]);
 const falsyValues = new Set(["0", "false", "no", "off"]);
