@@ -1,6 +1,8 @@
 package com.npcsimulator.api.controller;
 
 import com.npcsimulator.api.dto.ErrorResponse;
+import com.npcsimulator.review.ReviewApiException;
+import com.npcsimulator.runtime.RuntimeApiException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -39,5 +41,17 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException error) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ErrorResponse("요청 JSON을 읽을 수 없습니다."));
+    }
+
+    @ExceptionHandler(RuntimeApiException.class)
+    public ResponseEntity<ErrorResponse> handleRuntimeApi(RuntimeApiException error) {
+        return ResponseEntity.status(error.getStatus())
+            .body(new ErrorResponse(error.getMessage()));
+    }
+
+    @ExceptionHandler(ReviewApiException.class)
+    public ResponseEntity<ErrorResponse> handleReviewApi(ReviewApiException error) {
+        return ResponseEntity.status(error.getStatus())
+            .body(new ErrorResponse(error.getMessage()));
     }
 }
