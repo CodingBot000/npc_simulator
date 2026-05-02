@@ -205,9 +205,11 @@ export async function createTogetherChatCompletion(params: {
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   maxTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
 }) {
   return togetherJsonRequest<TogetherChatResponse>("/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(params.timeoutMs ?? 180_000),
     body: JSON.stringify({
       model: params.model,
       messages: params.messages,

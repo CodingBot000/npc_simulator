@@ -98,6 +98,7 @@ should use API-based providers.
 | `FINAL_REPLY_MODE` | yes | `off` for disabled, `on` for enabled. |
 | `FINAL_REPLY_BACKEND` | yes | `off`, `local_llama`, `baseten`, `runpod`, or another supported backend. |
 | `FINAL_REPLY_MAX_TOKENS` | optional | Rewrite token budget. |
+| `FINAL_REPLY_TIMEOUT_MS` | optional | Remote final reply timeout. Defaults to `180000` so hosted rewrite falls back before a long browser wait. |
 | `FINAL_REPLY_PROMPT_FORMAT` | optional | Prompt shape for final reply rewrite. |
 
 For a hosted Llama final reply backend:

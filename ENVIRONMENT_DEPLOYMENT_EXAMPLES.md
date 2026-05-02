@@ -146,6 +146,7 @@ LLM_PROVIDER_MODE=openai
 OPENAI_API_KEY=replace_me
 FINAL_REPLY_MODE=off
 FINAL_REPLY_BACKEND=off
+FINAL_REPLY_TIMEOUT_MS=180000
 ```
 
 If hosted final reply rewrite is enabled, configure one of the remote backends in

@@ -94,6 +94,7 @@ export async function runTogetherGenerate(params: {
     ],
     maxTokens: appConfig.finalReply.maxTokens,
     temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
+    timeoutMs: appConfig.finalReply.timeoutMs,
   });
   return extractTogetherChatText(response) ?? "";
 }
@@ -119,6 +120,7 @@ export async function runRunpodGenerate(params: {
     ],
     maxTokens: appConfig.finalReply.maxTokens,
     temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
+    timeoutMs: appConfig.finalReply.timeoutMs,
   });
   return extractRunpodVllmText(response) ?? "";
 }
@@ -147,6 +149,7 @@ export async function runBasetenGenerate(params: {
     ],
     maxTokens: appConfig.finalReply.maxTokens,
     temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
+    timeoutMs: appConfig.finalReply.timeoutMs,
   });
   return extractBasetenChatText(response) ?? "";
 }
@@ -269,6 +272,7 @@ export async function runOpenAiGenerate(params: {
           ],
           max_output_tokens: appConfig.finalReply.maxTokens,
         }),
+        signal: AbortSignal.timeout(appConfig.finalReply.timeoutMs),
       });
 
       const payload = (await response.json()) as OpenAiTextResponsePayload;

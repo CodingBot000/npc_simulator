@@ -421,6 +421,7 @@ export async function createRunpodVllmRunSync(params: {
   prompt?: string;
   maxTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
 }) {
   const input: RawRecord = {
     sampling_params: {
@@ -440,6 +441,7 @@ export async function createRunpodVllmRunSync(params: {
     `${buildRunpodServerlessBaseUrl(params.endpointId)}/runsync`,
     {
       method: "POST",
+      signal: AbortSignal.timeout(params.timeoutMs ?? 180_000),
       body: JSON.stringify({ input }),
     },
   );

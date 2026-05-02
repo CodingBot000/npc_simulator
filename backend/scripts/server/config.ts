@@ -50,6 +50,8 @@ type LocalReplyPromptFormat =
 type InteractionJudgeMode = "off" | "on";
 type InteractionJudgeEnforcement = "off" | "warn" | "retry" | "reject";
 
+const DEFAULT_FINAL_REPLY_TIMEOUT_MS = 180_000;
+
 export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   PROJECT_ROOT,
   "outputs",
@@ -72,6 +74,16 @@ function parseBooleanEnv(key: string, defaultValue: boolean) {
     return true;
   }
   return defaultValue;
+}
+
+function parsePositiveNumberEnv(key: string, defaultValue: number) {
+  const rawValue = getServerEnv(key);
+  if (!rawValue) {
+    return defaultValue;
+  }
+
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
 export {
@@ -301,6 +313,10 @@ export const appConfig = {
       getServerEnv("FINAL_REPLY_MAX_TOKENS") ||
       getServerEnv("LOCAL_REPLY_MAX_TOKENS") ||
       "160",
+    ),
+    timeoutMs: parsePositiveNumberEnv(
+      "FINAL_REPLY_TIMEOUT_MS",
+      DEFAULT_FINAL_REPLY_TIMEOUT_MS,
     ),
     models: {
       primary:
