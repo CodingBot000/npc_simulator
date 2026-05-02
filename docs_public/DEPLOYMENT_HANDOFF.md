@@ -52,11 +52,39 @@ Required production values include:
 - `NPC_SIMULATOR_CORS_ALLOWED_ORIGINS`
 - `VITE_API_BASE_URL`
 - `OPENAI_API_KEY`, when `LLM_PROVIDER_MODE=openai`
+- `NPC_SIMULATOR_ADMIN_TOKEN`, only for private direct review admin calls
 - Hosted final-reply credentials and target values, when
   `FINAL_REPLY_BACKEND` is enabled
 
 Do not commit `.env` or any file containing real secrets, IPs, hosted endpoint
 URLs, model IDs, or passwords.
+
+## Public Review Policy
+
+The public portfolio deployment keeps review list/status pages readable, but it
+does not allow browser users to mutate review data or launch training/pipeline
+jobs.
+
+Allowed without admin token:
+
+- `GET /api/review`
+- `GET /api/review/finalize`
+- `GET /api/review/training`
+- `GET /api/review/pipeline`
+
+Locked on cloud/prod unless a private `X-NPC-ADMIN-TOKEN` header is supplied:
+
+- `PATCH /api/review`
+- `POST /api/review/finalize`
+- `POST /api/review/training`
+- `POST /api/review/training/evaluate`
+- `POST /api/review/training/decision`
+- `POST /api/review/training/promote`
+- `POST /api/review/pipeline/*`
+
+Do not put the admin token in the frontend deployment. If an operator needs to
+run review admin work against cloud/prod, use a private `curl`, Postman, or SSH
+session and send the token as a request header.
 
 ## Upload And Start
 
@@ -97,4 +125,3 @@ main conversation screen.
 Hosted final-reply rewrite can use a Llama 3.1 8B Instruct based runtime.
 Actual hosted model IDs, endpoint URLs, served names, and API keys are supplied
 privately because calls may incur cost.
-

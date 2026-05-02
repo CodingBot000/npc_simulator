@@ -10,6 +10,8 @@ type ReviewFinalizePanelProps = {
   error: string | null;
   pendingRequiredTotal: number;
   onFinalize: () => void;
+  writeEnabled: boolean;
+  writeDisabledMessage: string | null;
 };
 
 export function ReviewFinalizePanel({
@@ -17,6 +19,8 @@ export function ReviewFinalizePanel({
   error,
   pendingRequiredTotal,
   onFinalize,
+  writeEnabled,
+  writeDisabledMessage,
 }: ReviewFinalizePanelProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -28,7 +32,7 @@ export function ReviewFinalizePanel({
         <button
           type="button"
           onClick={onFinalize}
-          disabled={status ? !status.canFinalize : pendingRequiredTotal > 0}
+          disabled={!writeEnabled || (status ? !status.canFinalize : pendingRequiredTotal > 0)}
           className="rounded-full bg-[var(--teal)] px-5 py-2.5 text-sm font-semibold text-black transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status?.state === "running" ? "Finalize 실행 중..." : "Finalize 실행"}
@@ -74,6 +78,11 @@ export function ReviewFinalizePanel({
         </div>
 
         <div className="mt-4 space-y-2 text-sm text-[var(--ink-muted)]">
+          {writeDisabledMessage ? (
+            <p className="rounded-2xl border border-[rgba(209,111,76,0.22)] bg-[rgba(209,111,76,0.1)] px-3 py-2 text-[var(--accent)]">
+              {writeDisabledMessage}
+            </p>
+          ) : null}
           <p>메시지: {error ?? status?.message ?? "-"}</p>
           <p>시작: {formatTimestamp(status?.startedAt ?? null)}</p>
           <p>완료: {formatTimestamp(status?.finishedAt ?? null)}</p>

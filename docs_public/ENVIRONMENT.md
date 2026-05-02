@@ -33,6 +33,27 @@ RunPod keys, Together keys, SSH paths, or backend storage paths.
 | `SPRING_DATASOURCE_PASSWORD` | yes | PostgreSQL password. |
 | `NPC_SIMULATOR_CORS_ALLOWED_ORIGINS` | yes | Comma-separated browser origins allowed to call the backend. |
 | `NPC_SIMULATOR_DEPLOYMENT_MODE` | yes | `local` or `cloud`. |
+| `NPC_SIMULATOR_ADMIN_TOKEN` | cloud admin operations only | Shared token for direct review admin API calls. Do not expose it to frontend env. |
+
+## Public Review Access
+
+Public deployments intentionally expose review read/status endpoints but keep
+review mutation and execution endpoints locked.
+
+Public read endpoints:
+
+- `GET /api/review`
+- `GET /api/review/finalize`
+- `GET /api/review/training`
+- `GET /api/review/pipeline`
+
+Local backends allow review writes without a token for development. Cloud/prod
+backends require `X-NPC-ADMIN-TOKEN: <NPC_SIMULATOR_ADMIN_TOKEN>` for direct
+admin calls to review mutation, training, finalize, promotion, and pipeline
+execution endpoints.
+
+Never place `NPC_SIMULATOR_ADMIN_TOKEN` in frontend env, Vite env, browser
+runtime config, localStorage, or committed documentation.
 
 ## Runtime Layout Variables
 
@@ -106,4 +127,3 @@ incur cost.
 
 Local artifacts are not required for the default public local run when
 `FINAL_REPLY_MODE=off`.
-

@@ -1,6 +1,7 @@
 package com.npcsimulator.api.controller;
 
 import com.npcsimulator.api.dto.SystemInfoResponse;
+import com.npcsimulator.support.DeploymentModeProperties;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemController {
 
     private final String deploymentMode;
+    private final DeploymentModeProperties deploymentModeProperties;
     private final String datasourceUrl;
     private final String providerMode;
     private final String openAiApiKey;
@@ -26,7 +28,7 @@ public class SystemController {
     private final String basetenApiKey;
 
     public SystemController(
-        @Value("${NPC_SIMULATOR_DEPLOYMENT_MODE:${NPC_SIMULATOR_SERVER_MODE:local}}") String deploymentMode,
+        DeploymentModeProperties deploymentModeProperties,
         @Value("${spring.datasource.url:}") String datasourceUrl,
         @Value("${LLM_PROVIDER_MODE:codex}") String providerMode,
         @Value("${OPENAI_API_KEY:}") String openAiApiKey,
@@ -40,7 +42,8 @@ public class SystemController {
         @Value("${RUNPOD_API_KEY:}") String runpodApiKey,
         @Value("${BASETEN_API_KEY:}") String basetenApiKey
     ) {
-        this.deploymentMode = normalizeMode(deploymentMode, "local");
+        this.deploymentModeProperties = deploymentModeProperties;
+        this.deploymentMode = deploymentModeProperties.mode();
         this.datasourceUrl = datasourceUrl;
         this.providerMode = normalizeMode(providerMode, "codex");
         this.openAiApiKey = openAiApiKey;
@@ -65,7 +68,17 @@ public class SystemController {
             deploymentMode,
             databaseInfo(),
             providerReadiness(),
-            finalReplyReadiness()
+            finalReplyReadiness(),
+            reviewAccess()
+        );
+    }
+
+    private SystemInfoResponse.ReviewAccess reviewAccess() {
+        boolean publicWriteEnabled = deploymentModeProperties.isLocal();
+        return new SystemInfoResponse.ReviewAccess(
+            true,
+            publicWriteEnabled ? "local_unrestricted" : "admin_token_required",
+            publicWriteEnabled
         );
     }
 

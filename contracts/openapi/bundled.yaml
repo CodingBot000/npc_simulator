@@ -6145,6 +6145,23 @@ components:
                 - "detail"
                 - "actionGuide"
               additionalProperties: false
+            reviewAccess:
+              type: "object"
+              properties:
+                readable:
+                  type: "boolean"
+                writeMode:
+                  type: "string"
+                  enum:
+                    - "local_unrestricted"
+                    - "admin_token_required"
+                publicWriteEnabled:
+                  type: "boolean"
+              required:
+                - "readable"
+                - "writeMode"
+                - "publicWriteEnabled"
+              additionalProperties: false
           required:
             - "service"
             - "status"
@@ -6154,6 +6171,7 @@ components:
             - "database"
             - "provider"
             - "finalReply"
+            - "reviewAccess"
           additionalProperties: false
     ErrorResponse:
       "$schema": "http://json-schema.org/draft-07/schema#"

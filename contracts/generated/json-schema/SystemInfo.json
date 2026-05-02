@@ -110,6 +110,30 @@
             "actionGuide"
           ],
           "additionalProperties": false
+        },
+        "reviewAccess": {
+          "type": "object",
+          "properties": {
+            "readable": {
+              "type": "boolean"
+            },
+            "writeMode": {
+              "type": "string",
+              "enum": [
+                "local_unrestricted",
+                "admin_token_required"
+              ]
+            },
+            "publicWriteEnabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "readable",
+            "writeMode",
+            "publicWriteEnabled"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -120,7 +144,8 @@
         "deploymentMode",
         "database",
         "provider",
-        "finalReply"
+        "finalReply",
+        "reviewAccess"
       ],
       "additionalProperties": false
     }

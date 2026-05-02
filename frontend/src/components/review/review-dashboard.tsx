@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { SystemInfo } from "@/lib/api-contract";
 import {
   apiGetReviewFinalizeStatus,
   apiRunReviewFinalize,
@@ -33,6 +34,11 @@ import {
 import { ShadowInvalidCaseCard } from "./review-shadow-invalid-card";
 import { ReviewTrainingPanel } from "./review-training-panel";
 import { useReviewTraining } from "./use-review-training";
+
+const REVIEW_WRITE_DISABLED_MESSAGE =
+  "공개 배포에서는 review 실행/변경 기능이 잠겨 있습니다. 로컬 백엔드에서 실행하거나 관리자 API로 직접 호출하세요.";
+
+type ReviewAccess = SystemInfo["reviewAccess"];
 
 function isHumanReviewed(item: ReviewItem) {
   return item.decision !== null;
@@ -78,8 +84,10 @@ function updateHumanItemInData(
 
 export function ReviewDashboard({
   initialData,
+  reviewAccess,
 }: {
   initialData: ReviewDashboardData;
+  reviewAccess: ReviewAccess;
 }) {
   const [data, setData] = useState(initialData);
   const [sourceMode, setSourceMode] = useState<ReviewSourceMode>("human_required");
@@ -90,7 +98,15 @@ export function ReviewDashboard({
   );
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const finalizePollRef = useRef<number | null>(null);
-  const training = useReviewTraining({ reviewer });
+  const reviewWriteEnabled = reviewAccess.publicWriteEnabled;
+  const reviewWriteDisabledMessage = reviewWriteEnabled
+    ? null
+    : REVIEW_WRITE_DISABLED_MESSAGE;
+  const training = useReviewTraining({
+    reviewer,
+    writeEnabled: reviewWriteEnabled,
+    writeDisabledMessage: reviewWriteDisabledMessage,
+  });
 
   useEffect(() => {
     persistReviewer(reviewer);
@@ -190,6 +206,11 @@ export function ReviewDashboard({
   }
 
   async function handleFinalize() {
+    if (!reviewWriteEnabled) {
+      setFinalizeError(REVIEW_WRITE_DISABLED_MESSAGE);
+      return;
+    }
+
     setFinalizeError(null);
 
     if (finalizePollRef.current) {
@@ -267,6 +288,11 @@ export function ReviewDashboard({
             사람 검수 대상과 LLM 1차 검수 완료 리스트를 전환해서 볼 수 있습니다.
             기본 화면은 사람이 직접 판정해야 하는 항목부터 열립니다.
           </p>
+          {reviewWriteDisabledMessage ? (
+            <p className="mt-3 max-w-3xl rounded-2xl border border-[rgba(209,111,76,0.24)] bg-[rgba(209,111,76,0.12)] px-4 py-3 text-sm leading-7 text-[var(--accent)]">
+              {reviewWriteDisabledMessage}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3">
@@ -335,6 +361,8 @@ export function ReviewDashboard({
             error={finalizeError}
             pendingRequiredTotal={pendingRequiredTotal}
             onFinalize={handleFinalize}
+            writeEnabled={reviewWriteEnabled}
+            writeDisabledMessage={reviewWriteDisabledMessage}
           />
 
           <ReviewTrainingPanel controller={training} />
@@ -355,9 +383,12 @@ export function ReviewDashboard({
               item={item}
               reviewer={reviewer}
               sourceMode={sourceMode}
-              readOnly={sourceMode !== "human_required"}
+              readOnly={sourceMode !== "human_required" || !reviewWriteEnabled}
+              writeDisabledMessage={reviewWriteDisabledMessage}
               onItemSaved={
-                sourceMode === "human_required" ? handleItemSaved : undefined
+                sourceMode === "human_required" && reviewWriteEnabled
+                  ? handleItemSaved
+                  : undefined
               }
             />
           ))}

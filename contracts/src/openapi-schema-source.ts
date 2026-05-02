@@ -123,6 +123,11 @@ export interface SystemInfo {
     detail: string;
     actionGuide: string;
   };
+  reviewAccess: {
+    readable: boolean;
+    writeMode: "local_unrestricted" | "admin_token_required";
+    publicWriteEnabled: boolean;
+  };
 }
 
 export interface ErrorResponse {

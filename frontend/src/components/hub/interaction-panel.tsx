@@ -1,523 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { sourceVersion } from "virtual:npc-simulator-source-version";
+import { useEffect, useState } from "react";
+import { InteractionConversationThread } from "@/components/hub/interaction-conversation-thread";
+import { InteractionControls } from "@/components/hub/interaction-controls";
+import { InteractionGuideModal } from "@/components/hub/interaction-guide-modal";
+import {
+  buildInteractionTraceTurns,
+  roundStatus,
+} from "@/components/hub/interaction-panel-formatters";
 import type {
-  AvailableActionDefinition,
-  ChatMessage,
-  InteractionTraceEntry,
-  InteractionResponsePayload,
-  NpcState,
-  PlayerAction,
-  ResolutionState,
-  RoundState,
-} from "@/lib/types";
+  InteractionPanelProps,
+  PlayInputMode,
+} from "@/components/hub/interaction-panel-types";
+import { InteractionTraceModal } from "@/components/hub/interaction-trace-modal";
 import { TurnOutcomeStrip } from "@/components/hub/turn-outcome-strip";
 import { Panel } from "@/components/ui/panel";
-
-interface InteractionPanelProps {
-  npc: NpcState;
-  conversation: ConversationMessage[];
-  draft: string;
-  busy: boolean;
-  waitingForReply: boolean;
-  pendingReplyStartedAtMs: number | null;
-  replyElapsedByMessageId: Record<string, number>;
-  subtitle: string;
-  placeholder: string;
-  availableActions: AvailableActionDefinition[];
-  targetOptions: Array<{ id: string; label: string }>;
-  selectedTargetId: string | null;
-  round: RoundState;
-  resolution: ResolutionState;
-  lastOutcome: InteractionResponsePayload | null;
-  conversationDebugEnabled: boolean;
-  draftWarning: string | null;
-  onDraftChange: (value: string) => void;
-  onTargetChange: (value: string | null) => void;
-  onSubmit: () => void;
-  onAction: (action: PlayerAction, inputMode: "action" | "combined") => void;
-}
-
-type PlayInputMode = "intent_only" | "free_text" | "combined";
-type ConversationMessage = ChatMessage & {
-  deliveryStatus?: "failed";
-};
-type FailureDebugEntry = NonNullable<ChatMessage["failureDebug"]>[number];
-type InteractionTraceTurn = {
-  npcMessage: ConversationMessage;
-  playerMessage: ConversationMessage | null;
-  traceEntries: InteractionTraceEntry[];
-  frontendElapsedMs: number | null;
-};
-
-const SHOW_INTERACTION_FAILURE_DEBUG =
-  (import.meta.env.VITE_SHOW_INTERACTION_FAILURE_DEBUG ?? "true").toLowerCase() !==
-  "false";
-
-function roundStatus(round: RoundState) {
-  if (round.currentRound === 0) {
-    return "아직 첫 턴 전이다. 지금 시작하는 한 마디가 첫 압력 이동이 된다.";
-  }
-
-  if (round.currentRound < round.minRoundsBeforeResolution) {
-    return `지금은 ${round.currentRound}라운드다. 결말 전까지 아직 흔들 여지가 남아 있다.`;
-  }
-
-  return `지금은 ${round.currentRound}라운드다. 이제 판세가 굳으면 바로 결말이 날 수 있다.`;
-}
-
-function formatConversationTimestamp(timestamp: string) {
-  const source = new Date(timestamp);
-
-  if (Number.isNaN(source.getTime())) {
-    return "--.-- --:--:--";
-  }
-
-  const kst = new Date(source.getTime() + 9 * 60 * 60 * 1000);
-  const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(kst.getUTCDate()).padStart(2, "0");
-  const hour = String(kst.getUTCHours()).padStart(2, "0");
-  const minute = String(kst.getUTCMinutes()).padStart(2, "0");
-  const second = String(kst.getUTCSeconds()).padStart(2, "0");
-
-  return `${month}.${day} ${hour}:${minute}:${second}`;
-}
-
-function formatElapsedDuration(elapsedMs: number) {
-  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  if (minutes > 0) {
-    return `${minutes}분 ${String(seconds).padStart(2, "0")}초`;
-  }
-
-  return `${totalSeconds}초`;
-}
-
-function formatReplyRewriteSource(source: string | null | undefined) {
-  const normalized = source?.trim().toLowerCase();
-
-  if (!normalized) {
-    return null;
-  }
-
-  const [provider] = normalized.split(":");
-  const locality = provider === "local" ? "local" : "remote";
-  const providerLabel =
-    provider && provider !== "local" ? provider.replace(/_/gu, "-") : null;
-  const baseten400ToOpenAiFallback = normalized.includes("fallback_from_baseten_400");
-
-  const formatLabel = (modelLabel: string) =>
-    [
-      locality,
-      providerLabel,
-      modelLabel,
-      baseten400ToOpenAiFallback ? "baseten400→openai" : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-
-  if (normalized.includes("llama")) {
-    return formatLabel("llama");
-  }
-
-  if (normalized.includes("qwen")) {
-    return formatLabel("qwen");
-  }
-
-  if (/gpt[-_]?5\.4/u.test(normalized)) {
-    return formatLabel("gpt5.4");
-  }
-
-  if (/gpt[-_\w.]*nano/u.test(normalized)) {
-    return formatLabel("gpt-nano");
-  }
-
-  if (/gpt[-_\w.]*mini/u.test(normalized)) {
-    return formatLabel("gpt-mini");
-  }
-
-  const gptVersion = normalized.match(/gpt[-_]?(\d+(?:\.\d+)?)/u);
-  if (gptVersion) {
-    return formatLabel(`gpt${gptVersion[1]}`);
-  }
-
-  return [
-    locality,
-    providerLabel,
-    baseten400ToOpenAiFallback ? "baseten400→openai" : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function formatReplyRewriteReason(reason: string | null | undefined) {
-  const normalized = reason?.trim();
-  return normalized ? normalized : null;
-}
-
-function formatTraceDuration(durationMs: number) {
-  if (durationMs >= 60_000) {
-    return `${(durationMs / 60_000).toFixed(2)}m`;
-  }
-  if (durationMs >= 1_000) {
-    return `${(durationMs / 1_000).toFixed(2)}s`;
-  }
-  return `${durationMs}ms`;
-}
-
-function formatTraceStatus(status: InteractionTraceEntry["status"]) {
-  switch (status) {
-    case "ok":
-      return "정상";
-    case "failed":
-      return "실패";
-    case "fallback":
-      return "fallback";
-    case "skipped":
-      return "건너뜀";
-    default:
-      return status;
-  }
-}
-
-function formatJudgeBoolean(value: boolean | null | undefined) {
-  if (value === true) {
-    return "yes";
-  }
-  if (value === false) {
-    return "no";
-  }
-  return "n/a";
-}
-
-function buildInteractionTraceTurns(
-  conversation: ConversationMessage[],
-  replyElapsedByMessageId: Record<string, number>,
-) {
-  const turns: InteractionTraceTurn[] = [];
-
-  for (let index = 0; index < conversation.length; index += 1) {
-    const message = conversation[index];
-    if (message.speaker !== "npc") {
-      continue;
-    }
-
-    let playerMessage: ConversationMessage | null = null;
-    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-      const candidate = conversation[cursor];
-      if (candidate.speaker === "player") {
-        playerMessage = candidate;
-        break;
-      }
-    }
-
-    turns.push({
-      npcMessage: message,
-      playerMessage,
-      traceEntries: message.interactionTrace ?? [],
-      frontendElapsedMs:
-        message.speaker === "npc" &&
-        replyElapsedByMessageId[message.id] !== undefined
-          ? replyElapsedByMessageId[message.id]
-          : null,
-    });
-  }
-
-  return turns.reverse();
-}
-
-function formatFailureDebugStage(params: {
-  entry: FailureDebugEntry;
-  replyRewriteReason: string | null;
-}) {
-  switch (params.entry.stage) {
-    case "interaction_provider":
-      return "기본 생성 실패";
-    case "interaction_validation":
-      return "기본 생성 검증 실패";
-    case "reply_rewrite":
-      return params.replyRewriteReason ? "최종 rewrite 실패" : "rewrite 중간 실패";
-    default:
-      return "실패";
-  }
-}
-
-function GuideAlertModal({
-  open,
-  speakerName,
-  targetLabel,
-  onClose,
-}: {
-  open: boolean;
-  speakerName: string;
-  targetLabel: string | null;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose, open]);
-
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[rgba(3,10,17,0.78)] p-4 backdrop-blur-sm md:p-8">
-      <button
-        type="button"
-        aria-label="가이드 닫기"
-        onClick={onClose}
-        className="absolute inset-0"
-      />
-
-      <Panel
-        eyebrow="가이드"
-        title="이렇게 시작하면 된다"
-        subtitle="첫 턴을 열 때 필요한 순서를 여기서만 짧게 확인하면 된다."
-        className="relative z-10 flex w-full max-w-[720px] flex-col"
-        trailing={
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-[var(--panel-border)] bg-white/12 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)] hover:bg-white/18"
-          >
-            닫기
-          </button>
-        }
-      >
-        <div className="grid grid-cols-3 gap-3">
-          <article className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 px-4 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-              1. 먼저 말 걸 사람
-            </p>
-            <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
-              지금은 {speakerName}의 입에서 다른 사람 이름이 나오게 만드는 턴이다.
-            </p>
-          </article>
-
-          <article className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 px-4 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-              2. 이번에 흔들 사람
-            </p>
-            <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
-              {targetLabel
-                ? `${targetLabel} 쪽으로 시선을 모으도록 아래 행동을 고른다.`
-                : "드롭다운에서 먼저 흔들 사람을 하나 고른다."}
-            </p>
-          </article>
-
-          <article className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 px-4 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-              3. 버튼 하나로 시작
-            </p>
-            <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
-              글을 길게 쓰지 않아도 된다. 빠른 행동 버튼 하나로도 첫 턴이 열린다.
-            </p>
-          </article>
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
-function InteractionTraceModal({
-  open,
-  turns,
-  onClose,
-}: {
-  open: boolean;
-  turns: InteractionTraceTurn[];
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose, open]);
-
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[rgba(3,10,17,0.78)] p-8 backdrop-blur-sm">
-      <button
-        type="button"
-        aria-label="처리 기록 닫기"
-        onClick={onClose}
-        className="absolute inset-0"
-      />
-
-      <Panel
-        eyebrow="디버그"
-        title="턴 처리 기록"
-        subtitle="각 NPC 답변마다 어느 단계가 얼마나 걸렸는지 본다."
-        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-[1120px] flex-col overflow-hidden md:max-h-[86vh]"
-        contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
-        trailing={
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-[var(--panel-border)] bg-white/12 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-[var(--teal)] hover:bg-white/18"
-          >
-            닫기
-          </button>
-        }
-      >
-        <div className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-2">
-          {turns.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--panel-border)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
-              아직 기록된 대화가 없다.
-            </div>
-          ) : (
-            turns.map((turn) => {
-              const slowestStage =
-                turn.traceEntries
-                  .filter((entry) => entry.stage !== "turn_total")
-                  .sort((left, right) => right.durationMs - left.durationMs)[0] ?? null;
-
-              return (
-                <article
-                  key={`${turn.npcMessage.id}-trace`}
-                  className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-                        {formatConversationTimestamp(turn.npcMessage.timestamp)}
-                      </p>
-                      {turn.playerMessage ? (
-                        <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">
-                          당신: {turn.playerMessage.text}
-                        </p>
-                      ) : null}
-                      <p className="mt-1 text-sm leading-7 text-foreground">
-                        {turn.npcMessage.text}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right text-xs text-[var(--ink-muted)]">
-                      {turn.frontendElapsedMs !== null ? (
-                        <p>프론트 총 응답 {formatTraceDuration(turn.frontendElapsedMs)}</p>
-                      ) : null}
-                      {slowestStage ? (
-                        <p>
-                          최장 단계 {slowestStage.label} ·{" "}
-                          {formatTraceDuration(slowestStage.durationMs)}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {turn.npcMessage.replyJudge ? (
-                    <div className="mt-3 rounded-2xl border border-[var(--panel-border)] bg-[rgba(76,194,200,0.08)] px-3 py-3 text-[12px] leading-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-foreground">LLM Judge</p>
-                        <p className="text-[var(--ink-muted)]">
-                          {turn.npcMessage.replyJudge.sourceRef ?? "judge"} ·{" "}
-                          {turn.npcMessage.replyJudge.durationMs !== null
-                            ? formatTraceDuration(turn.npcMessage.replyJudge.durationMs)
-                            : "n/a"}
-                        </p>
-                      </div>
-                      <p className="mt-1 break-words text-[var(--ink-muted)]">
-                        status={turn.npcMessage.replyJudge.status} · aligned=
-                        {formatJudgeBoolean(turn.npcMessage.replyJudge.aligned)} · target=
-                        {formatJudgeBoolean(turn.npcMessage.replyJudge.targetMaintained)} · fatal=
-                        {formatJudgeBoolean(turn.npcMessage.replyJudge.fatalMismatch)}
-                        {turn.npcMessage.replyJudge.confidence !== null
-                          ? ` · confidence=${turn.npcMessage.replyJudge.confidence}`
-                          : ""}
-                      </p>
-                      {turn.npcMessage.replyJudge.reason ? (
-                        <p className="mt-1 break-words text-[var(--ink-muted)]">
-                          {turn.npcMessage.replyJudge.reason}
-                        </p>
-                      ) : null}
-                      {turn.npcMessage.replyJudge.error ? (
-                        <p className="mt-1 break-words text-[var(--danger)]">
-                          {turn.npcMessage.replyJudge.error}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {turn.traceEntries.length === 0 ? (
-                    <p className="mt-3 text-sm text-[var(--ink-muted)]">
-                      이 턴에는 단계 기록이 없다.
-                    </p>
-                  ) : (
-                    <div className="mt-3 space-y-2">
-                      {turn.traceEntries.map((entry, index) => (
-                        <div
-                          key={`${turn.npcMessage.id}-trace-stage-${index}`}
-                          className="grid grid-cols-[minmax(0,1.6fr)_84px_96px_minmax(0,2fr)] gap-3 rounded-2xl border border-[var(--panel-border)] bg-[rgba(255,255,255,0.04)] px-3 py-3 text-[12px] leading-5"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground">{entry.label}</p>
-                            <p className="text-[var(--ink-muted)]">{entry.stage}</p>
-                          </div>
-                          <div>
-                            <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
-                              {formatTraceStatus(entry.status)}
-                            </span>
-                          </div>
-                          <div className="text-right font-semibold text-foreground">
-                            {formatTraceDuration(entry.durationMs)}
-                          </div>
-                          <div className="min-w-0 break-words text-[var(--ink-muted)]">
-                            <p>
-                              +{formatTraceDuration(entry.startedAtMs)} ~ +
-                              {formatTraceDuration(entry.finishedAtMs)}
-                            </p>
-                            {entry.detail ? <p className="mt-1">{entry.detail}</p> : null}
-                            {entry.sourceRef ? <p className="mt-1">{entry.sourceRef}</p> : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              );
-            })
-          )}
-        </div>
-      </Panel>
-    </div>
-  );
-}
+import type { PlayerAction } from "@/lib/types";
 
 export function InteractionPanel({
   npc,
@@ -549,7 +45,7 @@ export function InteractionPanel({
   const [localWarning, setLocalWarning] = useState<string | null>(null);
   const [loadingDotCount, setLoadingDotCount] = useState(1);
   const [waitingElapsedMs, setWaitingElapsedMs] = useState(0);
-  const conversationViewportRef = useRef<HTMLDivElement | null>(null);
+
   const selectedTargetLabel =
     targetOptions.find((option) => option.id === selectedTargetId)?.label ?? null;
   const isDraftConfirmed =
@@ -558,14 +54,11 @@ export function InteractionPanel({
   const showIntentCard = playInputMode !== "free_text";
   const inputModeDisabled = busy || resolution.resolved;
   const directInputDisabled = busy || resolution.resolved || !showDirectInputCard;
-  const actionButtonsDisabled =
-    busy || resolution.resolved || !showIntentCard;
-  const submitButtonLabel =
-    playInputMode === "combined" ? "확정" : "말하기";
-  const submitButtonClassName =
-    isDraftConfirmed
-      ? "bg-[var(--teal)] hover:brightness-105"
-      : "bg-[var(--accent)] hover:brightness-105";
+  const actionButtonsDisabled = busy || resolution.resolved || !showIntentCard;
+  const submitButtonLabel = playInputMode === "combined" ? "확정" : "말하기";
+  const submitButtonClassName = isDraftConfirmed
+    ? "bg-[var(--teal)] hover:brightness-105"
+    : "bg-[var(--accent)] hover:brightness-105";
   const activeWarning = localWarning ?? draftWarning;
   const loadingLabel = `답변중${".".repeat(loadingDotCount)}`;
   const traceTurns = buildInteractionTraceTurns(conversation, replyElapsedByMessageId);
@@ -605,28 +98,6 @@ export function InteractionPanel({
 
     return () => window.clearInterval(intervalId);
   }, [pendingReplyStartedAtMs, waitingForReply]);
-
-  useEffect(() => {
-    const viewport = conversationViewportRef.current;
-
-    if (!viewport) {
-      return undefined;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      if (viewport.scrollHeight > viewport.clientHeight) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    conversation.length,
-    conversationDebugEnabled,
-    loadingDotCount,
-    npc.persona.id,
-    waitingForReply,
-  ]);
 
   function handleDraftValueChange(value: string) {
     setDraftConfirmed(false);
@@ -668,21 +139,9 @@ export function InteractionPanel({
     onSubmit();
   }
 
-  function actionBadgeLabel(action: AvailableActionDefinition) {
-    if (action.requiresTarget) {
-      return "타겟 필수";
-    }
-
-    if (action.id === "appeal") {
-      return "타겟유무선택";
-    }
-
-    return null;
-  }
-
   return (
     <>
-      <GuideAlertModal
+      <InteractionGuideModal
         open={guideOpen}
         speakerName={npc.persona.name}
         targetLabel={selectedTargetLabel}
@@ -711,39 +170,42 @@ export function InteractionPanel({
         contentClassName="space-y-4"
       >
         <div className="grid gap-3 grid-cols-2">
-        <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            지금 상황
-          </p>
-          <p className="text-sm leading-7 text-foreground">{roundStatus(round)}</p>
-          <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
-            현재 {npc.persona.role} {npc.persona.name}을 설득 중이다.
-          </p>
-          <p className="text-sm leading-7 text-[var(--ink-muted)]">
-            {round.currentRound}/{round.maxRounds} 라운드 · 최소 확정 라운드 {round.minRoundsBeforeResolution}
-          </p>
-        </div>
-
-        <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            이번 턴 목표
-          </p>
-          <p className="text-sm leading-7 text-foreground">
-            {selectedTargetLabel
-              ? `${selectedTargetLabel} 쪽으로 시선을 조금 더 몰아가라.`
-              : "먼저 누구를 흔들지 정하고, 아래 행동 버튼으로 첫 압력을 만든다."}
-          </p>
-          <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
-            {round.rescueEtaLabel}
-          </p>
-          <p className="text-sm leading-7 text-[var(--ink-muted)]">{round.facilityStatus}</p>
-          {resolution.resolved ? (
-            <p className="mt-3 rounded-2xl bg-[rgba(120,32,33,0.1)] px-4 py-3 text-sm text-[var(--danger)]">
-              {resolution.summary}
+          <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+              지금 상황
             </p>
-          ) : null}
+            <p className="text-sm leading-7 text-foreground">{roundStatus(round)}</p>
+            <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
+              현재 {npc.persona.role} {npc.persona.name}을 설득 중이다.
+            </p>
+            <p className="text-sm leading-7 text-[var(--ink-muted)]">
+              {round.currentRound}/{round.maxRounds} 라운드 · 최소 확정 라운드{" "}
+              {round.minRoundsBeforeResolution}
+            </p>
+          </div>
+
+          <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+              이번 턴 목표
+            </p>
+            <p className="text-sm leading-7 text-foreground">
+              {selectedTargetLabel
+                ? `${selectedTargetLabel} 쪽으로 시선을 조금 더 몰아가라.`
+                : "먼저 누구를 흔들지 정하고, 아래 행동 버튼으로 첫 압력을 만든다."}
+            </p>
+            <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
+              {round.rescueEtaLabel}
+            </p>
+            <p className="text-sm leading-7 text-[var(--ink-muted)]">
+              {round.facilityStatus}
+            </p>
+            {resolution.resolved ? (
+              <p className="mt-3 rounded-2xl bg-[rgba(120,32,33,0.1)] px-4 py-3 text-sm text-[var(--danger)]">
+                {resolution.summary}
+              </p>
+            ) : null}
+          </div>
         </div>
-      </div>
 
         {lastOutcome ? <TurnOutcomeStrip outcome={lastOutcome} /> : null}
 
@@ -774,344 +236,40 @@ export function InteractionPanel({
         </div>
 
         <div className="grid gap-4 grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-stretch">
-          <div className={conversationCardClassName}>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-                    방 안 대화
-                  </p>
-                  <span className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)]">
-                    {sourceVersion}
-                  </span>
-                  {conversationDebugEnabled ? (
-                    <button
-                      type="button"
-                      onClick={() => setTraceModalOpen(true)}
-                      className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)] transition hover:border-[var(--teal)] hover:bg-white/18"
-                    >
-                      처리 기록
-                    </button>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
-                  방금 누구에게 뭐라고 했는지와 돌아온 말을 여기서 읽는다.
-                </p>
-              </div>
-              <p className="text-xs text-[var(--ink-muted)]">{conversation.length}개의 발화</p>
-            </div>
+          <InteractionConversationThread
+            npc={npc}
+            conversation={conversation}
+            waitingForReply={waitingForReply}
+            waitingElapsedMs={waitingElapsedMs}
+            loadingLabel={loadingLabel}
+            conversationDebugEnabled={conversationDebugEnabled}
+            replyElapsedByMessageId={replyElapsedByMessageId}
+            conversationCardClassName={conversationCardClassName}
+            onOpenTrace={() => setTraceModalOpen(true)}
+          />
 
-            <div
-              ref={conversationViewportRef}
-              className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto pr-2"
-            >
-              {conversation.length === 0 && !waitingForReply ? (
-                <div className="rounded-2xl border border-dashed border-[var(--panel-border)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
-                  아직 공개 발언이 없다. 아래 빠른 행동이나 직접 발언으로 첫 턴을 열어라.
-                </div>
-              ) : (
-                <>
-                  {conversation.map((message) => {
-                    const replyRewriteLabel =
-                      message.speaker === "npc"
-                        ? formatReplyRewriteSource(message.replyRewriteSource)
-                        : null;
-                    const replyRewriteReason =
-                      message.speaker === "npc"
-                        ? formatReplyRewriteReason(message.replyRewriteReason)
-                        : null;
-                    const failureDebugEntries: FailureDebugEntry[] =
-                      message.speaker === "npc" ? message.failureDebug ?? [] : [];
-                    const traceEntries =
-                      message.speaker === "npc" ? message.interactionTrace ?? [] : [];
-                    const failed = message.deliveryStatus === "failed";
-
-                    return (
-                      <article
-                        key={message.id}
-                        className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
-                          message.speaker === "player"
-                            ? "ml-auto bg-[var(--teal-soft)] text-[var(--teal)]"
-                            : failed
-                              ? "bg-rose-100/80 text-[var(--danger)]"
-                              : "bg-[var(--panel-strong)] text-foreground"
-                        }`}
-                      >
-                        <p className="text-sm leading-7">{message.text}</p>
-                        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                          <p className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-65">
-                            {message.speaker === "player" ? "당신" : npc.persona.name} ·{" "}
-                            {formatConversationTimestamp(message.timestamp)}
-                            {message.speaker === "npc" &&
-                            replyElapsedByMessageId[message.id] !== undefined
-                              ? ` · 응답 ${formatElapsedDuration(replyElapsedByMessageId[message.id])}`
-                              : ""}
-                            {conversationDebugEnabled && replyRewriteLabel
-                              ? ` · ${replyRewriteLabel}`
-                              : ""}
-                          </p>
-                          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                            {failed ? (
-                              <span className="rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
-                                생성 실패
-                              </span>
-                            ) : null}
-                            {conversationDebugEnabled &&
-                            message.speaker === "npc" &&
-                            message.fallbackUsed ? (
-                              <span className="rounded-full bg-[rgba(181,43,48,0.18)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
-                                fallback
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                        {conversationDebugEnabled && message.speaker === "npc" ? (
-                          <div className="mt-2 space-y-2 rounded-2xl border border-[rgba(76,194,200,0.2)] bg-[rgba(76,194,200,0.07)] px-3 py-3 text-[11px] leading-5 text-[var(--ink-muted)]">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-semibold text-foreground">debug</span>
-                              {replyRewriteLabel ? <span>{replyRewriteLabel}</span> : null}
-                              {message.replyJudge ? (
-                                <span>
-                                  judge={message.replyJudge.status}
-                                  {message.replyJudge.durationMs !== null
-                                    ? `/${formatTraceDuration(message.replyJudge.durationMs)}`
-                                    : ""}
-                                </span>
-                              ) : null}
-                            </div>
-                            {traceEntries.length > 0 ? (
-                              <div className="space-y-1">
-                                {traceEntries.map((entry, index) => (
-                                  <p
-                                    key={`${message.id}-inline-trace-${index}`}
-                                    className="break-words"
-                                  >
-                                    {entry.label}: {formatTraceStatus(entry.status)} ·{" "}
-                                    {formatTraceDuration(entry.durationMs)}
-                                    {entry.sourceRef ? ` · ${entry.sourceRef}` : ""}
-                                    {entry.detail ? ` · ${entry.detail}` : ""}
-                                  </p>
-                                ))}
-                              </div>
-                            ) : (
-                              <p>trace 없음</p>
-                            )}
-                          </div>
-                        ) : null}
-                        {conversationDebugEnabled && replyRewriteReason ? (
-                          <p className="mt-2 text-[11px] leading-5 text-[var(--danger)]">
-                            탈락 사유: {replyRewriteReason}
-                          </p>
-                        ) : null}
-                        {conversationDebugEnabled &&
-                        SHOW_INTERACTION_FAILURE_DEBUG &&
-                        failureDebugEntries.length > 0 ? (
-                          <div className="mt-2 space-y-2 rounded-2xl border border-[rgba(181,43,48,0.24)] bg-[rgba(181,43,48,0.08)] px-3 py-3 text-[11px] leading-5 text-[var(--danger)]">
-                            {failureDebugEntries.map((entry: FailureDebugEntry, index: number) => (
-                              <div
-                                key={`${message.id}-failure-debug-${index}`}
-                                className="space-y-1"
-                              >
-                                <p className="font-semibold">
-                                  디버그 ·{" "}
-                                  {formatFailureDebugStage({
-                                    entry,
-                                    replyRewriteReason,
-                                  })}
-                                  {entry.sourceRef ? ` · ${entry.sourceRef}` : ""}
-                                </p>
-                                <p>원인: {entry.summary}</p>
-                                {entry.candidateReplyText ? (
-                                  <p>실패 reply: {entry.candidateReplyText}</p>
-                                ) : null}
-                                {entry.candidateSelectedActionType ? (
-                                  <p>
-                                    실패 action: {entry.candidateSelectedActionType}
-                                    {entry.candidateSelectedActionReason
-                                      ? ` · ${entry.candidateSelectedActionReason}`
-                                      : ""}
-                                  </p>
-                                ) : null}
-                                {entry.candidateTargetNpcId ? (
-                                  <p>실패 target: {entry.candidateTargetNpcId}</p>
-                                ) : null}
-                                {entry.candidateImpactTags?.length ? (
-                                  <p>
-                                    실패 tags: {entry.candidateImpactTags.join(", ")}
-                                  </p>
-                                ) : null}
-                                {entry.issues?.length ? (
-                                  <p>세부: {entry.issues.join(" / ")}</p>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                  {waitingForReply ? (
-                    <article
-                      aria-live="polite"
-                      aria-atomic="true"
-                      className="max-w-[85%] rounded-[22px] bg-[var(--panel-strong)] px-4 py-3 text-foreground"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm leading-7">{loadingLabel}</p>
-                        <p className="ml-auto text-right text-[11px] font-semibold tabular-nums opacity-65">
-                          {formatElapsedDuration(waitingElapsedMs)}
-                        </p>
-                      </div>
-                    </article>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-                입력 방식
-              </p>
-              <div className="mt-2 flex flex-wrap gap-4 text-sm text-[var(--ink-muted)]">
-                <label
-                  className={`flex items-center gap-2 ${
-                    inputModeDisabled ? "cursor-not-allowed opacity-55" : ""
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="play-input-mode"
-                    checked={playInputMode === "intent_only"}
-                    onChange={() => handlePlayInputModeChange("intent_only")}
-                    disabled={inputModeDisabled}
-                    className="h-3.5 w-3.5 accent-[var(--accent)]"
-                  />
-                  <span>의도만 전달</span>
-                </label>
-                <label
-                  className={`flex items-center gap-2 ${
-                    inputModeDisabled ? "cursor-not-allowed opacity-55" : ""
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="play-input-mode"
-                    checked={playInputMode === "free_text"}
-                    onChange={() => handlePlayInputModeChange("free_text")}
-                    disabled={inputModeDisabled}
-                    className="h-3.5 w-3.5 accent-[var(--accent)]"
-                  />
-                  <span>자유입력</span>
-                </label>
-                <label
-                  className={`flex items-center gap-2 ${
-                    inputModeDisabled ? "cursor-not-allowed opacity-55" : ""
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="play-input-mode"
-                    checked={playInputMode === "combined"}
-                    onChange={() => handlePlayInputModeChange("combined")}
-                    disabled={inputModeDisabled}
-                    className="h-3.5 w-3.5 accent-[var(--accent)]"
-                  />
-                  <span>모두 사용</span>
-                </label>
-              </div>
-            </div>
-
-            {showDirectInputCard ? (
-              <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
-                <div className="mb-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-                    자유입력
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
-                    버튼으로 시작한 뒤, 필요하면 아래에 직접 한 문장을 더 얹는다.
-                  </p>
-                </div>
-
-                <textarea
-                  value={draft}
-                  onChange={(event) => handleDraftValueChange(event.target.value)}
-                  placeholder={placeholder}
-                  disabled={directInputDisabled}
-                  aria-invalid={Boolean(activeWarning)}
-                  className={`min-h-[110px] w-full resize-none rounded-[20px] border px-4 py-3 text-sm leading-7 outline-none transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                    activeWarning
-                      ? "border-[var(--danger)] bg-rose-50/70 focus:border-[var(--danger)]"
-                      : "border-[var(--panel-border)] bg-white/18 focus:border-[var(--accent)]"
-                  }`}
-                />
-                {activeWarning ? (
-                  <p className="mt-2 text-sm font-medium text-[var(--danger)]" role="alert">
-                    {activeWarning}
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleSubmitClick}
-                  disabled={directInputDisabled}
-                  className={`mt-3 w-full rounded-full px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${submitButtonClassName}`}
-                >
-                  {busy ? "반응을 정리하는 중..." : submitButtonLabel}
-                </button>
-              </div>
-            ) : null}
-
-            {showIntentCard ? (
-              <div className="rounded-[24px] border border-[var(--panel-border)] bg-white/10 p-4">
-                <div className="mb-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
-                    의도 전달
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
-                    버튼 하나로 먼저 밀고, 결과를 읽은 뒤 다음 턴을 정하면 된다.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {availableActions.map((action) => {
-                    const badgeLabel = actionBadgeLabel(action);
-                    return (
-                      <button
-                        key={action.id}
-                        type="button"
-                        onClick={() => handleActionClick(action.id)}
-                        disabled={actionButtonsDisabled}
-                        className="flex h-full flex-col justify-start rounded-[20px] border border-[var(--panel-border)] bg-white/12 px-4 py-3 text-left align-top transition hover:border-[var(--teal)] hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <span className="flex items-start justify-between gap-2">
-                          <span className="block text-sm font-semibold text-foreground">
-                            {action.label}
-                          </span>
-                          {badgeLabel ? (
-                            <span
-                              className={`shrink-0 whitespace-nowrap text-[11px] font-medium ${
-                                action.requiresTarget
-                                  ? "text-[var(--danger)]"
-                                  : "text-[var(--teal)]"
-                              }`}
-                            >
-                              {badgeLabel}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="mt-1 block whitespace-normal break-keep text-[0.2rem] leading-[0.9rem] text-[var(--ink-muted)]">
-                          {action.description}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-          </div>
+          <InteractionControls
+            playInputMode={playInputMode}
+            inputModeDisabled={inputModeDisabled}
+            draft={draft}
+            placeholder={placeholder}
+            directInputDisabled={directInputDisabled}
+            activeWarning={activeWarning}
+            submitButtonClassName={submitButtonClassName}
+            submitButtonLabel={submitButtonLabel}
+            busy={busy}
+            showDirectInputCard={showDirectInputCard}
+            showIntentCard={showIntentCard}
+            actionButtonsDisabled={actionButtonsDisabled}
+            availableActions={availableActions}
+            onPlayInputModeChange={handlePlayInputModeChange}
+            onDraftValueChange={handleDraftValueChange}
+            onSubmitClick={handleSubmitClick}
+            onActionClick={handleActionClick}
+          />
         </div>
       </Panel>
     </>
   );
 }
+

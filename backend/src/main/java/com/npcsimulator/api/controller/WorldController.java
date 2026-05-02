@@ -1,12 +1,7 @@
 package com.npcsimulator.api.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.npcsimulator.api.dto.ErrorResponse;
-import com.npcsimulator.runtime.RuntimeApiException;
 import com.npcsimulator.runtime.RuntimeWorldService;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -18,39 +13,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorldController {
 
     private final RuntimeWorldService runtimeWorldService;
-    private final ObjectMapper objectMapper;
+    private final JsonResponseWriter jsonResponseWriter;
 
-    public WorldController(RuntimeWorldService runtimeWorldService, ObjectMapper objectMapper) {
+    public WorldController(
+        RuntimeWorldService runtimeWorldService,
+        JsonResponseWriter jsonResponseWriter
+    ) {
         this.runtimeWorldService = runtimeWorldService;
-        this.objectMapper = objectMapper;
+        this.jsonResponseWriter = jsonResponseWriter;
     }
 
     @GetMapping
     public ResponseEntity<String> getWorld(@RequestHeader HttpHeaders headers) {
-        try {
-            JsonNode body = runtimeWorldService.getWorld(headers);
-            return jsonResponse(ResponseEntity.ok(), body);
-        } catch (RuntimeApiException error) {
-            return ResponseEntity.status(error.getStatus())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(writeJson(new ErrorResponse(error.getMessage())));
-        }
-    }
-
-    private ResponseEntity<String> jsonResponse(
-        ResponseEntity.BodyBuilder builder,
-        JsonNode body
-    ) {
-        return builder
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(writeJson(body));
-    }
-
-    private String writeJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception error) {
-            throw new IllegalStateException("Failed to serialize world response.", error);
-        }
+        return jsonResponseWriter.ok(runtimeWorldService.getWorld(headers));
     }
 }
