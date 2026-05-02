@@ -1,12 +1,8 @@
-import {
-  DEFAULT_PLAYER_ID,
-  NPC_ACTION_LABELS,
-} from "@backend-support/constants";
+import { NPC_ACTION_LABELS } from "@backend-support/constants";
 import type {
   EpisodeExportPaths,
   InteractionTraceEntry,
   InspectorPayload,
-  NpcState,
   InteractionRequestPayload,
   InteractionResponsePayload,
 } from "@backend-contracts/api";
@@ -15,9 +11,6 @@ import type {
 } from "@backend-persistence";
 import { formatPlayerConversationText, nowIso } from "@backend-support/utils";
 import { simulateNpcAutonomyPhase } from "@server/engine/npc-autonomy";
-import {
-  buildInteractionContract,
-} from "@server/engine/interaction-contract";
 import {
   cleanupExportPaths,
   exportEpisodeDataset,
@@ -29,12 +22,10 @@ import {
   rewriteFinalReplyWithTrace,
 } from "@server/engine/interaction-ai-flow";
 import {
-  buildPromptContextSummary,
   isPersistedNpcId,
   persistNpc,
-  recentConversationForNpc,
 } from "@server/engine/interaction-context";
-import { normalizeInteractionInput } from "@server/engine/intent";
+import { prepareInteractionTurnContext } from "@server/engine/interaction-turn/context";
 import {
   buildMemoryEntries,
   updateMemoryBank,
@@ -52,7 +43,6 @@ import {
   composeInteractionEventLogEntry,
   composeRoundEventLogEntry,
 } from "@server/engine/world-state";
-import { retrieveEvidenceBundle } from "@server/engine/retrieval";
 import { buildRuntimeStatus, getLlmProvider } from "@server/providers/llm-provider";
 import { maybeGenerateShadowComparison } from "@server/providers/shadow-compare";
 import {
@@ -79,81 +69,32 @@ export async function runInteractionTurn(
   bundle: WorldStateBundle,
   request: InteractionRequestPayload,
 ): Promise<InteractionTurnWorkerResult> {
-  const { worldState, memoryFile, interactionLog } = bundle;
   const turnStartedAtMs = Date.now();
   const interactionTraceEntries: InteractionTraceEntry[] = [];
-
-  if (worldState.resolution.resolved) {
-    throw new Error("이미 희생 대상이 확정되었습니다. reset 후 다시 시작하세요.");
-  }
-
-  const npcIndex = worldState.npcs.findIndex(
-    (candidate) => candidate.persona.id === request.npcId,
-  );
-
-  if (npcIndex < 0) {
-    throw new Error(`NPC '${request.npcId}' does not exist.`);
-  }
-
-  const persistedNpc = worldState.npcs[npcIndex];
-  const npc: NpcState = {
-    ...persistedNpc,
-    memories: memoryFile.memories[request.npcId] ?? [],
-  };
-  const targetNpc =
-    request.targetNpcId && request.targetNpcId !== DEFAULT_PLAYER_ID
-      ? worldState.npcs.find(
-          (candidate) => candidate.persona.id === request.targetNpcId,
-        ) ?? null
-      : null;
 
   const prepareContextTrace = startInteractionTraceStage(
     turnStartedAtMs,
     "prepare_context",
     "입력 정리·컨텍스트 수집",
   );
-  const normalizedInput = normalizeInteractionInput({
-    text: request.text,
-    action: request.action,
-    inputMode: request.inputMode,
-    targetNpcId: request.targetNpcId,
-    targetNpcLabel: targetNpc?.persona.name ?? null,
-    targetCandidates: worldState.npcs.map((candidate) => ({
-      id: candidate.persona.id,
-      label: candidate.persona.name,
-    })),
-  });
-  const recentConversation = recentConversationForNpc(
-    interactionLog.entries,
-    request.npcId,
-  );
-  const consensusBoardBefore = buildConsensusBoard({
-    judgements: worldState.judgements,
-    npcs: worldState.npcs,
-  });
-  const leaderBefore = consensusBoardBefore[0] ?? null;
-  const recentEvents = worldState.events.slice(0, 4);
-  const retrieval = retrieveEvidenceBundle({
-    memories: npc.memories,
+  const turnContext = prepareInteractionTurnContext(bundle, request);
+  const {
+    worldState,
+    memoryFile,
+    interactionLog,
+    npc,
     normalizedInput,
-    npcId: request.npcId,
-    targetNpcId: request.targetNpcId,
+    recentConversation,
+    consensusBoardBefore,
+    leaderBefore,
     recentEvents,
-    roundNumber: worldState.round.currentRound,
-  });
-  const retrievedMemories = retrieval.memories;
-  const retrievedKnowledge = retrieval.knowledge;
-  const roundBefore = worldState.round.currentRound;
-  const initialTargetLabel = request.targetNpcId
-    ? boardTargetLabel(request.targetNpcId, worldState.npcs)
-    : null;
-  const promptContextSummary = buildPromptContextSummary({
+    retrievedMemories,
+    retrievedKnowledge,
     roundBefore,
-    leaderLabel: leaderBefore?.candidateLabel ?? null,
-    targetLabel: initialTargetLabel,
-    memoryCount: retrievedMemories.length,
-    knowledgeTitles: retrievedKnowledge.map((entry) => entry.title),
-  });
+    promptContextSummary,
+    generationInput,
+    interactionContract,
+  } = turnContext;
   finishInteractionTraceStage(
     interactionTraceEntries,
     turnStartedAtMs,
@@ -163,31 +104,6 @@ export async function runInteractionTurn(
   );
 
   const provider = getLlmProvider();
-  const generationInput = {
-    request,
-    world: worldState.world,
-    npc,
-    targetNpc,
-    round: worldState.round,
-    consensusBoard: consensusBoardBefore,
-    recentEvents,
-    recentConversation,
-    retrievedMemories,
-    retrievedKnowledge,
-    normalizedInput,
-    promptContextSummary,
-  };
-  const interactionContract = buildInteractionContract({
-    inputMode: request.inputMode,
-    text: request.text,
-    action: request.action,
-    targetNpcId: request.targetNpcId,
-    targetNpcLabel: targetNpc?.persona.name ?? null,
-    targetCandidates: worldState.npcs.map((candidate) => ({
-      id: candidate.persona.id,
-      label: candidate.persona.name,
-    })),
-  });
   const shadowComparisonPromise = maybeGenerateShadowComparison(generationInput);
   let {
     llmResult,
