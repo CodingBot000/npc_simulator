@@ -69,7 +69,11 @@ export function InteractionConversationThread({
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--teal)]">
               방 안 대화
             </p>
-            <span className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)]">
+            <span
+              aria-label={`대화 UI 버전 ${sourceVersion}`}
+              title="소스 변경 기준 대화 UI 버전"
+              className="rounded-full border border-[var(--panel-border)] bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-[var(--ink-muted)]"
+            >
               {sourceVersion}
             </span>
             {conversationDebugEnabled ? (
@@ -257,4 +261,3 @@ function InteractionMessageCard({
     </article>
   );
 }
-
