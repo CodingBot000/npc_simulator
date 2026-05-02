@@ -5,17 +5,23 @@ import {
 } from "@server/engine/npc-autonomy/config";
 import {
   actorWeight,
-  defaultTone,
   matchingEventBiases,
   moveWeights,
+  recentToneWeight,
+} from "@server/engine/npc-autonomy/planner-weights";
+import {
+  defaultTone,
+  stepRationale,
+} from "@server/engine/npc-autonomy/planner-rationale";
+import {
+  planOverfocusRedirect,
+} from "@server/engine/npc-autonomy/planner-overfocus";
+import {
   pickFreezeTarget,
   pickPileOnTarget,
   pickRedirectTargets,
   pickShieldTarget,
-  planOverfocusRedirect,
-  recentToneWeight,
-  stepRationale,
-} from "@server/engine/npc-autonomy/planner-support";
+} from "@server/engine/npc-autonomy/planner-targets";
 import type {
   AutonomyPlannerInput,
   AutonomyPlannedStep,
