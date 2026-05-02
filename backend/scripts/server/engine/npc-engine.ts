@@ -4,11 +4,7 @@ import type {
   InteractionRequestPayload,
   InteractionResponsePayload,
 } from "@backend-contracts/api";
-import { nowIso } from "@backend-support/utils";
-import {
-  cleanupExportPaths,
-  exportEpisodeDataset,
-} from "@server/engine/dataset-export";
+import { cleanupExportPaths } from "@server/engine/dataset-export";
 import {
   generateValidatedInteraction,
   judgeInteractionReplyWithTrace,
@@ -17,6 +13,7 @@ import {
 } from "@server/engine/interaction-ai-flow";
 import { isPersistedNpcId } from "@server/engine/interaction-context";
 import { prepareInteractionTurnContext } from "@server/engine/interaction-turn/context";
+import { commitResolvedEpisodeExport } from "@server/engine/interaction-turn/export";
 import { commitInteractionTurnRecords } from "@server/engine/interaction-turn/records";
 import { applyInteractionTurnStateTransition } from "@server/engine/interaction-turn/state";
 import {
@@ -28,7 +25,6 @@ import { buildRuntimeStatus, getLlmProvider } from "@server/providers/llm-provid
 import { maybeGenerateShadowComparison } from "@server/providers/shadow-compare";
 import {
   finishInteractionTraceStage,
-  recordInteractionTraceStage,
   startInteractionTraceStage,
 } from "@server/engine/interaction-trace";
 import { createWorldRepository } from "@server/store/repositories";
@@ -204,44 +200,14 @@ export async function runInteractionTurn(
     turnStartedAtMs,
   });
 
-  let committedExportPaths: EpisodeExportPaths | null = null;
-
-  if (worldState.resolution.resolved && !worldState.datasetExportedAt) {
-    const datasetExportTrace = startInteractionTraceStage(
-      turnStartedAtMs,
-      "dataset_export",
-      "데이터셋 export",
-    );
-    const exportedAt = nowIso();
-    worldState.endedAt = worldState.endedAt ?? exportedAt;
-    committedExportPaths = await exportEpisodeDataset({
-      worldState,
-      memoryFile,
-      interactionLog,
-      exportedAt,
-    });
-    worldState.exportPaths = committedExportPaths;
-    worldState.datasetExportedAt = exportedAt;
-    inspector.datasetExportedAt = exportedAt;
-    inspector.exportPaths = committedExportPaths;
-    worldState.lastInspector = inspector;
-    finishInteractionTraceStage(
-      interactionTraceEntries,
-      turnStartedAtMs,
-      datasetExportTrace,
-      "ok",
-      "resolved episode dataset을 export했습니다.",
-    );
-  } else {
-    recordInteractionTraceStage(
-      interactionTraceEntries,
-      turnStartedAtMs,
-      "dataset_export",
-      "데이터셋 export",
-      "skipped",
-      "결말 확정 전이라 export를 건너뛰었습니다.",
-    );
-  }
+  const committedExportPaths = await commitResolvedEpisodeExport({
+    worldState,
+    memoryFile,
+    interactionLog,
+    inspector,
+    turnStartedAtMs,
+    interactionTraceEntries,
+  });
 
   const turnFinishedAtMs = Date.now();
   interactionTraceEntries.push({
