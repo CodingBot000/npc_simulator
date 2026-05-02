@@ -18,7 +18,8 @@ COPY tsconfig.json ./tsconfig.json
 COPY contracts ./contracts
 COPY shared ./shared
 COPY frontend ./frontend
-COPY backend/scripts/package.json ./backend/scripts/package.json
+COPY backend/src ./backend/src
+COPY backend/scripts ./backend/scripts
 
 RUN npm run build --workspace frontend
 
