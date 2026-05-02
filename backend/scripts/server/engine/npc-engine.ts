@@ -1,14 +1,10 @@
 import type {
   EpisodeExportPaths,
   InteractionTraceEntry,
-  InspectorPayload,
   InteractionRequestPayload,
   InteractionResponsePayload,
 } from "@backend-contracts/api";
-import type {
-  InteractionLogEntry,
-} from "@backend-persistence";
-import { formatPlayerConversationText, nowIso } from "@backend-support/utils";
+import { nowIso } from "@backend-support/utils";
 import {
   cleanupExportPaths,
   exportEpisodeDataset,
@@ -21,6 +17,7 @@ import {
 } from "@server/engine/interaction-ai-flow";
 import { isPersistedNpcId } from "@server/engine/interaction-context";
 import { prepareInteractionTurnContext } from "@server/engine/interaction-turn/context";
+import { commitInteractionTurnRecords } from "@server/engine/interaction-turn/records";
 import { applyInteractionTurnStateTransition } from "@server/engine/interaction-turn/state";
 import {
   buildMemoryEntries,
@@ -177,99 +174,35 @@ export async function runInteractionTurn(
     `memoryCount=${nextMemories.length}`,
   );
 
-  const inspector: InspectorPayload = {
-    timestamp,
-    episodeId: worldState.episodeId,
-    npcId: request.npcId,
-    targetNpcId: effectiveTargetNpcId,
-    replyText: llmResult.reply.text,
+  const { inspector, logEntry } = commitInteractionTurnRecords({
+    worldState,
+    interactionLog,
+    request,
+    npc,
+    normalizedInput,
+    llmResult,
     fallbackUsed,
     replyRewriteSource,
     replyRewriteReason,
     replyJudge,
-    failureDebug: failureDebugEntries.length > 0 ? failureDebugEntries : null,
-    interactionTrace:
-      interactionTraceEntries.length > 0 ? interactionTraceEntries : null,
-    retrievedMemories,
-    retrievedKnowledge,
-    emotion: llmResult.emotion,
-    intent: llmResult.intent,
-    candidateActions: llmResult.candidateActions,
-    selectedAction: llmResult.selectedAction,
-    selectedActionReason: llmResult.selectedAction.reason,
-    structuredImpact: llmResult.structuredImpact,
-    relationshipDelta,
-    pressureChanges,
-    leaderBefore,
-    leaderAfter: leadingCandidate,
-    leadingCandidateId: leadingCandidate?.candidateId ?? null,
-    leadingCandidateLabel: leadingCandidate?.candidateLabel ?? null,
-    round: worldState.round.currentRound,
-    resolution,
-    llmPromptContextSummary: promptContextSummary,
-    datasetExportedAt: worldState.datasetExportedAt,
-    exportPaths: worldState.exportPaths,
-    shadowComparison: sanitizedShadowComparison,
-    autonomyPhase: autonomyPhase.phase,
-  };
-  worldState.lastInspector = inspector;
-
-  const logEntry: InteractionLogEntry = {
-    id: crypto.randomUUID(),
-    npcId: request.npcId,
-    targetNpcId: effectiveTargetNpcId,
-    playerId: request.playerId,
-    inputMode: request.inputMode,
-    fallbackUsed,
-    replyRewriteSource,
-    replyRewriteReason,
-    replyJudge,
-    failureDebug: failureDebugEntries.length > 0 ? failureDebugEntries : null,
-    interactionTrace:
-      interactionTraceEntries.length > 0 ? interactionTraceEntries : null,
-    roundBefore,
-    roundAfter: worldState.round.currentRound,
-    playerText: formatPlayerConversationText({
-      text: normalizedInput.text,
-      action: request.action,
-      targetLabel,
-    }),
-    rawPlayerText: request.text,
-    normalizedInputSummary: normalizedInput.promptSummary,
-    playerAction: request.action,
-    replyText: llmResult.reply.text,
-    timestamp,
-    retrievedMemories,
-    retrievedKnowledge,
-    llmPromptContextSummary: promptContextSummary,
-    emotion: llmResult.emotion,
-    intent: llmResult.intent,
-    candidateActions: llmResult.candidateActions,
-    selectedAction: llmResult.selectedAction.type,
-    selectedActionReason: llmResult.selectedAction.reason,
-    structuredImpact: llmResult.structuredImpact,
-    relationshipDelta,
-    pressureChanges,
-    leaderBefore,
-    leaderAfter: leadingCandidate,
-    resolutionAfter: resolution,
-    round: worldState.round.currentRound,
-    shadowComparison: sanitizedShadowComparison,
-    autonomyPhase: autonomyPhase.phase,
-  };
-  const logCommitTrace = startInteractionTraceStage(
-    turnStartedAtMs,
-    "log_commit",
-    "턴 로그 적재",
-  );
-  interactionLog.entries.push(logEntry);
-  finishInteractionTraceStage(
+    failureDebugEntries,
     interactionTraceEntries,
+    retrievedMemories,
+    retrievedKnowledge,
+    timestamp,
+    effectiveTargetNpcId,
+    targetLabel,
+    relationshipDelta,
+    pressureChanges,
+    leaderBefore,
+    leadingCandidate,
+    resolution,
+    promptContextSummary,
+    sanitizedShadowComparison,
+    autonomyPhase,
+    roundBefore,
     turnStartedAtMs,
-    logCommitTrace,
-    "ok",
-    "inspector와 interaction log에 기록했습니다.",
-  );
+  });
 
   let committedExportPaths: EpisodeExportPaths | null = null;
 
