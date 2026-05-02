@@ -1,4 +1,3 @@
-import { NPC_ACTION_LABELS } from "@backend-support/constants";
 import type {
   EpisodeExportPaths,
   InteractionTraceEntry,
@@ -10,7 +9,6 @@ import type {
   InteractionLogEntry,
 } from "@backend-persistence";
 import { formatPlayerConversationText, nowIso } from "@backend-support/utils";
-import { simulateNpcAutonomyPhase } from "@server/engine/npc-autonomy";
 import {
   cleanupExportPaths,
   exportEpisodeDataset,
@@ -21,28 +19,14 @@ import {
   resolveShadowComparisonWithTrace,
   rewriteFinalReplyWithTrace,
 } from "@server/engine/interaction-ai-flow";
-import {
-  isPersistedNpcId,
-  persistNpc,
-} from "@server/engine/interaction-context";
+import { isPersistedNpcId } from "@server/engine/interaction-context";
 import { prepareInteractionTurnContext } from "@server/engine/interaction-turn/context";
+import { applyInteractionTurnStateTransition } from "@server/engine/interaction-turn/state";
 import {
   buildMemoryEntries,
   updateMemoryBank,
 } from "@server/engine/memory";
-import {
-  applyInteractionPressure,
-  boardTargetLabel,
-  buildConsensusBoard,
-  nextSpeakerState,
-  progressRound,
-  resolveIfNeeded,
-} from "@server/engine/pressure-engine";
-import {
-  buildWorldSnapshot,
-  composeInteractionEventLogEntry,
-  composeRoundEventLogEntry,
-} from "@server/engine/world-state";
+import { buildWorldSnapshot } from "@server/engine/world-state";
 import { buildRuntimeStatus, getLlmProvider } from "@server/providers/llm-provider";
 import { maybeGenerateShadowComparison } from "@server/providers/shadow-compare";
 import {
@@ -146,117 +130,26 @@ export async function runInteractionTurn(
     : null;
   const effectiveTargetNpcId = request.targetNpcId ?? structuredTargetNpcId;
 
-  const { npc: nextNpc, relationshipDelta } = nextSpeakerState({
-    npc,
-    action: request.action,
-    structuredImpact: llmResult.structuredImpact,
-  });
-  persistNpc(nextNpc, worldState.npcs);
-
-  const pressureTrace = startInteractionTraceStage(
-    turnStartedAtMs,
-    "pressure_update",
-    "압력도 반영",
-  );
-  const pressureUpdate = applyInteractionPressure({
-    judgements: worldState.judgements,
-    npcs: worldState.npcs,
-    targetNpcId: effectiveTargetNpcId,
-    action: request.action,
-    structuredImpact: llmResult.structuredImpact,
-    round: worldState.round,
-  });
-  worldState.judgements = pressureUpdate.judgements;
-  finishInteractionTraceStage(
-    interactionTraceEntries,
-    turnStartedAtMs,
-    pressureTrace,
-    "ok",
-    `changes=${pressureUpdate.pressureChanges.length}`,
-  );
-
-  const roundTrace = startInteractionTraceStage(
-    turnStartedAtMs,
-    "round_progress",
-    "라운드 진행",
-  );
-  const roundProgress = progressRound(worldState.round);
-  worldState.round = roundProgress.round;
-  finishInteractionTraceStage(
-    interactionTraceEntries,
-    turnStartedAtMs,
-    roundTrace,
-    "ok",
-    `round=${roundBefore}->${worldState.round.currentRound}`,
-  );
-
-  const roundEventEntry = roundProgress.roundEvent
-    ? composeRoundEventLogEntry(roundProgress.roundEvent)
-    : null;
-  const autonomyTrace = startInteractionTraceStage(
-    turnStartedAtMs,
-    "autonomy_phase",
-    "NPC 자율 턴",
-  );
-  const autonomyPhase = simulateNpcAutonomyPhase({
-    worldState,
-    requestNpcId: request.npcId,
-    recentEvents: [
-      ...(roundEventEntry ? [roundEventEntry] : []),
-      ...worldState.events.slice(0, 4),
-    ],
-  });
-  const consensusBoard = buildConsensusBoard({
-    judgements: worldState.judgements,
-    npcs: worldState.npcs,
-  });
-  const resolution = resolveIfNeeded({
-    round: worldState.round,
-    consensusBoard,
-  });
-  worldState.resolution = resolution;
-  finishInteractionTraceStage(
-    interactionTraceEntries,
-    turnStartedAtMs,
-    autonomyTrace,
-    "ok",
-    `executed=${autonomyPhase.phase.executed}, steps=${autonomyPhase.phase.steps.length}, resolved=${resolution.resolved}`,
-  );
-
-  const turnEventBaseTime = Date.now();
-  const timestamp = new Date(turnEventBaseTime).toISOString();
-  const targetLabel = effectiveTargetNpcId
-    ? boardTargetLabel(effectiveTargetNpcId, worldState.npcs)
-    : null;
-
-  const eventLogEntry = composeInteractionEventLogEntry({
-    npcId: request.npcId,
-    npcName: npc.persona.name,
-    selectedActionLabel: NPC_ACTION_LABELS[llmResult.selectedAction.type],
-    promptSummary: normalizedInput.promptSummary,
+  const {
+    timestamp,
     targetLabel,
-    pressureChanges: pressureUpdate.pressureChanges,
+    relationshipDelta,
+    pressureChanges,
+    eventLogEntry,
+    leadingCandidate,
     resolution,
+    autonomyPhase,
+  } = applyInteractionTurnStateTransition({
+    worldState,
+    request,
+    npc,
+    llmResult,
+    effectiveTargetNpcId,
+    normalizedInputSummary: normalizedInput.promptSummary,
+    roundBefore,
+    turnStartedAtMs,
+    interactionTraceEntries,
   });
-  eventLogEntry.timestamp = timestamp;
-
-  if (roundEventEntry) {
-    roundEventEntry.timestamp = new Date(turnEventBaseTime + 1).toISOString();
-  }
-
-  autonomyPhase.eventEntries.forEach((entry, index) => {
-    entry.timestamp = new Date(turnEventBaseTime + 2 + index).toISOString();
-  });
-
-  if (eventLogEntry) {
-    worldState.events.unshift(eventLogEntry);
-  }
-  if (roundEventEntry) {
-    worldState.events.unshift(roundEventEntry);
-  }
-  for (const entry of autonomyPhase.eventEntries) {
-    worldState.events.unshift(entry);
-  }
 
   const memoryTrace = startInteractionTraceStage(
     turnStartedAtMs,
@@ -270,7 +163,7 @@ export async function runInteractionTurn(
       normalizedInput,
       llmResult,
       relationshipDelta,
-      pressureChanges: pressureUpdate.pressureChanges,
+      pressureChanges,
       resolution,
       existing: memoryFile.memories[request.npcId] ?? [],
     }),
@@ -283,8 +176,6 @@ export async function runInteractionTurn(
     "ok",
     `memoryCount=${nextMemories.length}`,
   );
-
-  const leadingCandidate = consensusBoard[0] ?? null;
 
   const inspector: InspectorPayload = {
     timestamp,
@@ -308,7 +199,7 @@ export async function runInteractionTurn(
     selectedActionReason: llmResult.selectedAction.reason,
     structuredImpact: llmResult.structuredImpact,
     relationshipDelta,
-    pressureChanges: pressureUpdate.pressureChanges,
+    pressureChanges,
     leaderBefore,
     leaderAfter: leadingCandidate,
     leadingCandidateId: leadingCandidate?.candidateId ?? null,
@@ -358,7 +249,7 @@ export async function runInteractionTurn(
     selectedActionReason: llmResult.selectedAction.reason,
     structuredImpact: llmResult.structuredImpact,
     relationshipDelta,
-    pressureChanges: pressureUpdate.pressureChanges,
+    pressureChanges,
     leaderBefore,
     leaderAfter: leadingCandidate,
     resolutionAfter: resolution,
@@ -446,7 +337,7 @@ export async function runInteractionTurn(
       rewriteReason: replyRewriteReason,
     },
     relationshipDelta,
-    pressureChanges: pressureUpdate.pressureChanges,
+    pressureChanges,
     eventLogEntry,
     inspector,
     resolution,
