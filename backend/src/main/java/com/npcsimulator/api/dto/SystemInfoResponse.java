@@ -10,7 +10,8 @@ public record SystemInfoResponse(
     String deploymentMode,
     DatabaseInfo database,
     ProviderReadiness provider,
-    FinalReplyReadiness finalReply
+    FinalReplyReadiness finalReply,
+    ReviewAccess reviewAccess
 ) {
     public record DatabaseInfo(
         String kind,
@@ -35,5 +36,11 @@ public record SystemInfoResponse(
         String label,
         String detail,
         String actionGuide
+    ) {}
+
+    public record ReviewAccess(
+        boolean readable,
+        String writeMode,
+        boolean publicWriteEnabled
     ) {}
 }

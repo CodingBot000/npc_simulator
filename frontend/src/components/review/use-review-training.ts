@@ -20,7 +20,15 @@ import type {
   ReviewTrainingStatusView,
 } from "@/lib/review-types";
 
-export function useReviewTraining({ reviewer }: { reviewer: string }) {
+export function useReviewTraining({
+  reviewer,
+  writeEnabled,
+  writeDisabledMessage,
+}: {
+  reviewer: string;
+  writeEnabled: boolean;
+  writeDisabledMessage: string | null;
+}) {
   const [trainingStatus, setTrainingStatus] = useState<ReviewTrainingStatusView | null>(
     null,
   );
@@ -181,6 +189,11 @@ export function useReviewTraining({ reviewer }: { reviewer: string }) {
   }
 
   async function handleTraining(kind: ReviewTrainingKind) {
+    if (!writeEnabled) {
+      setTrainingError(writeDisabledMessage ?? "review 실행 기능이 잠겨 있습니다.");
+      return;
+    }
+
     setTrainingError(null);
     setPendingTrainingLaunch({
       kind,
@@ -203,6 +216,11 @@ export function useReviewTraining({ reviewer }: { reviewer: string }) {
   }
 
   async function handleTrainingEvaluation() {
+    if (!writeEnabled) {
+      setTrainingError(writeDisabledMessage ?? "review 실행 기능이 잠겨 있습니다.");
+      return;
+    }
+
     if (!currentActionRun) {
       return;
     }
@@ -226,6 +244,11 @@ export function useReviewTraining({ reviewer }: { reviewer: string }) {
   }
 
   async function handleTrainingDecision(decision: "accepted" | "rejected") {
+    if (!writeEnabled) {
+      setTrainingError(writeDisabledMessage ?? "review 실행 기능이 잠겨 있습니다.");
+      return;
+    }
+
     if (!currentActionRun) {
       return;
     }
@@ -251,6 +274,11 @@ export function useReviewTraining({ reviewer }: { reviewer: string }) {
   }
 
   async function handleTrainingPromotion() {
+    if (!writeEnabled) {
+      setTrainingError(writeDisabledMessage ?? "review 실행 기능이 잠겨 있습니다.");
+      return;
+    }
+
     if (!currentActionRun) {
       return;
     }
@@ -289,6 +317,8 @@ export function useReviewTraining({ reviewer }: { reviewer: string }) {
     trainingBindingKey,
     trainingError,
     trainingStatus,
+    writeDisabledMessage,
+    writeEnabled,
   };
 }
 

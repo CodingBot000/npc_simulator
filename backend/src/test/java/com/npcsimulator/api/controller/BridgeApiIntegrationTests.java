@@ -136,4 +136,15 @@ class BridgeApiIntegrationTests {
             .andExpect(jsonPath("$.humanQueue.exists").isBoolean())
             .andExpect(jsonPath("$.llmFirstPass.exists").isBoolean());
     }
+
+    @Test
+    void systemInfoMarksReviewWritesAsPublicInLocalMode() throws Exception {
+        mockMvc
+            .perform(get("/api/system/info"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentMode").value("local"))
+            .andExpect(jsonPath("$.reviewAccess.readable").value(true))
+            .andExpect(jsonPath("$.reviewAccess.writeMode").value("local_unrestricted"))
+            .andExpect(jsonPath("$.reviewAccess.publicWriteEnabled").value(true));
+    }
 }

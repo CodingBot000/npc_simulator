@@ -43,6 +43,8 @@ export function ReviewTrainingPanel({
     trainingBindingKey,
     trainingError,
     trainingStatus,
+    writeDisabledMessage,
+    writeEnabled,
   } = controller;
 
   return (
@@ -70,6 +72,11 @@ export function ReviewTrainingPanel({
           <p className="text-sm text-[var(--ink-muted)]">
             finalize가 최신 상태일 때만 로컬 Llama 3.1 SFT / DPO 학습을 시작할 수 있습니다.
           </p>
+          {writeDisabledMessage ? (
+            <p className="rounded-2xl border border-[rgba(209,111,76,0.22)] bg-[rgba(209,111,76,0.1)] px-3 py-2 text-sm leading-6 text-[var(--accent)]">
+              {writeDisabledMessage}
+            </p>
+          ) : null}
           <label className="block">
             <div className="mb-2 flex items-center justify-between gap-3">
               <span className="block text-xs uppercase tracking-[0.18em] text-[var(--ink-muted)]">
@@ -141,7 +148,7 @@ export function ReviewTrainingPanel({
               <button
                 type="button"
                 onClick={() => void handleTraining("sft")}
-                disabled={!trainingStatus?.sft.canStart}
+                disabled={!writeEnabled || !trainingStatus?.sft.canStart}
                 className={trainingActionButtonClassName("sft")}
               >
                 새로운 SFT Base 생성
@@ -154,7 +161,7 @@ export function ReviewTrainingPanel({
               <button
                 type="button"
                 onClick={() => void handleTraining("dpo")}
-                disabled={!trainingStatus?.dpo.canStart}
+                disabled={!writeEnabled || !trainingStatus?.dpo.canStart}
                 className={trainingActionButtonClassName("dpo")}
               >
                 기존 SFT Base로 DPO 진행
@@ -172,6 +179,7 @@ export function ReviewTrainingPanel({
               onClick={() => void handleTrainingEvaluation()}
               disabled={
                 !currentActionRun ||
+                !writeEnabled ||
                 currentActionRun.state !== "succeeded" ||
                 currentActionRun.evaluation.state === "running"
               }
@@ -185,6 +193,7 @@ export function ReviewTrainingPanel({
                 onClick={() => void handleTrainingDecision("accepted")}
                 disabled={
                   !currentActionRun ||
+                  !writeEnabled ||
                   currentActionRun.evaluation.state !== "succeeded"
                 }
                 className={trainingActionButtonClassName("accept")}
@@ -196,6 +205,7 @@ export function ReviewTrainingPanel({
                 onClick={() => void handleTrainingDecision("rejected")}
                 disabled={
                   !currentActionRun ||
+                  !writeEnabled ||
                   currentActionRun.evaluation.state !== "succeeded"
                 }
                 className={trainingActionButtonClassName("reject")}
@@ -208,6 +218,7 @@ export function ReviewTrainingPanel({
               onClick={() => void handleTrainingPromotion()}
               disabled={
                 !currentActionRun ||
+                !writeEnabled ||
                 currentActionRun.decision.state !== "accepted"
               }
               className={trainingActionButtonClassName("promote")}

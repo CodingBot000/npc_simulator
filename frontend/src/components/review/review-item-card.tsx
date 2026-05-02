@@ -115,12 +115,14 @@ export function CompactReviewCard({
   reviewer,
   sourceMode,
   readOnly,
+  writeDisabledMessage,
   onItemSaved,
 }: {
   item: ReviewItem;
   reviewer: string;
   sourceMode: ReviewSourceMode;
   readOnly: boolean;
+  writeDisabledMessage?: string | null;
   onItemSaved?: (item: ReviewItem) => void;
 }) {
   const [draftDecision, setDraftDecision] = useState<ReviewItem["decision"]>(
@@ -311,6 +313,16 @@ export function CompactReviewCard({
             </p>
             <p className="mt-2 text-sm text-[var(--ink-muted)]">
               notes {item.notes || "없음"}
+            </p>
+          </TextBlock>
+        ) : readOnly ? (
+          <TextBlock>
+            <p className="text-sm text-[var(--ink-muted)]">
+              {writeDisabledMessage ?? "현재 조건에서는 검수 결정을 변경할 수 없습니다."}
+            </p>
+            <p className="mt-2 text-sm text-[var(--ink-muted)]">
+              저장된 판단: {decisionLabel(item.decision)} / 마지막 저장:{" "}
+              {formatTimestamp(item.reviewedAt)}
             </p>
           </TextBlock>
         ) : (

@@ -359,6 +359,12 @@ export interface components {
                 detail: string;
                 actionGuide: string;
             };
+            reviewAccess: {
+                readable: boolean;
+                /** @enum {string} */
+                writeMode: "local_unrestricted" | "admin_token_required";
+                publicWriteEnabled: boolean;
+            };
         };
         ErrorResponse: {
             message: string;

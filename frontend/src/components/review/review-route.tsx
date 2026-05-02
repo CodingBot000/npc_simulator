@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { apiGetReviewDashboard } from "@/lib/api-client";
+import {
+  apiGetReviewDashboard,
+  apiGetSystemInfo,
+} from "@/lib/api-client";
+import type { SystemInfo } from "@/lib/api-contract";
 import type { ReviewDashboardData } from "@/lib/review-types";
 import { ReviewDashboard } from "@/components/review/review-dashboard";
 
@@ -54,6 +58,7 @@ function ReviewRouteError({
 
 export function ReviewRoute() {
   const [data, setData] = useState<ReviewDashboardData | null>(null);
+  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -64,12 +69,19 @@ export function ReviewRoute() {
       setError(null);
 
       try {
-        setData(
-          await apiGetReviewDashboard({
+        const [reviewData, nextSystemInfo] = await Promise.all([
+          apiGetReviewDashboard({
             cache: "no-store",
             signal: controller.signal,
           }),
-        );
+          apiGetSystemInfo({
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+        ]);
+
+        setData(reviewData);
+        setSystemInfo(nextSystemInfo);
       } catch (reviewError) {
         if (controller.signal.aborted) {
           return;
@@ -94,15 +106,21 @@ export function ReviewRoute() {
         message={error}
         onRetry={() => {
           setData(null);
+          setSystemInfo(null);
           setReloadToken((current) => current + 1);
         }}
       />
     );
   }
 
-  if (!data) {
+  if (!data || !systemInfo) {
     return <ReviewRouteLoading />;
   }
 
-  return <ReviewDashboard initialData={data} />;
+  return (
+    <ReviewDashboard
+      initialData={data}
+      reviewAccess={systemInfo.reviewAccess}
+    />
+  );
 }

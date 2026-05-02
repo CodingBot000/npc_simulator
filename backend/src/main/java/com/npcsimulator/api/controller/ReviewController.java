@@ -5,6 +5,7 @@ import com.npcsimulator.api.dto.ReviewPipelineRunRequest;
 import com.npcsimulator.api.dto.ReviewTrainingDecisionRequest;
 import com.npcsimulator.api.dto.ReviewTrainingRequest;
 import com.npcsimulator.api.dto.ReviewTrainingRunActionRequest;
+import com.npcsimulator.review.ReviewAdminGuard;
 import com.npcsimulator.review.ReviewService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -23,10 +24,16 @@ public class ReviewController {
 
     private final ReviewService reviewService;
     private final JsonResponseWriter jsonResponseWriter;
+    private final ReviewAdminGuard reviewAdminGuard;
 
-    public ReviewController(ReviewService reviewService, JsonResponseWriter jsonResponseWriter) {
+    public ReviewController(
+        ReviewService reviewService,
+        JsonResponseWriter jsonResponseWriter,
+        ReviewAdminGuard reviewAdminGuard
+    ) {
         this.reviewService = reviewService;
         this.jsonResponseWriter = jsonResponseWriter;
+        this.reviewAdminGuard = reviewAdminGuard;
     }
 
     @GetMapping
@@ -39,6 +46,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody ReviewDecisionRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.updateDecision(headers, body));
     }
 
@@ -49,6 +57,7 @@ public class ReviewController {
 
     @PostMapping("/finalize")
     public ResponseEntity<String> runFinalize(@RequestHeader HttpHeaders headers) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.runFinalize(headers));
     }
 
@@ -62,6 +71,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody ReviewTrainingRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.runTraining(headers, body));
     }
 
@@ -70,6 +80,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody ReviewTrainingRunActionRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.runTrainingEvaluation(headers, body));
     }
 
@@ -78,6 +89,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody ReviewTrainingDecisionRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.updateTrainingDecision(headers, body));
     }
 
@@ -86,6 +98,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody ReviewTrainingRunActionRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.promoteTrainingRun(headers, body));
     }
 
@@ -99,6 +112,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody(required = false) ReviewPipelineRunRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.runJudgeReviewQueue(headers, requestOrEmpty(body)));
     }
 
@@ -107,6 +121,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody(required = false) ReviewPipelineRunRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.runPrepareHumanReview(headers, requestOrEmpty(body)));
     }
 
@@ -115,6 +130,7 @@ public class ReviewController {
         @RequestHeader HttpHeaders headers,
         @Valid @RequestBody(required = false) ReviewPipelineRunRequest body
     ) {
+        reviewAdminGuard.requireAdmin(headers);
         return jsonResponseWriter.ok(reviewService.runReviewLlmFirstPass(headers, requestOrEmpty(body)));
     }
 
