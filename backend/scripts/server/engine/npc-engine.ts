@@ -62,9 +62,7 @@ export async function runInteractionTurn(
     npc,
     normalizedInput,
     recentConversation,
-    consensusBoardBefore,
     leaderBefore,
-    recentEvents,
     retrievedMemories,
     retrievedKnowledge,
     roundBefore,
@@ -220,8 +218,10 @@ export async function runInteractionTurn(
     detail: `total=${turnFinishedAtMs - turnStartedAtMs}ms`,
     sourceRef: null,
   });
-  inspector.interactionTrace = interactionTraceEntries.length > 0 ? interactionTraceEntries : null;
-  logEntry.interactionTrace = interactionTraceEntries.length > 0 ? interactionTraceEntries : null;
+  inspector.interactionTrace =
+    interactionTraceEntries.length > 0 ? interactionTraceEntries : null;
+  logEntry.interactionTrace =
+    interactionTraceEntries.length > 0 ? interactionTraceEntries : null;
 
   return {
     nextBundle: {
