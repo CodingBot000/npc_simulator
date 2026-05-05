@@ -20,9 +20,9 @@ export const databaseConfig = {
   datasourceUrl: getServerEnv("SPRING_DATASOURCE_URL") || DEFAULT_DATASOURCE_URL,
   datasourceUsername: getServerEnv("SPRING_DATASOURCE_USERNAME"),
   datasourcePassword: getServerEnv("SPRING_DATASOURCE_PASSWORD"),
-  poolMax: Number(getServerEnv("NPC_SIMULATOR_DB_POOL_MAX") || "6"),
+  poolMax: Number(getServerEnv("NPC_SIMULATOR_DB_POOL_MAX") || "2"),
   idleTimeoutMillis: Number(getServerEnv("NPC_SIMULATOR_DB_IDLE_TIMEOUT_MS") || "30000"),
-  connectTimeoutMillis: Number(getServerEnv("NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS") || "10000"),
+  connectTimeoutMillis: Number(getServerEnv("NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS") || "5000"),
   worldRepositoryMode: getServerEnv("NPC_SIMULATOR_WORLD_REPOSITORY_MODE"),
 } as const;
 

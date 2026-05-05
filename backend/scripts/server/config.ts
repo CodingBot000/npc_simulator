@@ -49,6 +49,7 @@ type LocalReplyPromptFormat =
   | "scene_state_min";
 type InteractionJudgeMode = "off" | "on";
 type InteractionJudgeEnforcement = "off" | "warn" | "retry" | "reject";
+type RunpodEndpointMode = "queue_vllm" | "load_balancer_vllm";
 
 const DEFAULT_FINAL_REPLY_TIMEOUT_MS = 180_000;
 
@@ -194,6 +195,16 @@ function resolveRunpodRemoteProvider(endpointId: string | null) {
   return endpointId ? `runpod:${endpointId}` : null;
 }
 
+function parseRunpodEndpointMode(): RunpodEndpointMode {
+  const rawValue =
+    getServerEnv("FINAL_REPLY_RUNPOD_ENDPOINT_MODE") ||
+    getServerEnv("RUNPOD_ENDPOINT_MODE");
+  if (rawValue === "load_balancer_vllm" || rawValue === "queue_vllm") {
+    return rawValue;
+  }
+  return "queue_vllm";
+}
+
 function resolveBasetenRemoteProvider(modelId: string | null) {
   return modelId ? buildBasetenRemoteProvider(modelId) : null;
 }
@@ -261,6 +272,7 @@ const finalReplyPromptFormat = parseLocalReplyPromptFormat(
 const finalReplyRunpodEndpointId =
   getServerEnv("FINAL_REPLY_RUNPOD_ENDPOINT_ID") ||
   getServerEnv("RUNPOD_ENDPOINT_ID");
+const finalReplyRunpodEndpointMode = parseRunpodEndpointMode();
 const finalReplyBasetenModelId =
   getServerEnv("FINAL_REPLY_BASETEN_MODEL_ID") ||
   getServerEnv("BASETEN_MODEL_ID");
@@ -334,6 +346,7 @@ export const appConfig = {
       provider: finalReplyRemoteProvider,
       modelName: getServerEnv("FINAL_REPLY_REMOTE_MODEL_NAME"),
       runpodEndpointId: finalReplyRunpodEndpointId,
+      runpodEndpointMode: finalReplyRunpodEndpointMode,
       basetenModelId: finalReplyBasetenModelId,
       basetenModelUrl:
         getServerEnv("FINAL_REPLY_BASETEN_MODEL_URL") ||

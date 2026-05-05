@@ -32,12 +32,12 @@ function buildConnectionConfig() {
       getScriptEnv("SPRING_DATASOURCE_PASSWORD", PROJECT_ROOT) ||
       decodeURIComponent(parsedUrl.password) ||
       "npc_simulator",
-    max: Number(getScriptEnv("NPC_SIMULATOR_DB_POOL_MAX", PROJECT_ROOT) || "4"),
+    max: Number(getScriptEnv("NPC_SIMULATOR_DB_POOL_MAX", PROJECT_ROOT) || "2"),
     idleTimeoutMillis: Number(
       getScriptEnv("NPC_SIMULATOR_DB_IDLE_TIMEOUT_MS", PROJECT_ROOT) || "30000",
     ),
     connectionTimeoutMillis: Number(
-      getScriptEnv("NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS", PROJECT_ROOT) || "10000",
+      getScriptEnv("NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS", PROJECT_ROOT) || "5000",
     ),
   };
 }

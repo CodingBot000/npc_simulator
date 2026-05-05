@@ -16,8 +16,12 @@ import {
 } from "@server/providers/mlx-reply-prompts";
 import { extractDelimitedText } from "@server/providers/mlx-reply-text-utils";
 import {
+  createRunpodLoadBalancerChatCompletion,
   createRunpodVllmRunSync,
+  extractOpenAiCompatibleChatText,
   extractRunpodVllmText,
+  getRunpodLoadBalancerPing,
+  type RunpodEndpointMode,
 } from "@server/runpod-client";
 import {
   createTogetherChatCompletion,
@@ -25,6 +29,18 @@ import {
 } from "@server/together-client";
 
 const FINAL_REPLY_REWRITE_TEMPERATURE = 0.2;
+const RUNPOD_LOAD_BALANCER_RETRY_DELAY_MS = 5_000;
+const RUNPOD_LOAD_BALANCER_INITIAL_ATTEMPT_TIMEOUT_MS = 30_000;
+const RUNPOD_LOAD_BALANCER_READY_WAIT_SLICE_MS = 60_000;
+const RUNPOD_LOAD_BALANCER_RETRYABLE_MESSAGES = [
+  "Internal Server Error",
+  "Runpod API request failed (500)",
+  "Runpod load balancer is not ready",
+  "All connection attempts failed",
+  "fetch failed",
+  "The operation was aborted",
+  "This operation was aborted",
+] as const;
 
 interface OpenAiTextResponsePayload {
   error?: { message?: string };
@@ -101,28 +117,166 @@ export async function runTogetherGenerate(params: {
 
 export async function runRunpodGenerate(params: {
   endpointId: string;
+  endpointMode: RunpodEndpointMode;
   model: string;
   npcId: string;
   promptFormat: ScenePromptFormat;
   prompt: string;
 }) {
+  const messages = [
+    {
+      role: "system" as const,
+      content: resolveSystemPrompt(params.npcId, params.promptFormat),
+    },
+    {
+      role: "user" as const,
+      content: params.prompt,
+    },
+  ];
+
+  if (params.endpointMode === "load_balancer_vllm") {
+    const response = await runRunpodLoadBalancerChatCompletionWithRetry({
+      endpointId: params.endpointId,
+      model: params.model,
+      messages,
+    });
+    return extractOpenAiCompatibleChatText(response) ?? "";
+  }
+
   const response = await createRunpodVllmRunSync({
     endpointId: params.endpointId,
-    messages: [
-      {
-        role: "system",
-        content: resolveSystemPrompt(params.npcId, params.promptFormat),
-      },
-      {
-        role: "user",
-        content: params.prompt,
-      },
-    ],
+    messages,
     maxTokens: appConfig.finalReply.maxTokens,
     temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
     timeoutMs: appConfig.finalReply.timeoutMs,
   });
   return extractRunpodVllmText(response) ?? "";
+}
+
+async function runRunpodLoadBalancerChatCompletionWithRetry(params: {
+  endpointId: string;
+  model: string;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+}) {
+  const startedAt = Date.now();
+  const deadline = startedAt + appConfig.finalReply.timeoutMs;
+  let lastError: Error | null = null;
+  let chatAttempts = 0;
+
+  while (Date.now() < deadline) {
+    try {
+      if (chatAttempts > 0) {
+        try {
+          await waitForRunpodLoadBalancerReady({
+            endpointId: params.endpointId,
+            deadline: Math.min(
+              deadline,
+              Date.now() + RUNPOD_LOAD_BALANCER_READY_WAIT_SLICE_MS,
+            ),
+          });
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+        }
+      }
+      const remainingMs = Math.max(1_000, deadline - Date.now());
+      return await createRunpodLoadBalancerChatCompletion({
+        endpointId: params.endpointId,
+        model: params.model,
+        messages: params.messages,
+        maxTokens: appConfig.finalReply.maxTokens,
+        temperature: FINAL_REPLY_REWRITE_TEMPERATURE,
+        timeoutMs:
+          chatAttempts === 0
+            ? Math.min(RUNPOD_LOAD_BALANCER_INITIAL_ATTEMPT_TIMEOUT_MS, remainingMs)
+            : remainingMs,
+      });
+    } catch (error) {
+      chatAttempts += 1;
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (!isRetryableRunpodLoadBalancerError(lastError)) {
+        throw lastError;
+      }
+
+      const retryDelayMs = Math.min(
+        RUNPOD_LOAD_BALANCER_RETRY_DELAY_MS,
+        Math.max(0, deadline - Date.now()),
+      );
+      if (retryDelayMs <= 0) {
+        break;
+      }
+      await sleep(retryDelayMs);
+    }
+  }
+
+  throw lastError ?? new Error("Runpod load balancer chat completion timed out.");
+}
+
+async function waitForRunpodLoadBalancerReady(params: {
+  endpointId: string;
+  deadline: number;
+}) {
+  let lastPing: Awaited<ReturnType<typeof getRunpodLoadBalancerPing>> | null = null;
+  let lastError: Error | null = null;
+
+  while (Date.now() < params.deadline) {
+    try {
+      lastPing = await getRunpodLoadBalancerPing(params.endpointId, {
+        timeoutMs: Math.min(5_000, Math.max(1_000, params.deadline - Date.now())),
+      });
+      if (isRunpodLoadBalancerReadyPing(lastPing)) {
+        return;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+
+    const retryDelayMs = Math.min(
+      RUNPOD_LOAD_BALANCER_RETRY_DELAY_MS,
+      Math.max(0, params.deadline - Date.now()),
+    );
+    if (retryDelayMs <= 0) {
+      break;
+    }
+    await sleep(retryDelayMs);
+  }
+
+  const status = lastPing ? `last ping status=${lastPing.status}` : "no ping response";
+  const text = lastPing?.text ? `; last ping body=${lastPing.text.slice(0, 120)}` : "";
+  const error = lastError ? `; last error=${lastError.message}` : "";
+  throw new Error(`Runpod load balancer is not ready: ${status}${text}${error}`);
+}
+
+function isRunpodLoadBalancerReadyPing(
+  ping: Awaited<ReturnType<typeof getRunpodLoadBalancerPing>>,
+) {
+  if (!ping.ok) {
+    return false;
+  }
+
+  const text = ping.text.trim();
+  if (!text) {
+    return false;
+  }
+  if (text === "ready") {
+    return true;
+  }
+
+  try {
+    const payload = JSON.parse(text) as { status?: unknown };
+    return payload.status === "ok";
+  } catch {
+    return text.toLowerCase().includes("ok");
+  }
+}
+
+function isRetryableRunpodLoadBalancerError(error: Error) {
+  return RUNPOD_LOAD_BALANCER_RETRYABLE_MESSAGES.some((message) =>
+    error.message.includes(message),
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function runBasetenGenerate(params: {

@@ -19,6 +19,8 @@ type RunpodNativeVllmResponse = {
   error?: string | null;
 };
 
+export type RunpodEndpointMode = "queue_vllm" | "load_balancer_vllm";
+
 export interface RunpodTemplateRecord {
   id: string;
   name?: string | null;
@@ -26,6 +28,8 @@ export interface RunpodTemplateRecord {
   env?: Record<string, string> | null;
   isServerless?: boolean | null;
   isRunpod?: boolean | null;
+  ports?: string[] | null;
+  volumeMountPath?: string | null;
 }
 
 export interface RunpodEndpointRecord {
@@ -34,10 +38,25 @@ export interface RunpodEndpointRecord {
   templateId?: string | null;
   env?: Record<string, string> | null;
   gpuTypeIds?: string[] | null;
+  dataCenterIds?: string[] | null;
+  networkVolumeId?: string | null;
+  networkVolumeIds?: string[] | null;
   workersMin?: number | null;
   workersMax?: number | null;
   idleTimeout?: number | null;
   flashboot?: boolean | null;
+}
+
+export interface RunpodContainerRegistryAuthRecord {
+  id: string;
+  name?: string | null;
+}
+
+export interface RunpodNetworkVolumeRecord {
+  id: string;
+  name?: string | null;
+  size?: number | null;
+  dataCenterId?: string | null;
 }
 
 export interface RunpodEndpointHealth {
@@ -96,11 +115,43 @@ async function runpodJsonRequest<T>(url: string, init?: RequestInit): Promise<T>
   });
 
   const rawText = await response.text();
-  const payload = rawText ? (JSON.parse(rawText) as unknown) : null;
+  let payload: unknown = null;
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText) as unknown;
+    } catch {
+      payload = { message: rawText };
+    }
+  }
   if (!response.ok) {
     throw new Error(normalizeErrorMessage(payload, `Runpod API request failed (${response.status}).`));
   }
   return payload as T;
+}
+
+async function runpodGraphqlRequest<T>(operationName: string, query: string, variables?: RawRecord) {
+  const payload = await runpodJsonRequest<{
+    data?: T;
+    errors?: Array<{ message?: string | null }>;
+  }>(`https://api.runpod.io/graphql?operation=${encodeURIComponent(operationName)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      variables: variables ?? {},
+    }),
+  });
+
+  if (payload.errors?.length) {
+    const messages = payload.errors
+      .map((entry) => trimToNull(entry.message ?? null))
+      .filter(Boolean)
+      .join("; ");
+    throw new Error(messages || `Runpod GraphQL ${operationName} failed.`);
+  }
+  if (!payload.data) {
+    throw new Error(`Runpod GraphQL ${operationName} response missing data.`);
+  }
+  return payload.data;
 }
 
 function normalizeListResponse<T>(payload: unknown) {
@@ -153,6 +204,10 @@ function normalizeTemplateRecord(payload: unknown): RunpodTemplateRecord | null 
     isServerless:
       typeof record?.isServerless === "boolean" ? record.isServerless : null,
     isRunpod: typeof record?.isRunpod === "boolean" ? record.isRunpod : null,
+    ports: asStringArray(record?.ports),
+    volumeMountPath: trimToNull(
+      typeof record?.volumeMountPath === "string" ? record.volumeMountPath : null,
+    ),
   };
 }
 
@@ -174,10 +229,47 @@ function normalizeEndpointRecord(payload: unknown): RunpodEndpointRecord | null 
     templateId,
     env: asStringRecord(record.env),
     gpuTypeIds: asStringArray(record.gpuTypeIds),
+    dataCenterIds: asStringArray(record.dataCenterIds),
+    networkVolumeId: trimToNull(
+      typeof record.networkVolumeId === "string" ? record.networkVolumeId : null,
+    ),
+    networkVolumeIds: asStringArray(record.networkVolumeIds),
     workersMin: typeof record.workersMin === "number" ? record.workersMin : null,
     workersMax: typeof record.workersMax === "number" ? record.workersMax : null,
     idleTimeout: typeof record.idleTimeout === "number" ? record.idleTimeout : null,
     flashboot: typeof record.flashboot === "boolean" ? record.flashboot : null,
+  };
+}
+
+function normalizeNetworkVolumeRecord(payload: unknown): RunpodNetworkVolumeRecord | null {
+  const record = asRecord(payload);
+  const id = trimToNull(typeof record?.id === "string" ? record.id : null);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    name: trimToNull(typeof record?.name === "string" ? record.name : null),
+    size: typeof record?.size === "number" ? record.size : null,
+    dataCenterId: trimToNull(
+      typeof record?.dataCenterId === "string" ? record.dataCenterId : null,
+    ),
+  };
+}
+
+function normalizeContainerRegistryAuthRecord(
+  payload: unknown,
+): RunpodContainerRegistryAuthRecord | null {
+  const record = asRecord(payload);
+  const id = trimToNull(typeof record?.id === "string" ? record.id : null);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    name: trimToNull(typeof record?.name === "string" ? record.name : null),
   };
 }
 
@@ -187,6 +279,14 @@ export function buildRunpodOpenAiBaseUrl(endpointId: string) {
     throw new Error("Runpod endpointId is required.");
   }
   return `${runpodServiceConfig.serverlessApiBaseUrl}/${trimmed}/openai/v1`;
+}
+
+export function buildRunpodLoadBalancerBaseUrl(endpointId: string) {
+  const trimmed = trimToNull(endpointId);
+  if (!trimmed) {
+    throw new Error("Runpod endpointId is required.");
+  }
+  return `https://${trimmed}.api.runpod.ai`;
 }
 
 function buildRunpodServerlessBaseUrl(endpointId: string) {
@@ -220,6 +320,10 @@ export async function createRunpodTemplate(params: {
   imageName: string;
   env?: Record<string, string>;
   containerDiskInGb?: number;
+  volumeInGb?: number;
+  volumeMountPath?: string;
+  dockerEntrypoint?: string[];
+  dockerStartCmd?: string[];
   isPublic?: boolean;
   ports?: string[];
   readme?: string;
@@ -232,6 +336,10 @@ export async function createRunpodTemplate(params: {
       env: params.env ?? {},
       category: "NVIDIA",
       containerDiskInGb: params.containerDiskInGb ?? 50,
+      ...(params.volumeInGb != null ? { volumeInGb: params.volumeInGb } : {}),
+      ...(params.volumeMountPath ? { volumeMountPath: params.volumeMountPath } : {}),
+      ...(params.dockerEntrypoint ? { dockerEntrypoint: params.dockerEntrypoint } : {}),
+      ...(params.dockerStartCmd ? { dockerStartCmd: params.dockerStartCmd } : {}),
       isPublic: params.isPublic ?? false,
       isServerless: true,
       ports: params.ports ?? [],
@@ -252,6 +360,10 @@ export async function updateRunpodTemplate(
     imageName?: string;
     env?: Record<string, string>;
     containerDiskInGb?: number;
+    volumeInGb?: number;
+    volumeMountPath?: string;
+    dockerEntrypoint?: string[];
+    dockerStartCmd?: string[];
     isPublic?: boolean;
     ports?: string[];
     readme?: string;
@@ -268,10 +380,13 @@ export async function updateRunpodTemplate(
         ...(params.containerDiskInGb != null
           ? { containerDiskInGb: params.containerDiskInGb }
           : {}),
+        ...(params.volumeInGb != null ? { volumeInGb: params.volumeInGb } : {}),
+        ...(params.volumeMountPath ? { volumeMountPath: params.volumeMountPath } : {}),
+        ...(params.dockerEntrypoint ? { dockerEntrypoint: params.dockerEntrypoint } : {}),
+        ...(params.dockerStartCmd ? { dockerStartCmd: params.dockerStartCmd } : {}),
         ...(params.isPublic != null ? { isPublic: params.isPublic } : {}),
         ...(params.ports ? { ports: params.ports } : {}),
         ...(params.readme != null ? { readme: params.readme } : {}),
-        isServerless: true,
       }),
     },
   );
@@ -297,6 +412,70 @@ export async function findRunpodEndpointByName(name: string) {
   return endpoints.find((entry) => trimToNull(entry.name) === targetName) ?? null;
 }
 
+export async function listRunpodContainerRegistryAuths() {
+  const payload = await runpodGraphqlRequest<{
+    myself?: {
+      containerRegistryCreds?: unknown[] | null;
+    } | null;
+  }>(
+    "ListContainerRegistryAuths",
+    `
+      query ListContainerRegistryAuths {
+        myself {
+          id
+          containerRegistryCreds {
+            id
+            name
+          }
+        }
+      }
+    `,
+  );
+
+  return (payload.myself?.containerRegistryCreds ?? [])
+    .map((entry) => normalizeContainerRegistryAuthRecord(entry))
+    .filter((entry): entry is RunpodContainerRegistryAuthRecord => Boolean(entry));
+}
+
+export async function findRunpodContainerRegistryAuthByName(name: string) {
+  const targetName = trimToNull(name);
+  const records = await listRunpodContainerRegistryAuths();
+  return records.find((entry) => trimToNull(entry.name) === targetName) ?? null;
+}
+
+export async function createRunpodContainerRegistryAuth(params: {
+  name: string;
+  username: string;
+  password: string;
+}) {
+  const payload = await runpodGraphqlRequest<{
+    saveRegistryAuth?: unknown;
+  }>(
+    "SaveRegistryAuth",
+    `
+      mutation SaveRegistryAuth($input: SaveRegistryAuthInput) {
+        saveRegistryAuth(input: $input) {
+          id
+          name
+        }
+      }
+    `,
+    {
+      input: {
+        name: params.name,
+        username: params.username,
+        password: params.password,
+      },
+    },
+  );
+
+  const record = normalizeContainerRegistryAuthRecord(payload.saveRegistryAuth);
+  if (!record) {
+    throw new Error("Runpod registry auth create response missing id.");
+  }
+  return record;
+}
+
 export async function getRunpodEndpoint(endpointId: string) {
   const payload = await runpodJsonRequest<unknown>(
     `${runpodServiceConfig.restApiBaseUrl}/endpoints/${encodeURIComponent(endpointId)}`,
@@ -311,6 +490,9 @@ export async function createRunpodEndpoint(params: {
   name: string;
   templateId: string;
   gpuTypeIds: string[];
+  dataCenterIds?: string[];
+  networkVolumeId?: string;
+  networkVolumeIds?: string[];
   gpuCount?: number;
   workersMin?: number;
   workersMax?: number;
@@ -327,6 +509,9 @@ export async function createRunpodEndpoint(params: {
       name: params.name,
       computeType: "GPU",
       gpuTypeIds: params.gpuTypeIds,
+      ...(params.dataCenterIds ? { dataCenterIds: params.dataCenterIds } : {}),
+      ...(params.networkVolumeId ? { networkVolumeId: params.networkVolumeId } : {}),
+      ...(params.networkVolumeIds ? { networkVolumeIds: params.networkVolumeIds } : {}),
       gpuCount: params.gpuCount ?? 1,
       workersMin: params.workersMin ?? 0,
       workersMax: params.workersMax ?? 1,
@@ -350,6 +535,9 @@ export async function updateRunpodEndpoint(
     name?: string;
     templateId?: string;
     gpuTypeIds?: string[];
+    dataCenterIds?: string[];
+    networkVolumeId?: string;
+    networkVolumeIds?: string[];
     gpuCount?: number;
     workersMin?: number;
     workersMax?: number;
@@ -368,6 +556,9 @@ export async function updateRunpodEndpoint(
         ...(params.name ? { name: params.name } : {}),
         ...(params.templateId ? { templateId: params.templateId } : {}),
         ...(params.gpuTypeIds ? { gpuTypeIds: params.gpuTypeIds } : {}),
+        ...(params.dataCenterIds ? { dataCenterIds: params.dataCenterIds } : {}),
+        ...(params.networkVolumeId ? { networkVolumeId: params.networkVolumeId } : {}),
+        ...(params.networkVolumeIds ? { networkVolumeIds: params.networkVolumeIds } : {}),
         ...(params.gpuCount != null ? { gpuCount: params.gpuCount } : {}),
         ...(params.workersMin != null ? { workersMin: params.workersMin } : {}),
         ...(params.workersMax != null ? { workersMax: params.workersMax } : {}),
@@ -388,6 +579,101 @@ export async function updateRunpodEndpoint(
   return record;
 }
 
+export async function createRunpodLoadBalancerEndpoint(params: {
+  name: string;
+  imageName: string;
+  env: Record<string, string>;
+  containerDiskInGb: number;
+  containerRegistryAuthId?: string | null;
+  volumeMountPath: string;
+  ports?: string[];
+  readme?: string;
+  networkVolumeIds?: string[];
+  gpuIds: string;
+  gpuCount?: number;
+  dataCenterIds?: string[];
+  workersMin?: number;
+  workersMax?: number;
+  idleTimeout?: number;
+  executionTimeoutMs?: number;
+  flashboot?: boolean;
+  scalerValue?: number;
+}) {
+  const portString = (params.ports ?? [])
+    .map((entry) => trimToNull(entry))
+    .filter((entry): entry is string => Boolean(entry))
+    .join(",");
+  const env = Object.entries(params.env)
+    .filter((entry): entry is [string, string] => Boolean(trimToNull(entry[0])) && entry[1] != null)
+    .map(([key, value]) => ({ key, value }));
+
+  const payload = await runpodGraphqlRequest<{
+    saveEndpoint?: unknown;
+  }>(
+    "SaveEndpoint",
+    `
+      mutation SaveEndpoint($input: EndpointInput!) {
+        saveEndpoint(input: $input) {
+          id
+          name
+          type
+          gpuIds
+          locations
+          networkVolumeIds {
+            networkVolumeId
+            dataCenterId
+          }
+          scalerType
+          scalerValue
+          workersMin
+          workersMax
+          idleTimeout
+          executionTimeoutMs
+          flashBootType
+          templateId
+        }
+      }
+    `,
+    {
+      input: {
+        name: params.name,
+        type: "LB",
+        idleTimeout: params.idleTimeout ?? 60,
+        locations: params.dataCenterIds?.length ? params.dataCenterIds.join(",") : null,
+        networkVolumeIds: params.networkVolumeIds?.length
+          ? params.networkVolumeIds.map((networkVolumeId) => ({ networkVolumeId }))
+          : null,
+        scalerType: "REQUEST_COUNT",
+        scalerValue: params.scalerValue ?? 1,
+        workersMin: params.workersMin ?? 0,
+        workersMax: params.workersMax ?? 1,
+        executionTimeoutMs: params.executionTimeoutMs ?? 600_000,
+        flashBootType: params.flashboot === false ? "OFF" : "FLASHBOOT",
+        gpuIds: params.gpuIds,
+        gpuCount: params.gpuCount ?? 1,
+        template: {
+          name: `${params.name}__template__${Math.random().toString(36).substring(7)}`,
+          imageName: params.imageName,
+          containerDiskInGb: params.containerDiskInGb,
+          containerRegistryAuthId: params.containerRegistryAuthId ?? "",
+          dockerArgs: "",
+          startScript: "",
+          readme: params.readme ?? "",
+          advancedStart: false,
+          env,
+          ports: portString,
+        },
+      },
+    },
+  );
+
+  const record = normalizeEndpointRecord(payload.saveEndpoint);
+  if (!record) {
+    throw new Error("Runpod load balancer endpoint create response missing endpoint id.");
+  }
+  return record;
+}
+
 export async function deleteRunpodEndpoint(endpointId: string) {
   return runpodJsonRequest<unknown>(
     `${runpodServiceConfig.restApiBaseUrl}/endpoints/${encodeURIComponent(endpointId)}`,
@@ -395,6 +681,47 @@ export async function deleteRunpodEndpoint(endpointId: string) {
       method: "DELETE",
     },
   );
+}
+
+export async function listRunpodNetworkVolumes() {
+  const payload = await runpodJsonRequest<unknown>(
+    `${runpodServiceConfig.restApiBaseUrl}/networkvolumes`,
+    {
+      method: "GET",
+    },
+  );
+  return normalizeListResponse<unknown>(payload)
+    .map((entry) => normalizeNetworkVolumeRecord(entry))
+    .filter((entry): entry is RunpodNetworkVolumeRecord => Boolean(entry));
+}
+
+export async function findRunpodNetworkVolumeByName(name: string) {
+  const volumes = await listRunpodNetworkVolumes();
+  const targetName = trimToNull(name);
+  return volumes.find((entry) => trimToNull(entry.name) === targetName) ?? null;
+}
+
+export async function createRunpodNetworkVolume(params: {
+  name: string;
+  size: number;
+  dataCenterId: string;
+}) {
+  const payload = await runpodJsonRequest<unknown>(
+    `${runpodServiceConfig.restApiBaseUrl}/networkvolumes`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: params.name,
+        size: params.size,
+        dataCenterId: params.dataCenterId,
+      }),
+    },
+  );
+  const record = normalizeNetworkVolumeRecord(payload);
+  if (!record) {
+    throw new Error("Runpod network volume create response missing volume id.");
+  }
+  return record;
 }
 
 export async function getRunpodEndpointHealth(endpointId: string) {
@@ -409,6 +736,38 @@ export async function getRunpodEndpointHealth(endpointId: string) {
 export async function listRunpodOpenAiModels(endpointId: string) {
   return runpodJsonRequest<{ data?: Array<{ id?: string | null }> }>(
     `${buildRunpodOpenAiBaseUrl(endpointId)}/models`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function getRunpodLoadBalancerPing(
+  endpointId: string,
+  params?: { timeoutMs?: number },
+) {
+  const apiKey = getRunpodApiKey();
+  if (!apiKey) {
+    throw new Error("RUNPOD_API_KEY is required.");
+  }
+
+  const response = await fetch(`${buildRunpodLoadBalancerBaseUrl(endpointId)}/ping`, {
+    method: "GET",
+    signal: AbortSignal.timeout(params?.timeoutMs ?? 10_000),
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+  return {
+    ok: response.ok,
+    status: response.status,
+    text: await response.text(),
+  };
+}
+
+export async function listRunpodLoadBalancerModels(endpointId: string) {
+  return runpodJsonRequest<{ data?: Array<{ id?: string | null }> }>(
+    `${buildRunpodLoadBalancerBaseUrl(endpointId)}/v1/models`,
     {
       method: "GET",
     },
@@ -458,6 +817,29 @@ export async function createRunpodOpenAiChatCompletion(params: {
     `${buildRunpodOpenAiBaseUrl(params.endpointId)}/chat/completions`,
     {
       method: "POST",
+      body: JSON.stringify({
+        model: params.model,
+        messages: params.messages,
+        max_tokens: params.maxTokens ?? 160,
+        temperature: params.temperature ?? 0.7,
+      }),
+    },
+  );
+}
+
+export async function createRunpodLoadBalancerChatCompletion(params: {
+  endpointId: string;
+  model: string;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  maxTokens?: number;
+  temperature?: number;
+  timeoutMs?: number;
+}) {
+  return runpodJsonRequest<OpenAiCompatibleChatResponse>(
+    `${buildRunpodLoadBalancerBaseUrl(params.endpointId)}/v1/chat/completions`,
+    {
+      method: "POST",
+      signal: AbortSignal.timeout(params.timeoutMs ?? 180_000),
       body: JSON.stringify({
         model: params.model,
         messages: params.messages,

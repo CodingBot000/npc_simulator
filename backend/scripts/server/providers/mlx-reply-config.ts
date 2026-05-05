@@ -5,6 +5,7 @@ import { databaseConfig } from "@server/config/database";
 import { openAiConfig } from "@server/config/openai";
 import { dbQuery } from "@server/db/postgres";
 import { parseRemoteProviderRef } from "@server/remote-provider";
+import type { RunpodEndpointMode } from "@server/runpod-client";
 import type { ScenePromptFormat } from "@server/providers/mlx-reply-prompts";
 
 export const LOCAL_MLX_BINARY = path.join(PROJECT_ROOT, ".venv", "bin", "mlx_lm.generate");
@@ -28,6 +29,7 @@ export type TogetherAdapterConfig = {
 export type RunpodAdapterConfig = {
   backend: "runpod";
   endpointId: string;
+  endpointMode: RunpodEndpointMode;
   model: string;
   provider: string | null;
   promptFormat: ScenePromptFormat;
@@ -189,6 +191,7 @@ async function getPromotedAdapterConfigForNpc(npcId: string) {
       return {
         backend: "runpod",
         endpointId: remoteProviderRef.endpointId,
+        endpointMode: appConfig.finalReply.remote.runpodEndpointMode,
         model: row.remote_model_name,
         provider: row.remote_provider,
         promptFormat: baseConfig.promptFormat,
@@ -305,6 +308,7 @@ export async function resolveAdapterConfigForNpc(npcId: string): Promise<Resolve
       return {
         backend: "runpod",
         endpointId: remoteProviderRef.endpointId,
+        endpointMode: appConfig.finalReply.remote.runpodEndpointMode,
         model: appConfig.finalReply.remote.modelName,
         provider: appConfig.finalReply.remote.provider,
         promptFormat: appConfig.finalReply.promptFormat,

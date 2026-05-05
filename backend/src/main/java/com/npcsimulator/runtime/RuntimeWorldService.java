@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.npcsimulator.infra.runtime.BackendRuntimeLayout;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -25,6 +27,7 @@ public class RuntimeWorldService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final boolean postgresDatasource;
+    private final Set<String> activeMutationInstances = ConcurrentHashMap.newKeySet();
 
     public RuntimeWorldService(
         RuntimeWorldRepository runtimeWorldRepository,
@@ -72,16 +75,19 @@ public class RuntimeWorldService {
         }
 
         String instanceId = RuntimeWorldHeaderResolver.resolveInstanceId(headers);
-        RuntimeWorldRecord record = withMutationLock(instanceId, () -> {
-            Optional<RuntimeWorldRecord> existing = runtimeWorldRepository.findLatest(instanceId);
-            RuntimeWorldBundle seedBundle = bridgeClient.requestSeedBundle();
-            return runtimeWorldRepository.save(
-                instanceId,
-                seedBundle,
-                existing.orElse(null),
-                resolveLegacyStoragePath(instanceId)
-            );
-        });
+        RuntimeWorldRecord record = withLocalMutationGuard(
+            instanceId,
+            () -> withMutationLock(instanceId, () -> {
+                Optional<RuntimeWorldRecord> existing = runtimeWorldRepository.findLatest(instanceId);
+                RuntimeWorldBundle seedBundle = bridgeClient.requestSeedBundle();
+                return runtimeWorldRepository.save(
+                    instanceId,
+                    seedBundle,
+                    existing.orElse(null),
+                    resolveLegacyStoragePath(instanceId)
+                );
+            })
+        );
 
         return snapshotBuilder.buildWorldSnapshot(record.bundle());
     }
@@ -93,20 +99,27 @@ public class RuntimeWorldService {
 
         String instanceId = RuntimeWorldHeaderResolver.resolveInstanceId(headers);
         JsonNode request = objectMapper.valueToTree(requestBody);
-
-        return withMutationLock(instanceId, () -> {
-            RuntimeWorldRecord current = ensureRuntimeRecordLocked(instanceId);
+        return withLocalMutationGuard(instanceId, () -> {
+            RuntimeWorldRecord current = ensureRuntimeRecord(instanceId);
             JsonNode workerResult = bridgeClient.requestInteractionWorker(request, current.bundle());
             RuntimeWorldBundle nextBundle = bridgeClient.parseBundle(workerResult.path("nextBundle"));
             JsonNode cleanupPaths = workerResult.get("cleanupExportPaths");
 
             try {
-                RuntimeWorldRecord saved = runtimeWorldRepository.save(
-                    instanceId,
-                    nextBundle,
-                    current,
-                    resolveLegacyStoragePath(instanceId)
-                );
+                RuntimeWorldRecord saved = withMutationLock(instanceId, () -> {
+                    RuntimeWorldRecord latest = runtimeWorldRepository.findLatest(instanceId)
+                        .orElseThrow(() -> new RuntimeApiException(
+                            HttpStatus.CONFLICT,
+                            "World state is busy for this instance."
+                        ));
+                    ensureCurrentRecordUnchanged(current, latest);
+                    return runtimeWorldRepository.save(
+                        instanceId,
+                        nextBundle,
+                        latest,
+                        resolveLegacyStoragePath(instanceId)
+                    );
+                });
                 return snapshotBuilder.buildInteractionResponse(workerResult, saved.bundle());
             } catch (RuntimeException error) {
                 artifactCleaner.cleanupExportArtifacts(cleanupPaths);
@@ -167,6 +180,32 @@ public class RuntimeWorldService {
             null,
             resolveLegacyStoragePath(instanceId)
         );
+    }
+
+    private void ensureCurrentRecordUnchanged(RuntimeWorldRecord current, RuntimeWorldRecord latest) {
+        if (current.id() == latest.id() && current.stateVersion() == latest.stateVersion()) {
+            return;
+        }
+
+        throw new RuntimeApiException(
+            HttpStatus.CONFLICT,
+            "답변 생성 중 월드 상태가 변경되었습니다. 다시 시도해주세요."
+        );
+    }
+
+    private <T> T withLocalMutationGuard(String instanceId, RuntimeMutationCallback<T> callback) {
+        if (!activeMutationInstances.add(instanceId)) {
+            throw new RuntimeApiException(
+                HttpStatus.CONFLICT,
+                "World state is busy for this instance."
+            );
+        }
+
+        try {
+            return callback.run();
+        } finally {
+            activeMutationInstances.remove(instanceId);
+        }
     }
 
     private <T> T withMutationLock(String instanceId, RuntimeMutationCallback<T> callback) {

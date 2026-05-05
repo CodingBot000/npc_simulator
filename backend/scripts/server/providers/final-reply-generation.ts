@@ -79,6 +79,7 @@ export async function generateFinalReplyCandidate(params: {
     return {
       text: await runRunpodGenerate({
         endpointId: params.config.endpointId,
+        endpointMode: params.config.endpointMode,
         model: params.config.model,
         npcId,
         promptFormat: params.config.promptFormat,
