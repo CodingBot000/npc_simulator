@@ -162,7 +162,7 @@ If hosted final reply rewrite is enabled, configure one of the remote backends i
 the backend env only:
 
 - Baseten: `FINAL_REPLY_BACKEND=baseten`, `FINAL_REPLY_BASETEN_*`, `BASETEN_API_KEY`
-- RunPod: `FINAL_REPLY_BACKEND=runpod`, `FINAL_REPLY_RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`
+- RunPod: `FINAL_REPLY_BACKEND=runpod`, `FINAL_REPLY_RUNPOD_ENDPOINT_ID`, `FINAL_REPLY_RUNPOD_ENDPOINT_MODE`, `RUNPOD_API_KEY`
 - Together: `FINAL_REPLY_BACKEND=together`, `FINAL_REPLY_REMOTE_MODEL_NAME`, `TOGETHER_API_KEY`
 
 ## Provider Split

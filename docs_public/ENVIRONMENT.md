@@ -120,6 +120,7 @@ For a hosted Llama final reply backend:
 | `FINAL_REPLY_BASETEN_MODEL_URL` | Baseten option | Hosted endpoint URL, supplied privately. |
 | `RUNPOD_API_KEY` | when RunPod backend | RunPod API key, supplied privately. |
 | `FINAL_REPLY_RUNPOD_ENDPOINT_ID` | RunPod option | RunPod endpoint ID, supplied privately. |
+| `FINAL_REPLY_RUNPOD_ENDPOINT_MODE` | RunPod option | `queue_vllm` for RunPod serverless queue endpoints, or `load_balancer_vllm` for RunPod load-balancer OpenAI-compatible endpoints. |
 
 The public model family is Llama 3.1 8B Instruct based. Hosted target details
 are intentionally omitted from public documentation because remote calls can
