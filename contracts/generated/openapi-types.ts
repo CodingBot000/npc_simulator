@@ -686,6 +686,12 @@ export interface components {
             rawOutput: string | null;
             result: components["schemas"]["LlmInteractionResult"] | null;
         };
+        PlayerSuspicionContext: {
+            score: number;
+            targetWeightMultiplier: number;
+            deltaScale: number;
+            reasons: string[];
+        };
         AutonomyRngSample: {
             label: string;
             drawIndex: number;
@@ -735,6 +741,7 @@ export interface components {
             leaderAfter: components["schemas"]["ConsensusBoardEntry"] | null;
             boardTopBefore: components["schemas"]["ConsensusBoardEntry"][];
             boardTopAfter: components["schemas"]["ConsensusBoardEntry"][];
+            playerSuspicion?: components["schemas"]["PlayerSuspicionContext"] | null;
             rngSamples: components["schemas"]["AutonomyRngSample"][];
             steps: components["schemas"]["AutonomyStepResult"][];
         };

@@ -112,3 +112,43 @@ test("overfocused non-player leader redirects pressure toward the safest candida
   assert.notEqual(step.targetNpcId, DEFAULT_PLAYER_ID);
   assert.equal(step.targetNpcId, "engineer");
 });
+
+test("overfocused leader redirects toward the player when manipulation suspicion is high", () => {
+  const fixture = buildAutonomyTestFixture();
+  const rng = createAutonomyRandom(createAutonomyRuntimeState("planner-overfocus-player"));
+  const judgements = fixture.judgements.map((entry) => {
+    if (entry.candidateId === "supervisor") {
+      return {
+        ...entry,
+        sacrificePreference: entry.sacrificePreference + 120,
+      };
+    }
+
+    return entry;
+  });
+
+  const step = planAutonomyStep(
+    {
+      autonomy: fixture.autonomy,
+      npcs: fixture.npcs,
+      judgements,
+      round: fixture.round,
+      recentEvents: fixture.recentEvents,
+      excludedActorNpcIds: [],
+      playerSuspicion: {
+        score: 70,
+        targetWeightMultiplier: 2.1,
+        deltaScale: 1.35,
+        reasons: ["공격 타깃이 짧은 시간 안에 여러 명으로 바뀌었다."],
+      },
+    },
+    rng,
+  );
+
+  assert.ok(step);
+  assert.equal(step.actorNpcId, "supervisor");
+  assert.equal(step.moveType, "redirect");
+  assert.equal(step.secondaryTargetNpcId, "supervisor");
+  assert.equal(step.targetNpcId, DEFAULT_PLAYER_ID);
+  assert.ok((step.targetDeltaScale ?? 1) > 1);
+});

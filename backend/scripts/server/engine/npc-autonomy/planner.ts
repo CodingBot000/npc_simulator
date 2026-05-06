@@ -1,3 +1,4 @@
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type { AutonomyMoveType } from "@sim-shared/types";
 import {
   AUTONOMY_STEP_RULES,
@@ -95,6 +96,7 @@ export function planAutonomyStep(
   const overfocusRedirect = planOverfocusRedirect({
     input,
     board,
+    eventBiases,
   });
 
   if (overfocusRedirect) {
@@ -299,6 +301,11 @@ function buildPlannedStep(params: {
     }),
     tone: defaultTone(params.moveType),
     volatilityScale: params.volatilityScale,
+    targetDeltaScale:
+      params.targetNpcId === DEFAULT_PLAYER_ID
+        ? (params.input.playerSuspicion?.deltaScale ?? 1)
+        : 1,
+    secondaryTargetDeltaScale: 1,
     boardBefore: params.board,
   };
 }

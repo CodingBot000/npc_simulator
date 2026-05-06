@@ -5,6 +5,7 @@ import {
   planAutonomyStep,
   determineAutonomyStepCount,
 } from "@server/engine/npc-autonomy/planner";
+import { buildPlayerSuspicionContext } from "@server/engine/npc-autonomy/player-suspicion";
 import { createAutonomyRandom } from "@server/engine/npc-autonomy/random";
 import type {
   SimulateNpcAutonomyPhaseInput,
@@ -25,6 +26,13 @@ export function simulateNpcAutonomyPhase(
     judgements: input.worldState.judgements,
     npcs: input.worldState.npcs,
   });
+  const playerSuspicion = buildPlayerSuspicionContext({
+    board: boardBefore,
+    round: input.worldState.round,
+    recentEvents: input.recentEvents,
+    recentPlayerMoves: input.recentPlayerMoves,
+    lastPlayerMove: input.lastPlayerMove,
+  });
   const drawCountBefore = input.worldState.autonomyRuntime.drawCount;
 
   if (!scenario.autonomy.enabled) {
@@ -40,6 +48,7 @@ export function simulateNpcAutonomyPhase(
         leaderAfter: boardBefore[0] ?? null,
         boardTopBefore: boardBefore.slice(0, 3),
         boardTopAfter: boardBefore.slice(0, 3),
+        playerSuspicion,
         rngSamples: [],
         steps: [],
       } satisfies AutonomyPhaseResult,
@@ -62,6 +71,7 @@ export function simulateNpcAutonomyPhase(
       round: input.worldState.round,
       recentEvents: input.recentEvents,
       excludedActorNpcIds,
+      playerSuspicion,
     },
     rng,
   );
@@ -76,6 +86,7 @@ export function simulateNpcAutonomyPhase(
         round: input.worldState.round,
         recentEvents: input.recentEvents,
         excludedActorNpcIds,
+        playerSuspicion,
       },
       rng,
     );
@@ -123,6 +134,7 @@ export function simulateNpcAutonomyPhase(
       leaderAfter: boardAfter[0] ?? null,
       boardTopBefore: boardBefore.slice(0, 3),
       boardTopAfter: boardAfter.slice(0, 3),
+      playerSuspicion,
       rngSamples: phaseRngSamples,
       steps,
     } satisfies AutonomyPhaseResult,

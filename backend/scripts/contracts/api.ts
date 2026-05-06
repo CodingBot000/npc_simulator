@@ -54,6 +54,7 @@ export type ShadowComparisonPayload = Schema["ShadowComparisonPayload"];
 export type AutonomyRngSample = Schema["AutonomyRngSample"];
 export type AutonomyOpinionDelta = Schema["AutonomyOpinionDelta"];
 export type AutonomyJudgementChange = Schema["AutonomyJudgementChange"];
+export type PlayerSuspicionContext = Schema["PlayerSuspicionContext"];
 export type AutonomyStepResult = Schema["AutonomyStepResult"];
 export type AutonomyPhaseResult = Schema["AutonomyPhaseResult"];
 export type InspectorPayload = Schema["InspectorPayload"];

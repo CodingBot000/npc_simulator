@@ -64,7 +64,10 @@ export function pickPileOnTarget(params: {
         weight *= opinion <= 50 ? 1 + (50 - opinion) / 50 : 0.82;
 
         if (candidateId === DEFAULT_PLAYER_ID) {
-          weight *= playerTargetPressureScale(board);
+          weight *= playerTargetPressureScale({
+            board,
+            suspicion: input.playerSuspicion,
+          });
         }
 
         for (const bias of eventBiases) {
@@ -198,7 +201,10 @@ export function pickRedirectTargets(params: {
         weight *= opinion <= 50 ? 1 + (50 - opinion) / 50 : 0.86;
 
         if (candidateId === DEFAULT_PLAYER_ID) {
-          weight *= playerTargetPressureScale(board);
+          weight *= playerTargetPressureScale({
+            board,
+            suspicion: input.playerSuspicion,
+          });
         }
 
         for (const bias of eventBiases) {

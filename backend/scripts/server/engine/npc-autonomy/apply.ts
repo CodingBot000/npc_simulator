@@ -165,7 +165,7 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
         distrust: 1,
         hostility: 1,
       },
-      scale: plannedStep.volatilityScale,
+      scale: plannedStep.volatilityScale * (plannedStep.targetDeltaScale ?? 1),
       labelPrefix: `autonomy:${actor.persona.id}:pile-on:${plannedStep.targetNpcId}`,
       rng: input.rng,
     });
@@ -198,7 +198,7 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
         utility: 1,
         sympathy: 1,
       },
-      scale: plannedStep.volatilityScale,
+      scale: plannedStep.volatilityScale * (plannedStep.targetDeltaScale ?? 1),
       labelPrefix: `autonomy:${actor.persona.id}:shield:${plannedStep.targetNpcId}`,
       rng: input.rng,
     });
@@ -230,7 +230,7 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
         distrust: 1,
         hostility: 1,
       },
-      scale: plannedStep.volatilityScale,
+      scale: plannedStep.volatilityScale * (plannedStep.targetDeltaScale ?? 1),
       labelPrefix: `autonomy:${actor.persona.id}:redirect:${plannedStep.targetNpcId}`,
       rng: input.rng,
     });
@@ -260,7 +260,9 @@ export function applyAutonomyStep(input: AutonomyApplyInput): AutonomyApplyResul
           blame: -1,
           distrust: -1,
         },
-        scale: plannedStep.volatilityScale,
+        scale:
+          plannedStep.volatilityScale *
+          (plannedStep.secondaryTargetDeltaScale ?? 1),
         labelPrefix: `autonomy:${actor.persona.id}:redirect:${plannedStep.secondaryTargetNpcId}`,
         rng: input.rng,
       });

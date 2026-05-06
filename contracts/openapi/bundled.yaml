@@ -1273,6 +1273,12 @@ components:
               type: "array"
               items:
                 "$ref": "#/definitions/ConsensusBoardEntry"
+            playerSuspicion:
+              anyOf:
+                -
+                  "$ref": "#/definitions/PlayerSuspicionContext"
+                -
+                  type: "null"
             rngSamples:
               type: "array"
               items:
@@ -1292,6 +1298,25 @@ components:
             - "boardTopAfter"
             - "rngSamples"
             - "steps"
+          additionalProperties: false
+        PlayerSuspicionContext:
+          type: "object"
+          properties:
+            score:
+              type: "number"
+            targetWeightMultiplier:
+              type: "number"
+            deltaScale:
+              type: "number"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "score"
+            - "targetWeightMultiplier"
+            - "deltaScale"
+            - "reasons"
           additionalProperties: false
         AutonomyRngSample:
           type: "object"
@@ -3147,6 +3172,12 @@ components:
               type: "array"
               items:
                 "$ref": "#/definitions/ConsensusBoardEntry"
+            playerSuspicion:
+              anyOf:
+                -
+                  "$ref": "#/definitions/PlayerSuspicionContext"
+                -
+                  type: "null"
             rngSamples:
               type: "array"
               items:
@@ -3166,6 +3197,25 @@ components:
             - "boardTopAfter"
             - "rngSamples"
             - "steps"
+          additionalProperties: false
+        PlayerSuspicionContext:
+          type: "object"
+          properties:
+            score:
+              type: "number"
+            targetWeightMultiplier:
+              type: "number"
+            deltaScale:
+              type: "number"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "score"
+            - "targetWeightMultiplier"
+            - "deltaScale"
+            - "reasons"
           additionalProperties: false
         AutonomyRngSample:
           type: "object"
@@ -4176,6 +4226,12 @@ components:
               type: "array"
               items:
                 "$ref": "#/definitions/ConsensusBoardEntry"
+            playerSuspicion:
+              anyOf:
+                -
+                  "$ref": "#/definitions/PlayerSuspicionContext"
+                -
+                  type: "null"
             rngSamples:
               type: "array"
               items:
@@ -4195,6 +4251,25 @@ components:
             - "boardTopAfter"
             - "rngSamples"
             - "steps"
+          additionalProperties: false
+        PlayerSuspicionContext:
+          type: "object"
+          properties:
+            score:
+              type: "number"
+            targetWeightMultiplier:
+              type: "number"
+            deltaScale:
+              type: "number"
+            reasons:
+              type: "array"
+              items:
+                type: "string"
+          required:
+            - "score"
+            - "targetWeightMultiplier"
+            - "deltaScale"
+            - "reasons"
           additionalProperties: false
         AutonomyRngSample:
           type: "object"

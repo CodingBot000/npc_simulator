@@ -356,6 +356,28 @@ export function InspectorPanel({
                   ? `${activeInspector.autonomyPhase.steps.length} step`
                   : "no follow-up"}
               </p>
+              {activeInspector.autonomyPhase.playerSuspicion ? (
+                <div className="mt-2 text-xs leading-5">
+                  <p>
+                    player suspicion {activeInspector.autonomyPhase.playerSuspicion.score}/100
+                    {" · "}
+                    target ×
+                    {activeInspector.autonomyPhase.playerSuspicion.targetWeightMultiplier.toFixed(2)}
+                    {" · "}
+                    delta ×
+                    {activeInspector.autonomyPhase.playerSuspicion.deltaScale.toFixed(2)}
+                  </p>
+                  {activeInspector.autonomyPhase.playerSuspicion.reasons.length > 0 ? (
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      {activeInspector.autonomyPhase.playerSuspicion.reasons
+                        .slice(0, 3)
+                        .map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
               <ul className="mt-3 space-y-3 leading-6">
                 {activeInspector.autonomyPhase.steps.length > 0 ? (
                   activeInspector.autonomyPhase.steps.map((step, index) => (

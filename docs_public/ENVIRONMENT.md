@@ -31,6 +31,15 @@ RunPod keys, Together keys, SSH paths, or backend storage paths.
 | `SPRING_DATASOURCE_URL` | yes | JDBC URL for PostgreSQL. |
 | `SPRING_DATASOURCE_USERNAME` | yes | PostgreSQL user. |
 | `SPRING_DATASOURCE_PASSWORD` | yes | PostgreSQL password. |
+| `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | recommended | Java backend Hikari max connections. Initial small deploy default is `8`. |
+| `SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE` | recommended | Java backend Hikari idle connection floor. Initial default is `2`. |
+| `SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT_MS` | recommended | Max wait for a Java DB connection before failing. Initial default is `5000`. |
+| `SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS` | recommended | Idle connection retirement time. Initial default is `30000`. |
+| `SPRING_DATASOURCE_HIKARI_MAX_LIFETIME_MS` | recommended | Maximum Java connection lifetime. Initial default is `1800000`. |
+| `SPRING_DATASOURCE_HIKARI_LEAK_DETECTION_THRESHOLD_MS` | recommended | Hikari leak detection threshold. Initial default is `30000`. |
+| `NPC_SIMULATOR_DB_POOL_MAX` | recommended | Max PostgreSQL connections per Node worker process. Initial small deploy default is `2`. |
+| `NPC_SIMULATOR_DB_IDLE_TIMEOUT_MS` | recommended | Node PostgreSQL pool idle timeout. Initial default is `30000`. |
+| `NPC_SIMULATOR_DB_CONNECT_TIMEOUT_MS` | recommended | Node PostgreSQL connection timeout. Initial default is `5000`. |
 | `NPC_SIMULATOR_CORS_ALLOWED_ORIGINS` | yes | Comma-separated browser origins allowed to call the backend. |
 | `NPC_SIMULATOR_DEPLOYMENT_MODE` | yes | `local` or `cloud`. |
 | `NPC_SIMULATOR_ADMIN_TOKEN` | cloud admin operations only | Shared token for direct review admin API calls. Do not expose it to frontend env. |

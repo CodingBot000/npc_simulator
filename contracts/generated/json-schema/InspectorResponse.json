@@ -1208,6 +1208,16 @@
             "$ref": "#/definitions/ConsensusBoardEntry"
           }
         },
+        "playerSuspicion": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlayerSuspicionContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "rngSamples": {
           "type": "array",
           "items": {
@@ -1232,6 +1242,33 @@
         "boardTopAfter",
         "rngSamples",
         "steps"
+      ],
+      "additionalProperties": false
+    },
+    "PlayerSuspicionContext": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "number"
+        },
+        "targetWeightMultiplier": {
+          "type": "number"
+        },
+        "deltaScale": {
+          "type": "number"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "score",
+        "targetWeightMultiplier",
+        "deltaScale",
+        "reasons"
       ],
       "additionalProperties": false
     },

@@ -7,6 +7,12 @@ import type {
   EventLogEntry,
 } from "@backend-contracts/api";
 import type { PersistedNpcState } from "@backend-domain";
+import {
+  DEFAULT_PLAYER_SUSPICION_CONTEXT,
+} from "@server/engine/npc-autonomy/player-suspicion";
+import type {
+  PlayerSuspicionContext,
+} from "@server/engine/npc-autonomy/types";
 
 export function uniqueRecentTags(events: EventLogEntry[]) {
   return Array.from(
@@ -71,7 +77,7 @@ export function playerLabelAwareNames(npcs: PersistedNpcState[]) {
   };
 }
 
-export function playerTargetPressureScale(board: ConsensusBoardEntry[]) {
+function playerRankPressureScale(board: ConsensusBoardEntry[]) {
   const playerIndex = board.findIndex(
     (entry) => entry.candidateId === DEFAULT_PLAYER_ID,
   );
@@ -85,4 +91,20 @@ export function playerTargetPressureScale(board: ConsensusBoardEntry[]) {
   }
 
   return 1.16;
+}
+
+export function playerTargetPressureScale(params: {
+  board: ConsensusBoardEntry[];
+  suspicion?: PlayerSuspicionContext;
+}) {
+  const playerIndex = params.board.findIndex(
+    (entry) => entry.candidateId === DEFAULT_PLAYER_ID,
+  );
+  const suspicion = params.suspicion ?? DEFAULT_PLAYER_SUSPICION_CONTEXT;
+  const cap = playerIndex <= 0 ? 1 : 2.2;
+
+  return Math.min(
+    playerRankPressureScale(params.board) * suspicion.targetWeightMultiplier,
+    cap,
+  );
 }

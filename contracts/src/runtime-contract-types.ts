@@ -343,6 +343,13 @@ export interface AutonomyJudgementChange {
   dimensionDelta: Partial<JudgementDimensions>;
 }
 
+export interface PlayerSuspicionContext {
+  score: number;
+  targetWeightMultiplier: number;
+  deltaScale: number;
+  reasons: string[];
+}
+
 export interface AutonomyStepResult {
   actorNpcId: string;
   actorLabel: string;
@@ -368,6 +375,7 @@ export interface AutonomyPhaseResult {
   leaderAfter: ConsensusBoardEntry | null;
   boardTopBefore: ConsensusBoardEntry[];
   boardTopAfter: ConsensusBoardEntry[];
+  playerSuspicion?: PlayerSuspicionContext | null;
   rngSamples: AutonomyRngSample[];
   steps: AutonomyStepResult[];
 }

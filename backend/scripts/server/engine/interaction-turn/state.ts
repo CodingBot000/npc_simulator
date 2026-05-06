@@ -1,4 +1,7 @@
-import { NPC_ACTION_LABELS } from "@backend-support/constants";
+import {
+  DEFAULT_PLAYER_ID,
+  NPC_ACTION_LABELS,
+} from "@backend-support/constants";
 import type {
   ConsensusBoardEntry,
   InteractionRequestPayload,
@@ -9,7 +12,10 @@ import type {
 } from "@backend-contracts/api";
 import type { WorldStateFile } from "@backend-persistence";
 import { simulateNpcAutonomyPhase } from "@server/engine/npc-autonomy";
-import type { SimulateNpcAutonomyPhaseResult } from "@server/engine/npc-autonomy/types";
+import type {
+  RecentPlayerMoveContext,
+  SimulateNpcAutonomyPhaseResult,
+} from "@server/engine/npc-autonomy/types";
 import { persistNpc } from "@server/engine/interaction-context";
 import {
   applyInteractionPressure,
@@ -38,6 +44,7 @@ export interface InteractionTurnStateTransitionInput {
   roundBefore: number;
   turnStartedAtMs: number;
   interactionTraceEntries: InteractionTraceEntry[];
+  recentPlayerMoves: RecentPlayerMoveContext[];
 }
 
 export interface InteractionTurnStateTransitionResult {
@@ -64,7 +71,28 @@ export function applyInteractionTurnStateTransition(
     roundBefore,
     turnStartedAtMs,
     interactionTraceEntries,
+    recentPlayerMoves,
   } = input;
+  const consensusBoardBeforePressure = buildConsensusBoard({
+    judgements: worldState.judgements,
+    npcs: worldState.npcs,
+  });
+  const leaderBeforePressure = consensusBoardBeforePressure[0] ?? null;
+  const lowestPressureCandidateIds = new Set(
+    [...consensusBoardBeforePressure]
+      .sort((left, right) => left.totalPressure - right.totalPressure)
+      .slice(0, 2)
+      .map((entry) => entry.candidateId),
+  );
+  const targetBeforePressure = effectiveTargetNpcId
+    ? consensusBoardBeforePressure.find(
+        (entry) => entry.candidateId === effectiveTargetNpcId,
+      ) ?? null
+    : null;
+  const playerBeforePressure =
+    consensusBoardBeforePressure.find(
+      (entry) => entry.candidateId === DEFAULT_PLAYER_ID,
+    ) ?? null;
 
   const { npc: nextNpc, relationshipDelta } = nextSpeakerState({
     npc,
@@ -125,6 +153,20 @@ export function applyInteractionTurnStateTransition(
       ...(roundEventEntry ? [roundEventEntry] : []),
       ...worldState.events.slice(0, 4),
     ],
+    recentPlayerMoves,
+    lastPlayerMove: {
+      round: roundBefore,
+      action: request.action,
+      targetNpcId: effectiveTargetNpcId,
+      impactTags: llmResult.structuredImpact.impactTags,
+      pressureChanges: pressureUpdate.pressureChanges,
+      targetPressureBefore: targetBeforePressure?.totalPressure ?? null,
+      playerPressureBefore: playerBeforePressure?.totalPressure ?? null,
+      targetWasLowPressure:
+        !!effectiveTargetNpcId && lowestPressureCandidateIds.has(effectiveTargetNpcId),
+      leaderBeforeCandidateId: leaderBeforePressure?.candidateId ?? null,
+      leaderBeforePressure: leaderBeforePressure?.totalPressure ?? null,
+    },
   });
   const consensusBoard = buildConsensusBoard({
     judgements: worldState.judgements,

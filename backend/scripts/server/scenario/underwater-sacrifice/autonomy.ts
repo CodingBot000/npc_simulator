@@ -1,3 +1,4 @@
+import { DEFAULT_PLAYER_ID } from "@backend-support/constants";
 import type { ScenarioAutonomyConfig } from "@server/scenario/types";
 
 export const underwaterAutonomyConfig: Omit<
@@ -152,6 +153,16 @@ export const underwaterAutonomyConfig: Omit<
       tag: "pressure",
       moveWeights: {
         pile_on: 1.12,
+        redirect: 1.08,
+      },
+    },
+    {
+      tag: "player-risk",
+      targetWeights: {
+        [DEFAULT_PLAYER_ID]: 1.28,
+      },
+      moveWeights: {
+        pile_on: 1.08,
         redirect: 1.08,
       },
     },

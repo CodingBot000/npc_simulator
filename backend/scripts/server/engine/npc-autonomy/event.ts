@@ -13,6 +13,10 @@ function buildSummary(params: {
   const { actorLabel, moveType, targetLabel, secondaryTargetLabel } = params;
 
   if (moveType === "pile_on") {
+    if (targetLabel === "당신") {
+      return `${actorLabel}이(가) 당신이 책임선을 움직이는 방식 자체를 문제 삼았다.`;
+    }
+
     return `${actorLabel}이(가) 다시 ${targetLabel ?? "특정 인물"} 쪽 책임선을 밀었다.`;
   }
 
@@ -21,6 +25,10 @@ function buildSummary(params: {
   }
 
   if (moveType === "redirect") {
+    if (targetLabel === "당신") {
+      return `${actorLabel}이(가) ${secondaryTargetLabel ?? "한쪽"}에 몰리던 시선을 판을 움직이는 당신 쪽으로 되돌리려 했다.`;
+    }
+
     return `${actorLabel}이(가) ${secondaryTargetLabel ?? "한쪽"}에 몰리던 시선을 ${targetLabel ?? "다른 쪽"}으로 조금 돌리려 했다.`;
   }
 

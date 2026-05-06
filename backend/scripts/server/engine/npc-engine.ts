@@ -14,6 +14,7 @@ import {
 import { isPersistedNpcId } from "@server/engine/interaction-context";
 import { prepareInteractionTurnContext } from "@server/engine/interaction-turn/context";
 import { commitResolvedEpisodeExport } from "@server/engine/interaction-turn/export";
+import { buildRecentPlayerMoveHistory } from "@server/engine/interaction-turn/player-move-history";
 import { commitInteractionTurnRecords } from "@server/engine/interaction-turn/records";
 import { applyInteractionTurnStateTransition } from "@server/engine/interaction-turn/state";
 import {
@@ -120,6 +121,7 @@ export async function runInteractionTurn(
     ? llmResult.structuredImpact.targetNpcId
     : null;
   const effectiveTargetNpcId = request.targetNpcId ?? structuredTargetNpcId;
+  const recentPlayerMoves = buildRecentPlayerMoveHistory(interactionLog.entries);
 
   const {
     timestamp,
@@ -140,6 +142,7 @@ export async function runInteractionTurn(
     roundBefore,
     turnStartedAtMs,
     interactionTraceEntries,
+    recentPlayerMoves,
   });
 
   const memoryTrace = startInteractionTraceStage(
