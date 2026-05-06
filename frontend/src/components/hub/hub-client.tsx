@@ -394,13 +394,9 @@ export function HubClient({ initialWorld }: HubClientProps) {
         <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
           <MissionBriefCard
             busy={busy}
-            conversationDebugEnabled={conversationDebugEnabled}
             round={world.round}
             scoring={world.scoring}
             world={world.world}
-            onToggleConversationDebug={() => {
-              setConversationDebugEnabled((current) => !current);
-            }}
             onRestart={() => {
               void resetWorld();
             }}
@@ -447,7 +443,7 @@ export function HubClient({ initialWorld }: HubClientProps) {
 
           <div className="grid gap-4 grid-cols-[minmax(0,6.5fr)_minmax(360px,3.5fr)] items-start">
             <div className="min-w-0">
-            <InteractionPanel
+              <InteractionPanel
                 npc={selectedNpc}
                 conversation={conversation}
                 draft={draft}
@@ -480,8 +476,11 @@ export function HubClient({ initialWorld }: HubClientProps) {
                   setDraftWarning(null);
                 }}
                 onSubmit={handleSubmit}
-              onAction={handleAction}
-            />
+                onAction={handleAction}
+                onToggleConversationDebug={() => {
+                  setConversationDebugEnabled((current) => !current);
+                }}
+              />
             </div>
 
             <div className="min-w-0">

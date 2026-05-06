@@ -26,6 +26,7 @@ export function InteractionConversationThread({
   replyElapsedByMessageId,
   conversationCardClassName,
   onOpenTrace,
+  onToggleConversationDebug,
 }: {
   npc: NpcState;
   conversation: ConversationMessage[];
@@ -36,6 +37,7 @@ export function InteractionConversationThread({
   replyElapsedByMessageId: Record<string, number>;
   conversationCardClassName: string;
   onOpenTrace: () => void;
+  onToggleConversationDebug: () => void;
 }) {
   const conversationViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -85,6 +87,18 @@ export function InteractionConversationThread({
                 처리 기록
               </button>
             ) : null}
+            <button
+              type="button"
+              aria-pressed={conversationDebugEnabled}
+              onClick={onToggleConversationDebug}
+              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] transition ${
+                conversationDebugEnabled
+                  ? "border-[var(--teal)] bg-[var(--teal)] text-white hover:brightness-105"
+                  : "border-[var(--panel-border)] bg-white/10 text-[var(--ink-muted)] hover:border-[var(--teal)] hover:bg-white/18"
+              }`}
+            >
+              대화창 디버그 {conversationDebugEnabled ? "On" : "Off"}
+            </button>
           </div>
           <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
             방금 누구에게 뭐라고 했는지와 돌아온 말을 여기서 읽는다.

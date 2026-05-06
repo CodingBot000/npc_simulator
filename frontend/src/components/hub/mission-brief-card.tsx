@@ -7,11 +7,9 @@ import type {
 
 interface MissionBriefCardProps {
   busy: boolean;
-  conversationDebugEnabled: boolean;
   round: RoundState;
   scoring?: ScenarioScoringSnapshot | null;
   world: WorldMeta;
-  onToggleConversationDebug: () => void;
   onRestart: () => void;
 }
 
@@ -45,11 +43,9 @@ function resolutionRuleText(
 
 export function MissionBriefCard({
   busy,
-  conversationDebugEnabled,
   round,
   scoring,
   world,
-  onToggleConversationDebug,
   onRestart,
 }: MissionBriefCardProps) {
   return (
@@ -60,18 +56,6 @@ export function MissionBriefCard({
       className="play-session-card"
       trailing={
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-pressed={conversationDebugEnabled}
-            onClick={onToggleConversationDebug}
-            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-              conversationDebugEnabled
-                ? "border-[var(--teal)] bg-[var(--teal)] text-white hover:brightness-105"
-                : "border-[var(--panel-border)] bg-white/10 text-foreground hover:border-[var(--teal)] hover:bg-white/18"
-            }`}
-          >
-            대화창 디버그 {conversationDebugEnabled ? "On" : "Off"}
-          </button>
           <button
             type="button"
             onClick={onRestart}

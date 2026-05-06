@@ -31,6 +31,7 @@ export interface InteractionPanelProps {
   onTargetChange: (value: string | null) => void;
   onSubmit: () => void;
   onAction: (action: PlayerAction, inputMode: "action" | "combined") => void;
+  onToggleConversationDebug: () => void;
 }
 
 export type PlayInputMode = "intent_only" | "free_text" | "combined";
@@ -47,4 +48,3 @@ export type InteractionTraceTurn = {
   traceEntries: InteractionTraceEntry[];
   frontendElapsedMs: number | null;
 };
-

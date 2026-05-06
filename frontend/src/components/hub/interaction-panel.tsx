@@ -37,6 +37,7 @@ export function InteractionPanel({
   onTargetChange,
   onSubmit,
   onAction,
+  onToggleConversationDebug,
 }: InteractionPanelProps) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [traceModalOpen, setTraceModalOpen] = useState(false);
@@ -246,6 +247,7 @@ export function InteractionPanel({
             replyElapsedByMessageId={replyElapsedByMessageId}
             conversationCardClassName={conversationCardClassName}
             onOpenTrace={() => setTraceModalOpen(true)}
+            onToggleConversationDebug={onToggleConversationDebug}
           />
 
           <InteractionControls
@@ -272,4 +274,3 @@ export function InteractionPanel({
     </>
   );
 }
-
