@@ -5,9 +5,12 @@ import type {
 } from "@backend-contracts/api";
 import { appConfig } from "@server/config";
 import {
+  extractFinalReplyProviderDiagnostics,
   generateFinalReplyCandidate,
   isBaseten400RequestError,
   OPENAI_FALLBACK_FROM_BASETEN_400_MARKER,
+  OPENAI_FALLBACK_FROM_RUNPOD_ERROR_MARKER,
+  withFinalReplyProviderDecision,
 } from "@server/providers/final-reply-generation";
 import {
   finishFinalReplyTraceStage as finishInteractionTraceStage,
@@ -23,6 +26,7 @@ import {
 import {
   buildOpenAiFallbackReplyConfig,
   resolveAdapterConfigForNpc,
+  type ResolvedAdapterConfig,
 } from "@server/providers/mlx-reply-config";
 import {
   buildPrompt,
@@ -105,12 +109,14 @@ export async function maybeGenerateFinalReply(
       "ok",
       "rewrite 후보를 생성했습니다.",
       generated.sourceRef,
+      generated.diagnostics ?? null,
     );
   } catch (error) {
-    const openAiFallbackConfig =
-      adapterConfig.backend === "baseten" && isBaseten400RequestError(error)
-        ? buildOpenAiFallbackReplyConfig()
-        : null;
+    const openAiFallback = resolveOpenAiRequestFallback(adapterConfig, error);
+    const requestDiagnostics = withFinalReplyProviderDecision(
+      extractFinalReplyProviderDiagnostics(error),
+      openAiFallback ? "fallback_to_openai" : "fallback_to_base_reply",
+    );
     const rejectionReason =
       error instanceof Error && error.message.trim()
         ? `rewrite 요청 실패: ${error.message.trim()}`
@@ -121,19 +127,21 @@ export async function maybeGenerateFinalReply(
       "failed",
       rejectionReason,
       adapterConfig.backend,
+      requestDiagnostics,
     );
-    if (openAiFallbackConfig) {
+    if (openAiFallback) {
       debugFailures.push(
         buildRewriteFailureDebugEntry({
           summary: rejectionReason,
           sourceRef: adapterConfig.backend,
+          diagnostics: requestDiagnostics,
           kind: "request_error",
         }),
       );
       const openAiFallbackTrace = startInteractionTraceStage(
         traceContext,
         "reply_rewrite_retry_request",
-        "Baseten 400 -> OpenAI fallback",
+        openAiFallback.traceLabel,
         null,
         "openai",
       );
@@ -141,7 +149,7 @@ export async function maybeGenerateFinalReply(
         const fallbackGenerated = await generateFinalReplyCandidate({
           input,
           candidatePrompt: prompt,
-          config: openAiFallbackConfig,
+          config: openAiFallback.config,
           mode,
         });
         if (!fallbackGenerated) {
@@ -149,16 +157,21 @@ export async function maybeGenerateFinalReply(
         }
         generated = {
           ...fallbackGenerated,
-          sourceRef: `${fallbackGenerated.sourceRef}:${OPENAI_FALLBACK_FROM_BASETEN_400_MARKER}`,
+          sourceRef: `${fallbackGenerated.sourceRef}:${openAiFallback.sourceMarker}`,
         };
         finishInteractionTraceStage(
           traceContext,
           openAiFallbackTrace,
           "ok",
-          "Baseten 400으로 OpenAI fallback을 사용했습니다.",
+          openAiFallback.successDetail,
           generated.sourceRef,
+          generated.diagnostics ?? null,
         );
       } catch (fallbackError) {
+        const fallbackDiagnostics = withFinalReplyProviderDecision(
+          extractFinalReplyProviderDiagnostics(fallbackError),
+          "fallback_to_base_reply",
+        );
         const fallbackRejectionReason =
           fallbackError instanceof Error && fallbackError.message.trim()
             ? `OpenAI fallback 요청 실패: ${fallbackError.message.trim()}`
@@ -169,11 +182,13 @@ export async function maybeGenerateFinalReply(
           "failed",
           fallbackRejectionReason,
           "openai",
+          fallbackDiagnostics,
         );
         debugFailures.push(
           buildRewriteFailureDebugEntry({
             summary: fallbackRejectionReason,
             sourceRef: "openai",
+            diagnostics: fallbackDiagnostics,
             kind: "request_error",
           }),
         );
@@ -191,6 +206,7 @@ export async function maybeGenerateFinalReply(
         buildRewriteFailureDebugEntry({
           summary: rejectionReason,
           sourceRef: adapterConfig.backend,
+          diagnostics: requestDiagnostics,
           kind: "request_error",
         }),
       );
@@ -285,3 +301,33 @@ export async function maybeGenerateFinalReply(
 }
 
 export const maybeGenerateReplyWithLocalAdapter = maybeGenerateFinalReply;
+
+function resolveOpenAiRequestFallback(
+  adapterConfig: ResolvedAdapterConfig,
+  error: unknown,
+) {
+  const config = buildOpenAiFallbackReplyConfig();
+  if (!config) {
+    return null;
+  }
+
+  if (adapterConfig.backend === "runpod") {
+    return {
+      config,
+      sourceMarker: OPENAI_FALLBACK_FROM_RUNPOD_ERROR_MARKER,
+      traceLabel: "RunPod 실패 -> OpenAI fallback",
+      successDetail: "RunPod rewrite 실패로 OpenAI fallback을 사용했습니다.",
+    } as const;
+  }
+
+  if (adapterConfig.backend === "baseten" && isBaseten400RequestError(error)) {
+    return {
+      config,
+      sourceMarker: OPENAI_FALLBACK_FROM_BASETEN_400_MARKER,
+      traceLabel: "Baseten 400 -> OpenAI fallback",
+      successDetail: "Baseten 400으로 OpenAI fallback을 사용했습니다.",
+    } as const;
+  }
+
+  return null;
+}

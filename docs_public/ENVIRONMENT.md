@@ -15,11 +15,15 @@ delivered separately through `.env`, platform variables, or a secret manager.
 
 | Key | Required | Description |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | yes | Backend API origin reachable from the user's browser. |
+| `VITE_API_BASE_URL` | optional locally, yes for split deploy | Backend API origin reachable from the user's browser. Leave blank in Vite local dev to use the same-origin dev proxy. |
 | `VITE_SHOW_INTERACTION_FAILURE_DEBUG` | optional | Enables additional browser-side debug detail. |
 
 Frontend env must not contain database credentials, OpenAI keys, Baseten keys,
 RunPod keys, Together keys, SSH paths, or backend storage paths.
+
+Vite local dev server proxy settings are server-side only. Use `BACKEND_PORT`
+or `NPC_SIMULATOR_DEV_PROXY_TARGET` in the shell/root local env when the local
+backend is not on `http://127.0.0.1:8080`.
 
 ## Backend Core Variables
 

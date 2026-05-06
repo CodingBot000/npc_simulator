@@ -100,9 +100,15 @@ npm --workspace frontend run dev
 Only browser-facing keys belong in this file:
 
 ```dotenv
-VITE_API_BASE_URL=http://localhost:8080
+# Leave blank to use the Vite dev proxy for a local backend.
+# Set to a full URL only when testing against a remote backend.
+VITE_API_BASE_URL=
 VITE_SHOW_INTERACTION_FAILURE_DEBUG=true
 ```
+
+The dev proxy targets `http://127.0.0.1:${BACKEND_PORT:-8080}` by default.
+Set `BACKEND_PORT` or `NPC_SIMULATOR_DEV_PROXY_TARGET` in the shell when the
+local backend is listening somewhere else.
 
 ## Backend-Only Local Run
 

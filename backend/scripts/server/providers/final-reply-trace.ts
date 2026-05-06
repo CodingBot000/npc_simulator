@@ -14,6 +14,7 @@ export type PendingFinalReplyTrace = {
   label: string;
   detail?: string | null;
   sourceRef?: string | null;
+  diagnostics?: Record<string, unknown> | null;
   startedAtMs: number;
   startedAtAbsoluteMs: number;
 };
@@ -24,6 +25,7 @@ export function startFinalReplyTraceStage(
   label: string,
   detail?: string | null,
   sourceRef?: string | null,
+  diagnostics?: Record<string, unknown> | null,
 ): PendingFinalReplyTrace {
   const startedAtAbsoluteMs = Date.now();
   return {
@@ -31,6 +33,7 @@ export function startFinalReplyTraceStage(
     label,
     detail,
     sourceRef,
+    diagnostics,
     startedAtMs: Math.max(0, startedAtAbsoluteMs - context.originMs),
     startedAtAbsoluteMs,
   };
@@ -42,6 +45,7 @@ export function finishFinalReplyTraceStage(
   status: InteractionTraceStatus,
   detail?: string | null,
   sourceRef?: string | null,
+  diagnostics?: Record<string, unknown> | null,
 ) {
   const finishedAtAbsoluteMs = Date.now();
   const finishedAtMs = Math.max(0, finishedAtAbsoluteMs - context.originMs);
@@ -54,5 +58,6 @@ export function finishFinalReplyTraceStage(
     durationMs: Math.max(0, finishedAtAbsoluteMs - pending.startedAtAbsoluteMs),
     detail: detail ?? pending.detail ?? null,
     sourceRef: sourceRef ?? pending.sourceRef ?? null,
+    diagnostics: diagnostics ?? pending.diagnostics ?? null,
   });
 }

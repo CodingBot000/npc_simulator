@@ -2,7 +2,10 @@ import type { SystemInfo } from "@/lib/api-contract";
 import {
   buildClientApiUrl,
 } from "@/lib/api-client";
-import { resolveClientApiBaseUrlConfig } from "@/lib/runtime-config";
+import {
+  resolveClientApiBaseUrlConfig,
+  type ClientApiBaseUrlSource,
+} from "@/lib/runtime-config";
 
 export type ApiDiagnosticStatus =
   | "checking"
@@ -14,7 +17,7 @@ export type ApiDiagnosticStatus =
 
 export interface ApiDiagnosticsSnapshot {
   apiBaseUrl: string;
-  apiBaseUrlSource: "runtime_config" | "vite_env" | "default_localhost";
+  apiBaseUrlSource: ClientApiBaseUrlSource;
   browserOrigin: string;
   apiOrigin: string;
   crossOrigin: boolean;

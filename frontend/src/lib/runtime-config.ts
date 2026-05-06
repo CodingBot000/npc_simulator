@@ -1,6 +1,7 @@
 export type ClientApiBaseUrlSource =
   | "runtime_config"
   | "vite_env"
+  | "default_dev_proxy"
   | "default_localhost";
 
 export interface FrontendRuntimeConfig {
@@ -22,6 +23,20 @@ export function getWindowRuntimeConfig(): FrontendRuntimeConfig {
   return window.__NPC_SIMULATOR_CONFIG__ ?? {};
 }
 
+function defaultApiBaseUrlConfig() {
+  if (import.meta.env.DEV) {
+    return {
+      apiBaseUrl: "",
+      source: "default_dev_proxy" as ClientApiBaseUrlSource,
+    };
+  }
+
+  return {
+    apiBaseUrl: "http://localhost:8080",
+    source: "default_localhost" as ClientApiBaseUrlSource,
+  };
+}
+
 export function resolveClientApiBaseUrlConfig() {
   const runtimeConfigUrl = normalizeBaseUrl(getWindowRuntimeConfig().apiBaseUrl);
   if (runtimeConfigUrl) {
@@ -39,9 +54,5 @@ export function resolveClientApiBaseUrlConfig() {
     };
   }
 
-  return {
-    apiBaseUrl: "http://localhost:8080",
-    source: "default_localhost" as ClientApiBaseUrlSource,
-  };
+  return defaultApiBaseUrlConfig();
 }
-

@@ -276,6 +276,7 @@ export interface InteractionTraceEntry {
   durationMs: number;
   detail?: string | null;
   sourceRef?: string | null;
+  diagnostics?: Record<string, unknown> | null;
 }
 
 export type InteractionJudgeStatus =
@@ -302,6 +303,7 @@ export interface InteractionFailureDebugEntry {
   kind: InteractionFailureDebugKind;
   summary: string;
   sourceRef?: string | null;
+  diagnostics?: Record<string, unknown> | null;
   issues?: string[];
   candidateReplyText?: string | null;
   candidateSelectedActionType?: AllowedActionType | null;

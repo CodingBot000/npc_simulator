@@ -33,6 +33,7 @@ export function summarizeRewriteRejection(params: {
 export function buildRewriteFailureDebugEntry(params: {
   summary: string;
   sourceRef: string | null;
+  diagnostics?: Record<string, unknown> | null;
   validationIssues?: ReturnType<typeof validateReplyAgainstContract>["issues"];
   candidateReplyText?: string | null;
   kind: InteractionFailureDebugEntry["kind"];
@@ -47,6 +48,7 @@ export function buildRewriteFailureDebugEntry(params: {
     kind: params.kind,
     summary: params.summary,
     sourceRef: params.sourceRef,
+    diagnostics: params.diagnostics ?? null,
     issues,
     candidateReplyText: params.candidateReplyText ?? null,
   } satisfies InteractionFailureDebugEntry;

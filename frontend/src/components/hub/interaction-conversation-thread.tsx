@@ -6,8 +6,7 @@ import {
   formatFailureDebugStage,
   formatReplyRewriteReason,
   formatReplyRewriteSource,
-  formatTraceDuration,
-  formatTraceStatus,
+  buildVllmRewriteDiagnostics,
   SHOW_INTERACTION_FAILURE_DEBUG,
 } from "@/components/hub/interaction-panel-formatters";
 import type {
@@ -15,6 +14,7 @@ import type {
   FailureDebugEntry,
 } from "@/components/hub/interaction-panel-types";
 import type { NpcState } from "@/lib/types";
+import { VllmRewriteDiagnosticsCard } from "@/components/hub/vllm-rewrite-diagnostics-card";
 
 export function InteractionConversationThread({
   npc,
@@ -169,6 +169,14 @@ function InteractionMessageCard({
   const failureDebugEntries: FailureDebugEntry[] =
     message.speaker === "npc" ? message.failureDebug ?? [] : [];
   const traceEntries = message.speaker === "npc" ? message.interactionTrace ?? [] : [];
+  const vllmDiagnostics =
+    message.speaker === "npc"
+      ? buildVllmRewriteDiagnostics({
+          traceEntries,
+          failureDebugEntries,
+          replyRewriteSource: message.replyRewriteSource,
+        })
+      : null;
   const failed = message.deliveryStatus === "failed";
 
   return (
@@ -204,35 +212,8 @@ function InteractionMessageCard({
           ) : null}
         </div>
       </div>
-      {conversationDebugEnabled && message.speaker === "npc" ? (
-        <div className="mt-2 space-y-2 rounded-2xl border border-[rgba(76,194,200,0.2)] bg-[rgba(76,194,200,0.07)] px-3 py-3 text-[11px] leading-5 text-[var(--ink-muted)]">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-foreground">debug</span>
-            {replyRewriteLabel ? <span>{replyRewriteLabel}</span> : null}
-            {message.replyJudge ? (
-              <span>
-                judge={message.replyJudge.status}
-                {message.replyJudge.durationMs !== null
-                  ? `/${formatTraceDuration(message.replyJudge.durationMs)}`
-                  : ""}
-              </span>
-            ) : null}
-          </div>
-          {traceEntries.length > 0 ? (
-            <div className="space-y-1">
-              {traceEntries.map((entry, index) => (
-                <p key={`${message.id}-inline-trace-${index}`} className="break-words">
-                  {entry.label}: {formatTraceStatus(entry.status)} ·{" "}
-                  {formatTraceDuration(entry.durationMs)}
-                  {entry.sourceRef ? ` · ${entry.sourceRef}` : ""}
-                  {entry.detail ? ` · ${entry.detail}` : ""}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <p>trace 없음</p>
-          )}
-        </div>
+      {conversationDebugEnabled && vllmDiagnostics ? (
+        <VllmRewriteDiagnosticsCard diagnostics={vllmDiagnostics} />
       ) : null}
       {conversationDebugEnabled && replyRewriteReason ? (
         <p className="mt-2 text-[11px] leading-5 text-[var(--danger)]">

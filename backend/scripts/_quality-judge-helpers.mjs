@@ -1009,7 +1009,7 @@ function getEvalModelCandidates(explicitModel) {
     getScriptEnv("EVAL_MODEL", PROJECT_ROOT),
     getScriptEnv("PREMIUM_MODEL", PROJECT_ROOT),
     getScriptEnv("OPENAI_MODEL", PROJECT_ROOT),
-    "gpt-5.4",
+    "gpt-5.4-mini",
     getScriptEnv("EVAL_FALLBACK_MODEL", PROJECT_ROOT),
     getScriptEnv("PREMIUM_FALLBACK_MODEL", PROJECT_ROOT),
     getScriptEnv("LOW_COST_FALLBACK_MODEL", PROJECT_ROOT),

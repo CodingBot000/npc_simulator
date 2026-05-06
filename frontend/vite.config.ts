@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, URL } from "node:url";
-import type { Plugin } from "vite";
+import type { Plugin, ProxyOptions } from "vite";
 
 const SOURCE_VERSION_MODULE_ID = "virtual:npc-simulator-source-version";
 const RESOLVED_SOURCE_VERSION_MODULE_ID = `\0${SOURCE_VERSION_MODULE_ID}`;
@@ -48,6 +48,25 @@ const IGNORED_SOURCE_DIRS = new Set([
   "dist",
   "node_modules",
 ]);
+
+function resolveDevProxyTarget() {
+  return (
+    process.env.NPC_SIMULATOR_DEV_PROXY_TARGET ??
+    `http://127.0.0.1:${process.env.BACKEND_PORT ?? "8080"}`
+  );
+}
+
+function createDevProxyOptions(): ProxyOptions {
+  return {
+    target: resolveDevProxyTarget(),
+    changeOrigin: true,
+    configure(proxy) {
+      proxy.on("proxyReq", (proxyReq) => {
+        proxyReq.removeHeader("origin");
+      });
+    },
+  };
+}
 
 function isVersionedFile(filePath: string) {
   const basename = path.basename(filePath);
@@ -147,5 +166,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    proxy: {
+      "/api": createDevProxyOptions(),
+      "/actuator": createDevProxyOptions(),
+    },
   },
 });

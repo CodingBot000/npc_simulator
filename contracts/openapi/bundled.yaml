@@ -721,6 +721,14 @@ components:
               type:
                 - "string"
                 - "null"
+            diagnostics:
+              anyOf:
+                -
+                  type: "object"
+                  additionalProperties:
+{}
+                -
+                  type: "null"
             issues:
               type: "array"
               items:
@@ -822,6 +830,14 @@ components:
               type:
                 - "string"
                 - "null"
+            diagnostics:
+              anyOf:
+                -
+                  type: "object"
+                  additionalProperties:
+{}
+                -
+                  type: "null"
           required:
             - "stage"
             - "label"
@@ -2429,6 +2445,14 @@ components:
               type:
                 - "string"
                 - "null"
+            diagnostics:
+              anyOf:
+                -
+                  type: "object"
+                  additionalProperties:
+{}
+                -
+                  type: "null"
             issues:
               type: "array"
               items:
@@ -2520,6 +2544,14 @@ components:
               type:
                 - "string"
                 - "null"
+            diagnostics:
+              anyOf:
+                -
+                  type: "object"
+                  additionalProperties:
+{}
+                -
+                  type: "null"
           required:
             - "stage"
             - "label"
@@ -3601,6 +3633,14 @@ components:
               type:
                 - "string"
                 - "null"
+            diagnostics:
+              anyOf:
+                -
+                  type: "object"
+                  additionalProperties:
+{}
+                -
+                  type: "null"
             issues:
               type: "array"
               items:
@@ -3702,6 +3742,14 @@ components:
               type:
                 - "string"
                 - "null"
+            diagnostics:
+              anyOf:
+                -
+                  type: "object"
+                  additionalProperties:
+{}
+                -
+                  type: "null"
           required:
             - "stage"
             - "label"

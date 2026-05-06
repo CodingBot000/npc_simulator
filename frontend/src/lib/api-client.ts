@@ -74,21 +74,43 @@ function gameWorldHeaders(headers?: HeadersInit) {
   return nextHeaders;
 }
 
-async function readApiErrorMessage(response: Response, fallbackMessage: string) {
-  const payload = (await response.clone().json().catch(() => null)) as
-    | { message?: string }
-    | null;
-  return payload?.message ?? fallbackMessage;
+function readMessageFromApiError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && message.trim() ? message : null;
+}
+
+async function readApiErrorMessage(
+  error: unknown,
+  response: Response,
+  fallbackMessage: string,
+) {
+  const parsedMessage = readMessageFromApiError(error);
+  if (parsedMessage) {
+    return parsedMessage;
+  }
+
+  if (!response.bodyUsed) {
+    const payload = (await response.clone().json().catch(() => null)) as
+      | { message?: string }
+      | null;
+    return payload?.message ?? fallbackMessage;
+  }
+
+  return fallbackMessage;
 }
 
 async function ensureApiResponse<T>(
-  request: Promise<{ data?: T; response: Response }>,
+  request: Promise<{ data?: T; error?: unknown; response: Response }>,
   fallbackMessage: string,
 ) {
-  const { data, response } = await request;
+  const { data, error, response } = await request;
 
   if (!response.ok || data === undefined) {
-    throw new Error(await readApiErrorMessage(response, fallbackMessage));
+    throw new Error(await readApiErrorMessage(error, response, fallbackMessage));
   }
 
   return data;

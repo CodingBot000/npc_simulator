@@ -9,6 +9,7 @@ export type PendingInteractionTrace = {
   label: string;
   detail?: string | null;
   sourceRef?: string | null;
+  diagnostics?: Record<string, unknown> | null;
   startedAtMs: number;
   startedAtAbsoluteMs: number;
 };
@@ -19,6 +20,7 @@ export function startInteractionTraceStage(
   label: string,
   detail?: string | null,
   sourceRef?: string | null,
+  diagnostics?: Record<string, unknown> | null,
 ): PendingInteractionTrace {
   const startedAtAbsoluteMs = Date.now();
   return {
@@ -26,6 +28,7 @@ export function startInteractionTraceStage(
     label,
     detail,
     sourceRef,
+    diagnostics,
     startedAtMs: Math.max(0, startedAtAbsoluteMs - originMs),
     startedAtAbsoluteMs,
   };
@@ -38,6 +41,7 @@ export function finishInteractionTraceStage(
   status: InteractionTraceStatus,
   detail?: string | null,
   sourceRef?: string | null,
+  diagnostics?: Record<string, unknown> | null,
 ) {
   const finishedAtAbsoluteMs = Date.now();
   const finishedAtMs = Math.max(0, finishedAtAbsoluteMs - originMs);
@@ -50,6 +54,7 @@ export function finishInteractionTraceStage(
     durationMs: Math.max(0, finishedAtAbsoluteMs - pending.startedAtAbsoluteMs),
     detail: detail ?? pending.detail ?? null,
     sourceRef: sourceRef ?? pending.sourceRef ?? null,
+    diagnostics: diagnostics ?? pending.diagnostics ?? null,
   });
 }
 
@@ -61,6 +66,7 @@ export function recordInteractionTraceStage(
   status: InteractionTraceStatus,
   detail?: string | null,
   sourceRef?: string | null,
+  diagnostics?: Record<string, unknown> | null,
 ) {
   const atAbsoluteMs = Date.now();
   const atMs = Math.max(0, atAbsoluteMs - originMs);
@@ -73,5 +79,6 @@ export function recordInteractionTraceStage(
     durationMs: 0,
     detail: detail ?? null,
     sourceRef: sourceRef ?? null,
+    diagnostics: diagnostics ?? null,
   });
 }

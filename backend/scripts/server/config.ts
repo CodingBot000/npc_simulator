@@ -52,6 +52,7 @@ type InteractionJudgeEnforcement = "off" | "warn" | "retry" | "reject";
 type RunpodEndpointMode = "queue_vllm" | "load_balancer_vllm";
 
 const DEFAULT_FINAL_REPLY_TIMEOUT_MS = 180_000;
+const DEFAULT_FINAL_REPLY_RUNPOD_REQUEST_TIMEOUT_MS = 90_000;
 
 export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   PROJECT_ROOT,
@@ -300,20 +301,19 @@ export const appConfig = {
   models: {
     interactionModel:
       getServerEnv("INTERACTION_MODEL") ||
-      getServerEnv("PREMIUM_MODEL") ||
-      getServerEnv("OPENAI_MODEL") ||
-      "gpt-4.1-nano",
+      getServerEnv("LOW_COST_MODEL") ||
+      "gpt-4.1-mini",
     interactionFallbackModel:
       getServerEnv("INTERACTION_FALLBACK_MODEL") ||
-      getServerEnv("PREMIUM_FALLBACK_MODEL") ||
       getServerEnv("LOW_COST_FALLBACK_MODEL") ||
+      getServerEnv("LOW_COST_MODEL") ||
       "gpt-4.1-mini",
-    openaiModel: getServerEnv("OPENAI_MODEL") || "gpt-5.4",
-    lowCostModel: getServerEnv("LOW_COST_MODEL") || "gpt-5.4-mini",
+    openaiModel: getServerEnv("OPENAI_MODEL") || "gpt-5.4-mini",
+    lowCostModel: getServerEnv("LOW_COST_MODEL") || "gpt-4.1-mini",
     premiumModel:
-      getServerEnv("PREMIUM_MODEL") || getServerEnv("OPENAI_MODEL") || "gpt-5.4",
+      getServerEnv("PREMIUM_MODEL") || getServerEnv("OPENAI_MODEL") || "gpt-5.4-mini",
     lowCostFallbackModel:
-      getServerEnv("LOW_COST_FALLBACK_MODEL") || "gpt-5.4-mini",
+      getServerEnv("LOW_COST_FALLBACK_MODEL") || "gpt-4.1-mini",
     premiumFallbackModel:
       getServerEnv("PREMIUM_FALLBACK_MODEL") || "gpt-5.4-mini",
   },
@@ -330,16 +330,21 @@ export const appConfig = {
       "FINAL_REPLY_TIMEOUT_MS",
       DEFAULT_FINAL_REPLY_TIMEOUT_MS,
     ),
+    runpodRequestTimeoutMs: parsePositiveNumberEnv(
+      "FINAL_REPLY_RUNPOD_REQUEST_TIMEOUT_MS",
+      DEFAULT_FINAL_REPLY_RUNPOD_REQUEST_TIMEOUT_MS,
+    ),
     models: {
       primary:
         getServerEnv("FINAL_REPLY_MODEL") ||
         getServerEnv("PREMIUM_MODEL") ||
         getServerEnv("OPENAI_MODEL") ||
-        "gpt-5.4",
+        "gpt-5.4-mini",
       fallback:
         getServerEnv("FINAL_REPLY_FALLBACK_MODEL") ||
         getServerEnv("PREMIUM_FALLBACK_MODEL") ||
-        getServerEnv("LOW_COST_FALLBACK_MODEL") ||
+        getServerEnv("PREMIUM_MODEL") ||
+        getServerEnv("OPENAI_MODEL") ||
         "gpt-5.4-mini",
     },
     remote: {

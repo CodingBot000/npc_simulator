@@ -31,9 +31,12 @@ Options:
   -h, --help       Show this help
 
 Env overrides:
+  BACKEND_PORT
+  FRONTEND_DEV_PORT
   LLM_PROVIDER_MODE
   FINAL_REPLY_MODE
   FINAL_REPLY_BACKEND
+  NPC_SIMULATOR_DEV_PROXY_TARGET
   VITE_API_BASE_URL
 EOF
 }
@@ -209,7 +212,7 @@ else
 fi
 
 if [[ "$EXTERNAL_VITE_API_BASE_URL" == "__unset__" ]]; then
-  export VITE_API_BASE_URL="http://127.0.0.1:${BACKEND_PORT}"
+  export VITE_API_BASE_URL=""
 else
   export VITE_API_BASE_URL="$EXTERNAL_VITE_API_BASE_URL"
 fi

@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import {
   formatConversationTimestamp,
+  buildVllmRewriteDiagnostics,
   formatJudgeBoolean,
   formatTraceDuration,
   formatTraceStatus,
 } from "@/components/hub/interaction-panel-formatters";
 import type { InteractionTraceTurn } from "@/components/hub/interaction-panel-types";
+import { VllmRewriteDiagnosticsCard } from "@/components/hub/vllm-rewrite-diagnostics-card";
 import { Panel } from "@/components/ui/panel";
 
 export function InteractionTraceModal({
@@ -78,6 +80,11 @@ export function InteractionTraceModal({
                 turn.traceEntries
                   .filter((entry) => entry.stage !== "turn_total")
                   .sort((left, right) => right.durationMs - left.durationMs)[0] ?? null;
+              const vllmDiagnostics = buildVllmRewriteDiagnostics({
+                traceEntries: turn.traceEntries,
+                failureDebugEntries: turn.npcMessage.failureDebug ?? [],
+                replyRewriteSource: turn.npcMessage.replyRewriteSource,
+              });
 
               return (
                 <article
@@ -150,33 +157,68 @@ export function InteractionTraceModal({
                     </p>
                   ) : (
                     <div className="mt-3 space-y-2">
-                      {turn.traceEntries.map((entry, index) => (
-                        <div
-                          key={`${turn.npcMessage.id}-trace-stage-${index}`}
-                          className="grid grid-cols-[minmax(0,1.6fr)_84px_96px_minmax(0,2fr)] gap-3 rounded-2xl border border-[var(--panel-border)] bg-[rgba(255,255,255,0.04)] px-3 py-3 text-[12px] leading-5"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground">{entry.label}</p>
-                            <p className="text-[var(--ink-muted)]">{entry.stage}</p>
+                      {turn.traceEntries.map((entry, index) => {
+                        const failed = entry.status === "failed";
+
+                        return (
+                          <div
+                            key={`${turn.npcMessage.id}-trace-stage-${index}`}
+                            className={[
+                              "grid grid-cols-[minmax(0,1.6fr)_84px_96px_minmax(0,2fr)] gap-3 rounded-2xl border px-3 py-3 text-[12px] leading-5",
+                              failed
+                                ? "border-[rgba(255,91,91,0.58)] bg-[rgba(255,91,91,0.12)] shadow-[0_0_0_1px_rgba(255,91,91,0.18)]"
+                                : "border-[var(--panel-border)] bg-[rgba(255,255,255,0.04)]",
+                            ].join(" ")}
+                          >
+                            <div className="min-w-0">
+                              <p className="font-semibold text-foreground">{entry.label}</p>
+                              <p className={failed ? "text-[var(--danger)]" : "text-[var(--ink-muted)]"}>
+                                {entry.stage}
+                              </p>
+                            </div>
+                            <div>
+                              <span
+                                className={[
+                                  "rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                                  failed
+                                    ? "bg-[rgba(255,91,91,0.22)] text-[var(--danger)] ring-1 ring-[rgba(255,91,91,0.45)]"
+                                    : "bg-white/10 text-[var(--ink-muted)]",
+                                ].join(" ")}
+                              >
+                                {formatTraceStatus(entry.status)}
+                              </span>
+                            </div>
+                            <div
+                              className={[
+                                "text-right font-semibold",
+                                failed ? "text-[var(--danger)]" : "text-foreground",
+                              ].join(" ")}
+                            >
+                              {formatTraceDuration(entry.durationMs)}
+                            </div>
+                            <div
+                              className={[
+                                "min-w-0 break-words",
+                                failed ? "text-[rgba(255,195,195,0.94)]" : "text-[var(--ink-muted)]",
+                              ].join(" ")}
+                            >
+                              <p>
+                                +{formatTraceDuration(entry.startedAtMs)} ~ +
+                                {formatTraceDuration(entry.finishedAtMs)}
+                              </p>
+                              {entry.detail ? <p className="mt-1">{entry.detail}</p> : null}
+                              {entry.sourceRef ? <p className="mt-1">{entry.sourceRef}</p> : null}
+                            </div>
+                            {failed &&
+                            entry.stage === "reply_rewrite_request" &&
+                            vllmDiagnostics?.postFailureStatusCheck ? (
+                              <div className="col-span-full">
+                                <VllmRewriteDiagnosticsCard diagnostics={vllmDiagnostics} />
+                              </div>
+                            ) : null}
                           </div>
-                          <div>
-                            <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
-                              {formatTraceStatus(entry.status)}
-                            </span>
-                          </div>
-                          <div className="text-right font-semibold text-foreground">
-                            {formatTraceDuration(entry.durationMs)}
-                          </div>
-                          <div className="min-w-0 break-words text-[var(--ink-muted)]">
-                            <p>
-                              +{formatTraceDuration(entry.startedAtMs)} ~ +
-                              {formatTraceDuration(entry.finishedAtMs)}
-                            </p>
-                            {entry.detail ? <p className="mt-1">{entry.detail}</p> : null}
-                            {entry.sourceRef ? <p className="mt-1">{entry.sourceRef}</p> : null}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </article>
@@ -188,4 +230,3 @@ export function InteractionTraceModal({
     </div>
   );
 }
-

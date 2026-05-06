@@ -64,6 +64,22 @@ export interface RunpodEndpointHealth {
   workers?: Record<string, number> | null;
 }
 
+export class RunpodApiRequestError extends Error {
+  readonly status: number;
+  readonly responseBodyPreview: string | null;
+
+  constructor(params: {
+    message: string;
+    status: number;
+    responseBodyPreview?: string | null;
+  }) {
+    super(params.message);
+    this.name = "RunpodApiRequestError";
+    this.status = params.status;
+    this.responseBodyPreview = params.responseBodyPreview ?? null;
+  }
+}
+
 function trimToNull(value: string | null | undefined) {
   if (typeof value !== "string") {
     return null;
@@ -124,7 +140,15 @@ async function runpodJsonRequest<T>(url: string, init?: RequestInit): Promise<T>
     }
   }
   if (!response.ok) {
-    throw new Error(normalizeErrorMessage(payload, `Runpod API request failed (${response.status}).`));
+    const normalizedMessage = normalizeErrorMessage(
+      payload,
+      `Runpod API request failed (${response.status}).`,
+    );
+    throw new RunpodApiRequestError({
+      message: `Runpod API request failed (${response.status}): ${normalizedMessage}`,
+      status: response.status,
+      responseBodyPreview: rawText ? rawText.slice(0, 500) : null,
+    });
   }
   return payload as T;
 }
@@ -765,11 +789,18 @@ export async function getRunpodLoadBalancerPing(
   };
 }
 
-export async function listRunpodLoadBalancerModels(endpointId: string) {
+export async function listRunpodLoadBalancerModels(
+  endpointId: string,
+  params?: { timeoutMs?: number },
+) {
   return runpodJsonRequest<{ data?: Array<{ id?: string | null }> }>(
     `${buildRunpodLoadBalancerBaseUrl(endpointId)}/v1/models`,
     {
       method: "GET",
+      signal:
+        params?.timeoutMs !== undefined
+          ? AbortSignal.timeout(params.timeoutMs)
+          : undefined,
     },
   );
 }

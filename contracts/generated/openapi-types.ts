@@ -514,6 +514,9 @@ export interface components {
             kind: components["schemas"]["InteractionFailureDebugKind"];
             summary: string;
             sourceRef?: string | null;
+            diagnostics?: {
+                [key: string]: unknown;
+            } | null;
             issues?: string[];
             candidateReplyText?: string | null;
             candidateSelectedActionType?: components["schemas"]["AllowedActionType"] | null;
@@ -534,6 +537,9 @@ export interface components {
             durationMs: number;
             detail?: string | null;
             sourceRef?: string | null;
+            diagnostics?: {
+                [key: string]: unknown;
+            } | null;
         };
         ChatMessage: {
             id: string;

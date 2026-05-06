@@ -1,6 +1,7 @@
 import type { GenerateInteractionInput } from "@backend-provider";
 import { appConfig } from "@server/config";
 import {
+  type FinalReplyProviderDiagnostics,
   runBasetenGenerate,
   runCodexGenerate,
   runMlxGenerate,
@@ -18,12 +19,18 @@ import {
 import { resolveSystemPrompt } from "@server/providers/mlx-reply-prompts";
 
 export const OPENAI_FALLBACK_FROM_BASETEN_400_MARKER = "fallback_from_baseten_400";
+export const OPENAI_FALLBACK_FROM_RUNPOD_ERROR_MARKER = "fallback_from_runpod_error";
 export { isBaseten400RequestError };
+export {
+  extractFinalReplyProviderDiagnostics,
+  withFinalReplyProviderDecision,
+} from "@server/providers/final-reply-provider-clients";
 
 export type FinalReplyCandidate = {
   text: string;
   sourceRef: string;
   adapterPath: string | null;
+  diagnostics?: FinalReplyProviderDiagnostics | null;
 };
 
 export async function generateFinalReplyCandidate(params: {
@@ -76,17 +83,19 @@ export async function generateFinalReplyCandidate(params: {
   }
 
   if (params.config.backend === "runpod") {
+    const generated = await runRunpodGenerate({
+      endpointId: params.config.endpointId,
+      endpointMode: params.config.endpointMode,
+      model: params.config.model,
+      npcId,
+      promptFormat: params.config.promptFormat,
+      prompt: params.candidatePrompt,
+    });
     return {
-      text: await runRunpodGenerate({
-        endpointId: params.config.endpointId,
-        endpointMode: params.config.endpointMode,
-        model: params.config.model,
-        npcId,
-        promptFormat: params.config.promptFormat,
-        prompt: params.candidatePrompt,
-      }),
+      text: generated.text,
       sourceRef: `runpod:${params.config.endpointId}:${params.config.model}`,
       adapterPath: null,
+      diagnostics: generated.diagnostics,
     };
   }
 

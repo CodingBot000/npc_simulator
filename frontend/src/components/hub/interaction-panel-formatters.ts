@@ -5,6 +5,67 @@ import type {
   InteractionTraceTurn,
 } from "@/components/hub/interaction-panel-types";
 
+type DiagnosticsRecord = Record<string, unknown>;
+
+export type VllmRewriteAttemptViewModel = {
+  attempt: number;
+  status: string;
+  durationMs: number | null;
+  timeoutMs: number | null;
+  httpStatus: number | null;
+  errorMessage: string | null;
+};
+
+export type VllmRewriteReadinessViewModel = {
+  status: string;
+  durationMs: number | null;
+  timeoutMs: number | null;
+  httpStatus: number | null;
+  errorMessage: string | null;
+};
+
+export type VllmRewriteStatusCheckStepViewModel = {
+  status: string;
+  durationMs: number | null;
+  timeoutMs: number | null;
+  httpStatus: number | null;
+  errorMessage: string | null;
+  responseTextPreview: string | null;
+  modelCount: number | null;
+  requestedModelFound: boolean | null;
+  modelIds: string[];
+};
+
+export type VllmRewritePostFailureStatusCheckViewModel = {
+  trigger: string | null;
+  durationMs: number | null;
+  timeoutMs: number | null;
+  verdict: string | null;
+  ping: VllmRewriteStatusCheckStepViewModel | null;
+  models: VllmRewriteStatusCheckStepViewModel | null;
+};
+
+export type VllmRewriteDiagnosticsViewModel = {
+  badge: string;
+  tone: "ok" | "failed" | "timeout" | "fallback" | "neutral";
+  summary: string;
+  sourceRef: string | null;
+  provider: string | null;
+  endpointMode: string | null;
+  endpointId: string | null;
+  model: string | null;
+  maxTokens: number | null;
+  promptChars: number | null;
+  systemMessageChars: number | null;
+  userMessageChars: number | null;
+  attemptCount: number | null;
+  attempts: VllmRewriteAttemptViewModel[];
+  readinessCheck: VllmRewriteReadinessViewModel | null;
+  postFailureStatusCheck: VllmRewritePostFailureStatusCheckViewModel | null;
+  decision: string | null;
+  requestDurationMs: number | null;
+};
+
 export const SHOW_INTERACTION_FAILURE_DEBUG =
   (import.meta.env.VITE_SHOW_INTERACTION_FAILURE_DEBUG ?? "true").toLowerCase() !==
   "false";
@@ -62,6 +123,7 @@ export function formatReplyRewriteSource(source: string | null | undefined) {
   const providerLabel =
     provider && provider !== "local" ? provider.replace(/_/gu, "-") : null;
   const baseten400ToOpenAiFallback = normalized.includes("fallback_from_baseten_400");
+  const runpodToOpenAiFallback = normalized.includes("fallback_from_runpod_error");
 
   const formatLabel = (modelLabel: string) =>
     [
@@ -69,6 +131,7 @@ export function formatReplyRewriteSource(source: string | null | undefined) {
       providerLabel,
       modelLabel,
       baseten400ToOpenAiFallback ? "baseten400→openai" : null,
+      runpodToOpenAiFallback ? "runpod→openai" : null,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -102,6 +165,7 @@ export function formatReplyRewriteSource(source: string | null | undefined) {
     locality,
     providerLabel,
     baseten400ToOpenAiFallback ? "baseten400→openai" : null,
+    runpodToOpenAiFallback ? "runpod→openai" : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -183,6 +247,108 @@ export function buildInteractionTraceTurns(
   return turns.reverse();
 }
 
+export function buildVllmRewriteDiagnostics(params: {
+  traceEntries: InteractionTraceEntry[];
+  failureDebugEntries: FailureDebugEntry[];
+  replyRewriteSource: string | null | undefined;
+}) {
+  const rewriteRequest =
+    params.traceEntries.find((entry) => entry.stage === "reply_rewrite_request") ??
+    null;
+  const traceDiagnostics = asDiagnosticsRecord(rewriteRequest?.diagnostics);
+  const failureDiagnostics =
+    params.failureDebugEntries
+      .map((entry) => asDiagnosticsRecord(entry.diagnostics))
+      .find((diagnostics) => diagnostics?.provider === "runpod") ?? null;
+  const diagnostics = traceDiagnostics ?? failureDiagnostics;
+  const sourceRef = rewriteRequest?.sourceRef ?? params.replyRewriteSource ?? null;
+  const sourceParts = parseRunpodSourceRef(sourceRef);
+  const provider = readString(diagnostics?.provider) ?? sourceParts?.provider ?? null;
+
+  if (provider !== "runpod" && !sourceRef?.toLowerCase().includes("runpod")) {
+    return null;
+  }
+
+  const attempts = readAttemptDiagnostics(diagnostics?.attempts);
+  const readinessCheck = readReadinessDiagnostics(diagnostics?.readinessCheck);
+  const postFailureStatusCheck = readPostFailureStatusCheck(
+    diagnostics?.postFailureStatusCheck,
+  );
+  const decision = readString(diagnostics?.decision);
+  const openAiFallbackTrace =
+    params.traceEntries.find(
+      (entry) =>
+        entry.stage === "reply_rewrite_retry_request" &&
+        entry.sourceRef?.toLowerCase().includes("openai"),
+    ) ?? null;
+  const openAiFallbackApplied =
+    openAiFallbackTrace?.status === "ok" ||
+    params.replyRewriteSource?.toLowerCase().includes("fallback_from_runpod_error") ||
+    false;
+  const requestStatus = rewriteRequest?.status ?? null;
+  const hasTimeout =
+    attempts.some((attempt) => attempt.status === "timeout") ||
+    readinessCheck?.status === "timeout";
+  const failed =
+    (!openAiFallbackApplied && requestStatus === "failed") ||
+    decision === "failed_no_retry" ||
+    decision === "fallback_to_base_reply";
+  const badge = openAiFallbackApplied
+    ? hasTimeout
+      ? "vLLM timeout · OpenAI fallback"
+      : "vLLM 실패 · OpenAI fallback"
+    : hasTimeout
+    ? "vLLM timeout"
+    : failed
+      ? decision === "fallback_to_base_reply"
+        ? "기본 대사 유지"
+        : "vLLM rewrite 실패"
+      : requestStatus === "ok" || decision === "accepted"
+        ? "vLLM rewrite 성공"
+        : "vLLM 진단";
+  const tone = openAiFallbackApplied
+    ? "fallback"
+    : hasTimeout
+    ? "timeout"
+    : failed
+      ? decision === "fallback_to_base_reply"
+        ? "fallback"
+        : "failed"
+      : requestStatus === "ok" || decision === "accepted"
+        ? "ok"
+        : "neutral";
+
+  return {
+    badge,
+    tone,
+    summary:
+      openAiFallbackApplied
+        ? "RunPod rewrite failed; OpenAI fallback rewrite applied"
+        : tone === "ok"
+        ? "RunPod LoRA rewrite applied"
+        : "RunPod rewrite failed, base interaction reply kept",
+    sourceRef,
+    provider,
+    endpointMode: readString(diagnostics?.endpointMode),
+    endpointId:
+      normalizeDiagnosticEndpointId(readString(diagnostics?.endpointId)) ??
+      sourceParts?.endpointId ??
+      null,
+    model: readString(diagnostics?.model) ?? sourceParts?.model ?? null,
+    maxTokens: readNumber(diagnostics?.maxTokens),
+    promptChars: readNumber(diagnostics?.promptChars),
+    systemMessageChars: readNumber(diagnostics?.systemMessageChars),
+    userMessageChars: readNumber(diagnostics?.userMessageChars),
+    attemptCount:
+      readNumber(diagnostics?.attemptCount) ?? (attempts.length > 0 ? attempts.length : null),
+    attempts,
+    readinessCheck,
+    postFailureStatusCheck,
+    decision,
+    requestDurationMs: rewriteRequest?.durationMs ?? null,
+  } satisfies VllmRewriteDiagnosticsViewModel;
+}
+
 export function formatFailureDebugStage(params: {
   entry: FailureDebugEntry;
   replyRewriteReason: string | null;
@@ -199,3 +365,135 @@ export function formatFailureDebugStage(params: {
   }
 }
 
+function asDiagnosticsRecord(value: unknown): DiagnosticsRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as DiagnosticsRecord)
+    : null;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readAttemptDiagnostics(value: unknown): VllmRewriteAttemptViewModel[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const record = asDiagnosticsRecord(entry);
+      if (!record) {
+        return null;
+      }
+      const attempt = readNumber(record.attempt);
+      const status = readString(record.status);
+      if (attempt === null || !status) {
+        return null;
+      }
+      return {
+        attempt,
+        status,
+        durationMs: readNumber(record.durationMs),
+        timeoutMs: readNumber(record.timeoutMs),
+        httpStatus: readNumber(record.httpStatus),
+        errorMessage: readString(record.errorMessage),
+      } satisfies VllmRewriteAttemptViewModel;
+    })
+    .filter((entry): entry is VllmRewriteAttemptViewModel => Boolean(entry));
+}
+
+function readReadinessDiagnostics(value: unknown): VllmRewriteReadinessViewModel | null {
+  const record = asDiagnosticsRecord(value);
+  if (!record) {
+    return null;
+  }
+  const status = readString(record.status);
+  if (!status) {
+    return null;
+  }
+  return {
+    status,
+    durationMs: readNumber(record.durationMs),
+    timeoutMs: readNumber(record.timeoutMs),
+    httpStatus: readNumber(record.httpStatus),
+    errorMessage: readString(record.errorMessage),
+  };
+}
+
+function readPostFailureStatusCheck(
+  value: unknown,
+): VllmRewritePostFailureStatusCheckViewModel | null {
+  const record = asDiagnosticsRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  return {
+    trigger: readString(record.trigger),
+    durationMs: readNumber(record.durationMs),
+    timeoutMs: readNumber(record.timeoutMs),
+    verdict: readString(record.verdict),
+    ping: readStatusCheckStep(record.ping),
+    models: readStatusCheckStep(record.models),
+  };
+}
+
+function readStatusCheckStep(value: unknown): VllmRewriteStatusCheckStepViewModel | null {
+  const record = asDiagnosticsRecord(value);
+  if (!record) {
+    return null;
+  }
+  const status = readString(record.status);
+  if (!status) {
+    return null;
+  }
+  return {
+    status,
+    durationMs: readNumber(record.durationMs),
+    timeoutMs: readNumber(record.timeoutMs),
+    httpStatus: readNumber(record.httpStatus),
+    errorMessage: readString(record.errorMessage),
+    responseTextPreview: readString(record.responseTextPreview),
+    modelCount: readNumber(record.modelCount),
+    requestedModelFound:
+      typeof record.requestedModelFound === "boolean"
+        ? record.requestedModelFound
+        : null,
+    modelIds: Array.isArray(record.modelIds)
+      ? record.modelIds.filter((entry): entry is string => typeof entry === "string")
+      : [],
+  };
+}
+
+function parseRunpodSourceRef(sourceRef: string | null) {
+  const normalized = sourceRef?.trim();
+  if (!normalized?.toLowerCase().startsWith("runpod:")) {
+    return null;
+  }
+  const [, endpointId, ...modelParts] = normalized.split(":");
+  return {
+    provider: "runpod",
+    endpointId: endpointId ? maskDiagnosticEndpointId(endpointId) : null,
+    model: modelParts.join(":") || null,
+  };
+}
+
+function normalizeDiagnosticEndpointId(endpointId: string | null) {
+  if (!endpointId) {
+    return null;
+  }
+  return endpointId.includes("...") ? endpointId : maskDiagnosticEndpointId(endpointId);
+}
+
+function maskDiagnosticEndpointId(endpointId: string) {
+  const trimmed = endpointId.trim();
+  if (trimmed.length <= 10) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 4)}...${trimmed.slice(-6)}`;
+}

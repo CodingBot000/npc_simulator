@@ -338,6 +338,17 @@
             "null"
           ]
         },
+        "diagnostics": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "issues": {
           "type": "array",
           "items": {
@@ -472,6 +483,17 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "diagnostics": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },

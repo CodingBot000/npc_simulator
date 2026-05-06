@@ -8,6 +8,7 @@ import {
 const BASE_URL_SOURCE_LABEL = {
   runtime_config: "runtime config",
   vite_env: "Vite env",
+  default_dev_proxy: "Vite dev proxy",
   default_localhost: "default localhost",
 } as const;
 
@@ -67,6 +68,10 @@ function formatCheckedAt(value: string | null) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
+}
+
+function formatApiBaseUrl(value: string) {
+  return value || "(same origin)";
 }
 
 export function ApiDiagnosticsPanel() {
@@ -140,7 +145,9 @@ export function ApiDiagnosticsPanel() {
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
                   API Base URL
                 </p>
-                <p className="break-all font-mono text-[11px]">{snapshot.apiBaseUrl}</p>
+                <p className="break-all font-mono text-[11px]">
+                  {formatApiBaseUrl(snapshot.apiBaseUrl)}
+                </p>
               </div>
               <div>
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
