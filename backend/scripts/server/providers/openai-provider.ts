@@ -7,38 +7,12 @@ import type {
 } from "@backend-contracts/api";
 import { openAiConfig } from "@server/config/openai";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
+import { createOpenAiResponse } from "@server/openai-responses-client";
 import {
   llmInteractionSchema,
   NPC_INTERACTION_JSON_SCHEMA,
 } from "@server/providers/llm-provider";
 import { getInteractionModelCandidates } from "@server/providers/model-registry";
-
-interface OpenAiResponsesPayload {
-  error?: { message?: string };
-  output_text?: string;
-  output?: Array<{
-    type?: string;
-    content?: Array<{
-      type?: string;
-      text?: string;
-    }>;
-  }>;
-}
-
-function extractOutputText(payload: OpenAiResponsesPayload) {
-  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const textChunks =
-    payload.output
-      ?.flatMap((entry) => entry.content ?? [])
-      .filter((entry) => entry.type === "output_text" && typeof entry.text === "string")
-      .map((entry) => entry.text!.trim())
-      .filter(Boolean) ?? [];
-
-  return textChunks.join("\n").trim();
-}
 
 export class OpenAiProvider implements LlmProvider {
   readonly mode = "openai" as const;
@@ -57,48 +31,32 @@ export class OpenAiProvider implements LlmProvider {
 
     for (const model of getInteractionModelCandidates()) {
       try {
-        const response = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            input: [
-              {
-                role: "system",
-                content: systemPrompt,
-              },
-              {
-                role: "user",
-                content: userPrompt,
-              },
-            ],
-            text: {
-              format: {
-                type: "json_schema",
-                name: "npc_interaction",
-                schema: NPC_INTERACTION_JSON_SCHEMA,
-                strict: true,
-              },
+        const generated = await createOpenAiResponse({
+          stageName: "interaction",
+          model,
+          input: [
+            {
+              role: "system",
+              content: systemPrompt,
             },
-          }),
+            {
+              role: "user",
+              content: userPrompt,
+            },
+          ],
+          textFormat: {
+            type: "json_schema",
+            name: "npc_interaction",
+            schema: NPC_INTERACTION_JSON_SCHEMA,
+            strict: true,
+          },
         });
 
-        const payload = (await response.json()) as OpenAiResponsesPayload;
-
-        if (!response.ok) {
-          throw new Error(payload.error?.message || "OpenAI response request failed.");
-        }
-
-        const outputText = extractOutputText(payload);
-
-        if (!outputText) {
+        if (!generated.outputText) {
           throw new Error("OpenAI response did not include parseable output text.");
         }
 
-        return llmInteractionSchema.parse(JSON.parse(outputText)) as LlmInteractionResult;
+        return llmInteractionSchema.parse(JSON.parse(generated.outputText)) as LlmInteractionResult;
       } catch (error) {
         lastError =
           error instanceof Error

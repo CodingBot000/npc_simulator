@@ -13,6 +13,7 @@ import { buildCodexCliChildEnv } from "@backend-support/bootstrap";
 import { safeJsonParse, stripCodeFence } from "@backend-support/utils";
 import { PROJECT_ROOT } from "@server/config";
 import { buildNpcInteractionMessages } from "@server/engine/intent";
+import { buildCodexCliModelConfigArgs } from "@server/openai-responses-client";
 import {
   llmInteractionSchema,
   NPC_INTERACTION_JSON_SCHEMA,
@@ -133,6 +134,7 @@ export class CodexProvider implements LlmProvider {
           PROJECT_ROOT,
           "-m",
           model,
+          ...buildCodexCliModelConfigArgs("interaction", model),
           "--output-schema",
           schemaPath,
           "-o",

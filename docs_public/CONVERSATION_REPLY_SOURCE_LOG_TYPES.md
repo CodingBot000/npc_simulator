@@ -14,7 +14,7 @@
 
 ```text
 remote · runpod · llama
-remote · openai · gpt5.4 · runpod→openai
+remote · openai · gpt-nano · runpod→openai
 ```
 
 각 segment의 의미는 다음과 같다.
@@ -26,10 +26,10 @@ remote · openai · gpt5.4 · runpod→openai
 | `runpod` | RunPod Serverless Load Balancer vLLM endpoint를 사용함 |
 | `openai` | OpenAI API fallback rewrite를 사용함 |
 | `llama` | Llama 계열 vLLM/LoRA 모델 경로에서 응답이 생성됨 |
-| `gpt5.4` | GPT-5.4 계열 OpenAI fallback 모델에서 응답이 생성됨 |
+| `gpt-nano` | GPT-5 nano 계열 OpenAI fallback 모델에서 응답이 생성됨 |
 | `runpod→openai` | RunPod vLLM primary 경로가 실패했고, OpenAI fallback으로 최종 대사를 복구함 |
 
-`gpt5.4`는 UI 표시용 모델 계열 label이다. 실제 호출 모델은 환경 변수와 backend 설정에 의해 관리되며, 운영 환경에서는 같은 계열의 cost/latency 최적화 모델로 교체할 수 있다.
+`gpt-nano`는 UI 표시용 모델 계열 label이다. 실제 호출 모델은 환경 변수와 backend 설정에 의해 관리되며, 운영 환경에서는 같은 계열의 cost/latency 최적화 모델로 교체할 수 있다.
 
 ## Success Case
 
@@ -54,7 +54,7 @@ remote · runpod · llama
 ## Failure And Fallback Case
 
 ```text
-remote · openai · gpt5.4 · runpod→openai
+remote · openai · gpt-nano · runpod→openai
 ```
 
 이 표기는 RunPod vLLM primary 경로가 timeout, worker health failure, endpoint unavailable 등으로 실패했지만, 앱 전체 응답을 중단하지 않고 OpenAI fallback rewrite로 최종 대사를 복구했다는 뜻이다.
@@ -102,7 +102,7 @@ RunPod rewrite가 실패하면 대화방 디버그와 `턴 처리 기록` 팝업
 
 `remote · runpod · llama`가 보이면 vLLM serving 성공으로 본다.
 
-`remote · openai · gpt5.4 · runpod→openai`가 보이면 앱은 정상적으로 응답을 복구했지만, 해당 turn의 primary RunPod vLLM serving은 실패한 것으로 본다.
+`remote · openai · gpt-nano · runpod→openai`가 보이면 앱은 정상적으로 응답을 복구했지만, 해당 turn의 primary RunPod vLLM serving은 실패한 것으로 본다.
 
 RunPod 실패 상세 로그에서 `/ping`과 `/v1/models`가 모두 timeout이면, prompt/rewrite 코드보다 RunPod load balancer 또는 worker availability 문제가 더 유력하다.
 

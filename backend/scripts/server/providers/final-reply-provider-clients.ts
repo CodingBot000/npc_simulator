@@ -4,11 +4,14 @@ import {
   buildModelExecutionChildEnv,
 } from "@backend-support/bootstrap";
 import { PROJECT_ROOT, appConfig } from "@server/config";
-import { openAiConfig } from "@server/config/openai";
 import {
   createBasetenChatCompletion,
   extractBasetenChatText,
 } from "@server/baseten-client";
+import {
+  buildCodexCliModelConfigArgs,
+  createOpenAiResponse,
+} from "@server/openai-responses-client";
 import { LOCAL_MLX_BINARY } from "@server/providers/mlx-reply-config";
 import {
   resolveSystemPrompt,
@@ -42,18 +45,6 @@ const RUNPOD_LOAD_BALANCER_RETRYABLE_MESSAGES = [
   "All connection attempts failed",
   "fetch failed",
 ] as const;
-
-interface OpenAiTextResponsePayload {
-  error?: { message?: string };
-  output_text?: string;
-  output?: Array<{
-    type?: string;
-    content?: Array<{
-      type?: string;
-      text?: string;
-    }>;
-  }>;
-}
 
 type RunpodFinalReplyAttemptStatus = "ok" | "failed" | "timeout" | "not_ready";
 export type RunpodFinalReplyDecision =
@@ -771,6 +762,7 @@ export async function runCodexGenerate(params: {
             PROJECT_ROOT,
             "-m",
             model,
+            ...buildCodexCliModelConfigArgs("final_reply", model),
             "-",
           ],
           {
@@ -838,46 +830,29 @@ export async function runOpenAiGenerate(params: {
   promptFormat: ScenePromptFormat;
   prompt: string;
 }): Promise<{ text: string; model: string }> {
-  const apiKey = openAiConfig.apiKey;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is required when FINAL_REPLY_BACKEND=openai_api.");
-  }
-
   let lastError: Error | null = null;
 
   for (const model of params.models) {
     try {
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          input: [
-            {
-              role: "system",
-              content: resolveSystemPrompt(params.npcId, params.promptFormat),
-            },
-            {
-              role: "user",
-              content: params.prompt,
-            },
-          ],
-          max_output_tokens: appConfig.finalReply.maxTokens,
-        }),
-        signal: AbortSignal.timeout(appConfig.finalReply.timeoutMs),
+      const generated = await createOpenAiResponse({
+        stageName: "final_reply",
+        model,
+        input: [
+          {
+            role: "system",
+            content: resolveSystemPrompt(params.npcId, params.promptFormat),
+          },
+          {
+            role: "user",
+            content: params.prompt,
+          },
+        ],
+        maxOutputTokens: appConfig.finalReply.maxTokens,
+        timeoutMs: appConfig.finalReply.timeoutMs,
       });
 
-      const payload = (await response.json()) as OpenAiTextResponsePayload;
-      if (!response.ok) {
-        throw new Error(payload.error?.message || `OpenAI response request failed for model=${model}.`);
-      }
-
-      const outputText = extractOpenAiOutputText(payload);
-      if (outputText) {
-        return { text: outputText, model };
+      if (generated.outputText) {
+        return { text: generated.outputText, model };
       }
 
       lastError = new Error(`OpenAI final reply output was empty for model=${model}.`);
@@ -897,19 +872,4 @@ export function isBaseten400RequestError(error: unknown) {
     error instanceof Error &&
     error.message.includes("Baseten inference request failed (400)")
   );
-}
-
-function extractOpenAiOutputText(payload: OpenAiTextResponsePayload) {
-  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const textChunks =
-    payload.output
-      ?.flatMap((entry) => entry.content ?? [])
-      .filter((entry) => entry.type === "output_text" && typeof entry.text === "string")
-      .map((entry) => entry.text!.trim())
-      .filter(Boolean) ?? [];
-
-  return textChunks.join("\n").trim();
 }

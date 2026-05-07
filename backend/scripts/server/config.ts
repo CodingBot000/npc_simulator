@@ -302,20 +302,20 @@ export const appConfig = {
     interactionModel:
       getServerEnv("INTERACTION_MODEL") ||
       getServerEnv("LOW_COST_MODEL") ||
-      "gpt-4.1-mini",
+      "gpt-5-nano",
     interactionFallbackModel:
       getServerEnv("INTERACTION_FALLBACK_MODEL") ||
       getServerEnv("LOW_COST_FALLBACK_MODEL") ||
       getServerEnv("LOW_COST_MODEL") ||
-      "gpt-4.1-mini",
-    openaiModel: getServerEnv("OPENAI_MODEL") || "gpt-5.4-mini",
-    lowCostModel: getServerEnv("LOW_COST_MODEL") || "gpt-4.1-mini",
+      "gpt-5-nano",
+    openaiModel: getServerEnv("OPENAI_MODEL") || "gpt-5-nano",
+    lowCostModel: getServerEnv("LOW_COST_MODEL") || "gpt-5-nano",
     premiumModel:
-      getServerEnv("PREMIUM_MODEL") || getServerEnv("OPENAI_MODEL") || "gpt-5.4-mini",
+      getServerEnv("PREMIUM_MODEL") || getServerEnv("OPENAI_MODEL") || "gpt-5-nano",
     lowCostFallbackModel:
-      getServerEnv("LOW_COST_FALLBACK_MODEL") || "gpt-4.1-mini",
+      getServerEnv("LOW_COST_FALLBACK_MODEL") || "gpt-5-nano",
     premiumFallbackModel:
-      getServerEnv("PREMIUM_FALLBACK_MODEL") || "gpt-5.4-mini",
+      getServerEnv("PREMIUM_FALLBACK_MODEL") || "gpt-5-nano",
   },
   finalReply: {
     mode: finalReplyMode,
@@ -339,13 +339,13 @@ export const appConfig = {
         getServerEnv("FINAL_REPLY_MODEL") ||
         getServerEnv("PREMIUM_MODEL") ||
         getServerEnv("OPENAI_MODEL") ||
-        "gpt-5.4-mini",
+        "gpt-5-nano",
       fallback:
         getServerEnv("FINAL_REPLY_FALLBACK_MODEL") ||
         getServerEnv("PREMIUM_FALLBACK_MODEL") ||
         getServerEnv("PREMIUM_MODEL") ||
         getServerEnv("OPENAI_MODEL") ||
-        "gpt-5.4-mini",
+        "gpt-5-nano",
     },
     remote: {
       provider: finalReplyRemoteProvider,
@@ -388,10 +388,10 @@ export const appConfig = {
   },
   interactionJudge: {
     mode: parseInteractionJudgeMode(),
-    model: getServerEnv("INTERACTION_JUDGE_MODEL") || "gpt-4.1-nano",
+    model: getServerEnv("INTERACTION_JUDGE_MODEL") || "gpt-5-nano",
     timeoutMs: Number(getServerEnv("INTERACTION_JUDGE_TIMEOUT_MS") || "4000"),
     maxOutputTokens: Number(
-      getServerEnv("INTERACTION_JUDGE_MAX_OUTPUT_TOKENS") || "96",
+      getServerEnv("INTERACTION_JUDGE_MAX_OUTPUT_TOKENS") || "400",
     ),
     enforcement: parseInteractionJudgeEnforcement(),
     confidenceThreshold: Number(

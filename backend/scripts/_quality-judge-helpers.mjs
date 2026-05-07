@@ -8,6 +8,10 @@ import {
   getScriptEnv,
 } from "./_script-runtime.mjs";
 import {
+  buildCodexCliModelConfigArgs,
+  createOpenAiResponse,
+} from "./_openai-responses-gateway.mjs";
+import {
   appendJsonLine,
   basenameLabel,
   errorMessage,
@@ -1009,27 +1013,12 @@ function getEvalModelCandidates(explicitModel) {
     getScriptEnv("EVAL_MODEL", PROJECT_ROOT),
     getScriptEnv("PREMIUM_MODEL", PROJECT_ROOT),
     getScriptEnv("OPENAI_MODEL", PROJECT_ROOT),
-    "gpt-5.4-mini",
+    "gpt-5-nano",
     getScriptEnv("EVAL_FALLBACK_MODEL", PROJECT_ROOT),
     getScriptEnv("PREMIUM_FALLBACK_MODEL", PROJECT_ROOT),
     getScriptEnv("LOW_COST_FALLBACK_MODEL", PROJECT_ROOT),
-    "gpt-4.1-nano",
+    "gpt-5-nano",
   ]);
-}
-
-function extractOpenAiOutputText(payload) {
-  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const textChunks =
-    payload?.output
-      ?.flatMap((entry) => entry.content ?? [])
-      .filter((entry) => entry.type === "output_text" && typeof entry.text === "string")
-      .map((entry) => entry.text.trim())
-      .filter(Boolean) ?? [];
-
-  return textChunks.join("\n").trim();
 }
 
 function runCommand(command, args, options = {}) {
@@ -1095,6 +1084,7 @@ async function runCodexStructuredPrompt(params) {
         PROJECT_ROOT,
         "-m",
         params.model,
+        ...buildCodexCliModelConfigArgs("eval_judge", PROJECT_ROOT, params.model),
         "--output-schema",
         schemaPath,
         "-o",
@@ -1131,44 +1121,30 @@ async function runOpenAiStructuredPrompt(params) {
     throw new Error("OPENAI_API_KEY is required for provider=openai");
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${openAiApiKey}`,
-    },
-    body: JSON.stringify({
-      model: params.model,
-      input: [
-        {
-          role: "system",
-          content: params.systemPrompt,
-        },
-        {
-          role: "user",
-          content: params.userPrompt,
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: params.schemaName,
-          schema: params.jsonSchema,
-          strict: true,
-        },
+  const generated = await createOpenAiResponse({
+    projectRoot: PROJECT_ROOT,
+    apiKey: openAiApiKey,
+    model: params.model,
+    stageName: "eval_judge",
+    input: [
+      {
+        role: "system",
+        content: params.systemPrompt,
       },
-    }),
+      {
+        role: "user",
+        content: params.userPrompt,
+      },
+    ],
+    textFormat: {
+      type: "json_schema",
+      name: params.schemaName,
+      schema: params.jsonSchema,
+      strict: true,
+    },
   });
 
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      payload?.error?.message || "OpenAI structured prompt request failed",
-    );
-  }
-
-  const outputText = extractOpenAiOutputText(payload);
+  const outputText = generated.outputText;
   const parsed = safeJsonParse(stripCodeFence(outputText));
 
   if (!parsed) {

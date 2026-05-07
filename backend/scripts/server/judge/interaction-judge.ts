@@ -5,22 +5,7 @@ import { appConfig } from "@server/config";
 import { openAiConfig } from "@server/config/openai";
 import type { InteractionContract } from "@server/engine/interaction-contract";
 import { PLAYER_ACTION_SPECS } from "@server/engine/interaction-action-spec";
-
-type RawRecord = Record<string, unknown>;
-
-type OpenAiJudgeResponsePayload = {
-  error?: { message?: string };
-  status?: string;
-  incomplete_details?: { reason?: string };
-  output_text?: string;
-  output?: Array<{
-    type?: string;
-    content?: Array<{
-      type?: string;
-      text?: string;
-    }>;
-  }>;
-};
+import { createOpenAiResponse } from "@server/openai-responses-client";
 
 type ParsedJudgePayload = {
   aligned?: unknown;
@@ -77,25 +62,6 @@ function trimToNull(value: string | null | undefined) {
 
 function normalizeInlineText(text: string) {
   return String(text ?? "").replace(/\s+/g, " ").trim();
-}
-
-function extractOpenAiOutputText(payload: OpenAiJudgeResponsePayload) {
-  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const textChunks =
-    payload.output
-      ?.flatMap((entry) => entry.content ?? [])
-      .filter((entry) => entry.type === "output_text" && typeof entry.text === "string")
-      .map((entry) => entry.text!.trim())
-      .filter(Boolean) ?? [];
-
-  return textChunks.join("\n").trim();
-}
-
-function shouldRetryWithoutOptionalParams(message: string) {
-  return /unsupported|unknown|unrecognized|not supported|temperature/iu.test(message);
 }
 
 function buildSkippedResult(params: {
@@ -205,14 +171,14 @@ async function requestJudge(params: {
   model: string;
   systemPrompt: string;
   userPrompt: string;
-  includeTemperature: boolean;
 }) {
   const apiKey = openAiConfig.apiKey;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is required for interaction Judge.");
   }
 
-  const body: RawRecord = {
+  const generated = await createOpenAiResponse({
+    stageName: "interaction_judge",
     model: params.model,
     input: [
       {
@@ -224,47 +190,26 @@ async function requestJudge(params: {
         content: params.userPrompt,
       },
     ],
-    max_output_tokens: appConfig.interactionJudge.maxOutputTokens,
-    text: {
-      format: {
-        type: "json_schema",
-        name: "interaction_judge",
-        schema: JUDGE_RESPONSE_SCHEMA,
-        strict: true,
-      },
+    maxOutputTokens: appConfig.interactionJudge.maxOutputTokens,
+    timeoutMs: appConfig.interactionJudge.timeoutMs,
+    textFormat: {
+      type: "json_schema",
+      name: "interaction_judge",
+      schema: JUDGE_RESPONSE_SCHEMA,
+      strict: true,
     },
-  };
-
-  if (params.includeTemperature) {
-    body.temperature = 0;
-  }
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(appConfig.interactionJudge.timeoutMs),
   });
 
-  const payload = (await response.json()) as OpenAiJudgeResponsePayload;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || "OpenAI Judge request failed.");
-  }
-
-  const outputText = extractOpenAiOutputText(payload);
-  if (payload.status === "incomplete") {
+  if (generated.payload.status === "incomplete") {
     throw new Error(
-      `OpenAI Judge incomplete: ${payload.incomplete_details?.reason ?? "unknown"}.`,
+      `OpenAI Judge incomplete: ${generated.payload.incomplete_details?.reason ?? "unknown"}.`,
     );
   }
-  if (!outputText) {
+  if (!generated.outputText) {
     throw new Error("OpenAI Judge did not include parseable output text.");
   }
 
-  return outputText;
+  return generated.outputText;
 }
 
 export async function maybeJudgeInteractionReply(params: {
@@ -308,48 +253,38 @@ export async function maybeJudgeInteractionReply(params: {
     contract: params.contract,
     replyText,
   });
-  const attempts = [
-    { includeTemperature: true },
-    { includeTemperature: false },
-  ];
   let lastError: Error | null = null;
 
-  for (const attempt of attempts) {
-    try {
-      const outputText = await requestJudge({
-        model,
-        systemPrompt,
-        userPrompt,
-        includeTemperature: attempt.includeTemperature,
-      });
-      const parsed = parseJudgePayload(outputText);
-      const durationMs = Date.now() - startedAtMs;
-      const aligned = parsed.aligned === true;
-      const targetMaintained = parsed.targetMaintained === true;
-      const fatalMismatch = parsed.fatalMismatch === true;
+  try {
+    const outputText = await requestJudge({
+      model,
+      systemPrompt,
+      userPrompt,
+    });
+    const parsed = parseJudgePayload(outputText);
+    const durationMs = Date.now() - startedAtMs;
+    const aligned = parsed.aligned === true;
+    const targetMaintained = parsed.targetMaintained === true;
+    const fatalMismatch = parsed.fatalMismatch === true;
 
-      return {
-        status:
-          aligned && targetMaintained && !fatalMismatch ? "aligned" : "misaligned",
-        sourceRef: `openai:${model}:judge`,
-        model,
-        aligned,
-        targetMaintained,
-        fatalMismatch,
-        confidence: parsed.confidence,
-        reason: parsed.reason,
-        durationMs,
-        error: null,
-      };
-    } catch (error) {
-      lastError =
-        error instanceof Error
-          ? error
-          : new Error("OpenAI Judge failed with an unknown error.");
-      if (!shouldRetryWithoutOptionalParams(lastError.message)) {
-        break;
-      }
-    }
+    return {
+      status:
+        aligned && targetMaintained && !fatalMismatch ? "aligned" : "misaligned",
+      sourceRef: `openai:${model}:judge`,
+      model,
+      aligned,
+      targetMaintained,
+      fatalMismatch,
+      confidence: parsed.confidence,
+      reason: parsed.reason,
+      durationMs,
+      error: null,
+    };
+  } catch (error) {
+    lastError =
+      error instanceof Error
+        ? error
+        : new Error("OpenAI Judge failed with an unknown error.");
   }
 
   return buildFailedResult({

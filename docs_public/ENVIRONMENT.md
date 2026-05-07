@@ -93,6 +93,31 @@ runtime config, localStorage, or committed documentation.
 `LLM_PROVIDER_MODE=codex` is for local development only. Cloud deployments
 should use API-based providers.
 
+Default OpenAI-family model aliases now prefer `gpt-5-nano` for both OpenAI
+API and Codex CLI authenticated paths. Raise only specific stages to a larger
+model when schema adherence or final writing quality requires it.
+
+## OpenAI Responses Tuning
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `OPENAI_PROMPT_CACHE_PREFIX` | optional | Stable cache namespace, default `npc-simulator:v1`. Bump when prompt policy changes. |
+| `OPENAI_PROMPT_CACHE_RETENTION` | optional | `in_memory` by default, or `24h` for supported extended caching. |
+| `OPENAI_USAGE_LOG_ENABLED` | optional | Logs usage, cache hit, retry count, latency, and estimated `gpt-5-nano` cost. |
+| `OPENAI_RETRY_MAX_ATTEMPTS` | optional | Retry count for 429, 5xx, and network timeouts only; capped at 2. |
+| `OPENAI_RETRY_BASE_DELAY_MS` | optional | Exponential backoff base delay with jitter. |
+| `OPENAI_INTERACTION_REASONING_EFFORT` | optional | Default `minimal`. Applied to OpenAI API and Codex CLI for GPT-5 models. |
+| `OPENAI_INTERACTION_TEXT_VERBOSITY` | optional | Default `low`. |
+| `OPENAI_INTERACTION_MAX_OUTPUT_TOKENS` | optional | Default `900`. |
+| `OPENAI_INTERACTION_JUDGE_REASONING_EFFORT` | optional | Default `minimal`. |
+| `OPENAI_INTERACTION_JUDGE_TEXT_VERBOSITY` | optional | Default `low`. |
+| `OPENAI_INTERACTION_JUDGE_MAX_OUTPUT_TOKENS` | optional | Default `400`. |
+| `OPENAI_EVAL_JUDGE_REASONING_EFFORT` | optional | Default `minimal`. |
+| `OPENAI_EVAL_JUDGE_TEXT_VERBOSITY` | optional | Default `low`. |
+| `OPENAI_EVAL_JUDGE_MAX_OUTPUT_TOKENS` | optional | Default `1200`. |
+| `OPENAI_FINAL_REPLY_REASONING_EFFORT` | optional | Default `low`. |
+| `OPENAI_FINAL_REPLY_TEXT_VERBOSITY` | optional | Default `medium`. |
+
 ## Interaction Judge
 
 | Key | Required | Description |

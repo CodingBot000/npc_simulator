@@ -82,6 +82,7 @@ public final class BackendProcessEnvironment {
         "LOCAL_REPLY_",
         "LOCAL_TRAINING_",
         "SHADOW_COMPARE_",
+        "OPENAI_",
         "TOGETHER_",
         "BASETEN_",
         "RUNPOD_",
