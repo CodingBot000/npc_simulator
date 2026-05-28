@@ -21,6 +21,26 @@ import { resolveClientApiBaseUrlConfig } from "@/lib/runtime-config";
 const WORLD_INSTANCE_HEADER = "x-world-instance-id";
 const WORLD_INSTANCE_STORAGE_KEY = "npc-simulator-world-instance-id";
 const WORLD_INSTANCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+const VISITOR_ID_HEADER = "X-NPC-Visitor-Id";
+const VISITOR_ID_STORAGE_KEY = "npc-simulator-visitor-id";
+const VISITOR_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+
+export interface VisitorEventPayload {
+  eventType: string;
+  worldInstanceId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface VisitorEventResponse {
+  visitorId: string;
+  owner: boolean;
+  eventType: string;
+}
+
+export interface OwnerRegistrationResponse {
+  visitorId: string;
+  owner: boolean;
+}
 
 export function getClientApiBaseUrlSource() {
   return resolveClientApiBaseUrlConfig().source;
@@ -48,6 +68,13 @@ function createBrowserWorldInstanceId() {
   return `browser_${rawId.replace(/[^A-Za-z0-9_-]/gu, "_")}`.slice(0, 128);
 }
 
+function createBrowserVisitorId() {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  const rawId = uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+  return `visitor_${rawId.replace(/[^A-Za-z0-9_-]/gu, "_")}`.slice(0, 128);
+}
+
 function getBrowserWorldInstanceId() {
   if (typeof window === "undefined") {
     return null;
@@ -63,15 +90,100 @@ function getBrowserWorldInstanceId() {
   return nextId;
 }
 
+export function getCurrentWorldInstanceId() {
+  return getBrowserWorldInstanceId();
+}
+
+export function getBrowserVisitorId() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const stored = window.localStorage.getItem(VISITOR_ID_STORAGE_KEY)?.trim();
+  if (stored && VISITOR_ID_PATTERN.test(stored)) {
+    return stored;
+  }
+
+  const nextId = createBrowserVisitorId();
+  window.localStorage.setItem(VISITOR_ID_STORAGE_KEY, nextId);
+  return nextId;
+}
+
 function gameWorldHeaders(headers?: HeadersInit) {
   const instanceId = getBrowserWorldInstanceId();
+  const visitorId = getBrowserVisitorId();
   const nextHeaders = new Headers(headers);
 
   if (instanceId) {
     nextHeaders.set(WORLD_INSTANCE_HEADER, instanceId);
   }
 
+  if (visitorId) {
+    nextHeaders.set(VISITOR_ID_HEADER, visitorId);
+  }
+
   return nextHeaders;
+}
+
+function visitorHeaders(headers?: HeadersInit) {
+  const visitorId = getBrowserVisitorId();
+  const nextHeaders = new Headers(headers);
+
+  if (visitorId) {
+    nextHeaders.set(VISITOR_ID_HEADER, visitorId);
+  }
+
+  return nextHeaders;
+}
+
+async function ensureFetchJsonResponse<T>(
+  response: Response,
+  fallbackMessage: string,
+) {
+  const payload = (await response.clone().json().catch(() => null)) as
+    | (T & { message?: string })
+    | null;
+
+  if (!response.ok || payload === null) {
+    throw new Error(payload?.message ?? fallbackMessage);
+  }
+
+  return payload as T;
+}
+
+export async function apiRecordVisitorEvent(payload: VisitorEventPayload) {
+  const response = await fetch(buildClientApiUrl("/api/visitor/events"), {
+    method: "POST",
+    headers: visitorHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+    keepalive: true,
+  });
+
+  return ensureFetchJsonResponse<VisitorEventResponse>(
+    response,
+    "방문자 이벤트 기록에 실패했습니다.",
+  );
+}
+
+export function recordVisitorEvent(payload: VisitorEventPayload) {
+  void apiRecordVisitorEvent(payload).catch(() => undefined);
+}
+
+export async function apiRegisterOwnerVisitor(token: string) {
+  const response = await fetch(buildClientApiUrl("/api/visitor/owner"), {
+    method: "POST",
+    headers: visitorHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ token }),
+  });
+
+  return ensureFetchJsonResponse<OwnerRegistrationResponse>(
+    response,
+    "owner 등록에 실패했습니다.",
+  );
 }
 
 function readMessageFromApiError(error: unknown) {

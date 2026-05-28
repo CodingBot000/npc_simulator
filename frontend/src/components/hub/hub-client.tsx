@@ -9,7 +9,13 @@ import { StickySummaryHeader } from "@/components/hub/sticky-summary-header";
 import { InspectorPanel } from "@/components/inspector/inspector-panel";
 import { NpcCard } from "@/components/npc/npc-card";
 import { Panel } from "@/components/ui/panel";
-import { apiGetWorld, apiInteract, apiResetWorld } from "@/lib/api-client";
+import {
+  apiGetWorld,
+  apiInteract,
+  apiResetWorld,
+  getCurrentWorldInstanceId,
+  recordVisitorEvent,
+} from "@/lib/api-client";
 import { DEFAULT_PLAYER_ID, DEFAULT_PLAYER_LABEL } from "@/lib/constants";
 import type {
   ChatMessage,
@@ -145,6 +151,16 @@ export function HubClient({ initialWorld }: HubClientProps) {
   const stickyConsensusEntries = world.consensusBoard.slice(0, world.npcs.length + 1);
 
   useEffect(() => {
+    recordVisitorEvent({
+      eventType: "page_view",
+      worldInstanceId: getCurrentWorldInstanceId(),
+      metadata: {
+        path: window.location.pathname,
+      },
+    });
+  }, []);
+
+  useEffect(() => {
     if (selectedTargetId === selectedNpc.persona.id) {
       setSelectedTargetId(targetOptions[0]?.id ?? null);
     }
@@ -250,6 +266,16 @@ export function HubClient({ initialWorld }: HubClientProps) {
         action: payload.action,
         playerId: DEFAULT_PLAYER_ID,
       };
+      recordVisitorEvent({
+        eventType: "interact_clicked",
+        worldInstanceId: getCurrentWorldInstanceId(),
+        metadata: {
+          inputMode: payload.inputMode,
+          action: payload.action,
+          npcId: selectedNpc.persona.id,
+          targetNpcId: selectedTargetId,
+        },
+      });
       const responsePayload = await apiInteract(requestBody);
       const updatedConversation =
         responsePayload.world.conversations[selectedNpc.persona.id] ?? [];
@@ -318,6 +344,10 @@ export function HubClient({ initialWorld }: HubClientProps) {
   async function resetWorld() {
     setBusy(true);
     setError(null);
+    recordVisitorEvent({
+      eventType: "reset_clicked",
+      worldInstanceId: getCurrentWorldInstanceId(),
+    });
 
     try {
       const data = await apiResetWorld();
