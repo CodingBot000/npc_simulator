@@ -64,6 +64,7 @@ export type ResolvedAdapterConfig =
   | CodexReplyConfig
   | OpenAiReplyConfig;
 
+const OPENAI_RESPONSE_ERROR_FALLBACK_MODEL = "gpt-5-nano";
 const LEGACY_QWEN_REPLY_MLX_MODEL =
   "mlx-community/Qwen2.5-7B-Instruct-4bit";
 
@@ -259,7 +260,7 @@ export function buildOpenAiFallbackReplyConfig(): OpenAiReplyConfig | null {
   return {
     backend: "openai_api",
     promptFormat: appConfig.finalReply.promptFormat,
-    models: getFinalReplyModelCandidates(),
+    models: [OPENAI_RESPONSE_ERROR_FALLBACK_MODEL],
   };
 }
 

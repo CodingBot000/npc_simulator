@@ -131,7 +131,7 @@ export function formatReplyRewriteSource(source: string | null | undefined) {
       providerLabel,
       modelLabel,
       baseten400ToOpenAiFallback ? "baseten400→openai" : null,
-      runpodToOpenAiFallback ? "runpod→openai" : null,
+      runpodToOpenAiFallback ? "runpod 응답에러→openai api fallback" : null,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -165,7 +165,7 @@ export function formatReplyRewriteSource(source: string | null | undefined) {
     locality,
     providerLabel,
     baseten400ToOpenAiFallback ? "baseten400→openai" : null,
-    runpodToOpenAiFallback ? "runpod→openai" : null,
+    runpodToOpenAiFallback ? "runpod 응답에러→openai api fallback" : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -295,8 +295,8 @@ export function buildVllmRewriteDiagnostics(params: {
     decision === "fallback_to_base_reply";
   const badge = openAiFallbackApplied
     ? hasTimeout
-      ? "vLLM timeout · OpenAI fallback"
-      : "vLLM 실패 · OpenAI fallback"
+      ? "RunPod timeout · OpenAI API fallback"
+      : "RunPod 응답에러 · OpenAI API fallback"
     : hasTimeout
     ? "vLLM timeout"
     : failed
@@ -323,7 +323,7 @@ export function buildVllmRewriteDiagnostics(params: {
     tone,
     summary:
       openAiFallbackApplied
-        ? "RunPod rewrite failed; OpenAI fallback rewrite applied"
+        ? "RunPod 응답에러로 OpenAI API fallback rewrite를 적용했습니다."
         : tone === "ok"
         ? "RunPod LoRA rewrite applied"
         : "RunPod rewrite failed, base interaction reply kept",

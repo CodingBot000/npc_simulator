@@ -242,7 +242,7 @@ function logUsage(projectRoot, usageLog) {
   if (!parseBooleanEnv("OPENAI_USAGE_LOG_ENABLED", projectRoot, true)) {
     return;
   }
-  console.info("[openai-responses]", JSON.stringify(usageLog));
+  console.error("[openai-responses]", JSON.stringify(usageLog));
 }
 
 function buildBody({ model, input, textFormat, profile, maxOutputTokens }) {

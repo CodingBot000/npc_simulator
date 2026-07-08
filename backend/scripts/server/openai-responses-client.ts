@@ -335,7 +335,7 @@ function logOpenAiUsage(usageLog: OpenAiUsageLog) {
   if (!parseBooleanEnv("OPENAI_USAGE_LOG_ENABLED", true)) {
     return;
   }
-  console.info("[openai-responses]", JSON.stringify(usageLog));
+  console.error("[openai-responses]", JSON.stringify(usageLog));
 }
 
 function buildResponseBody(params: {
