@@ -34,6 +34,7 @@ import {
 } from "@server/together-client";
 
 const FINAL_REPLY_REWRITE_TEMPERATURE = 0.2;
+const OPENAI_FINAL_REPLY_MIN_OUTPUT_TOKENS = 400;
 const RUNPOD_LOAD_BALANCER_RETRY_DELAY_MS = 5_000;
 const RUNPOD_LOAD_BALANCER_READY_CHECK_TIMEOUT_MS = 5_000;
 const RUNPOD_POST_FAILURE_STATUS_CHECK_TIMEOUT_MS = 5_000;
@@ -847,7 +848,10 @@ export async function runOpenAiGenerate(params: {
             content: params.prompt,
           },
         ],
-        maxOutputTokens: appConfig.finalReply.maxTokens,
+        maxOutputTokens: Math.max(
+          appConfig.finalReply.maxTokens,
+          OPENAI_FINAL_REPLY_MIN_OUTPUT_TOKENS,
+        ),
         timeoutMs: appConfig.finalReply.timeoutMs,
       });
 
@@ -855,7 +859,15 @@ export async function runOpenAiGenerate(params: {
         return { text: generated.outputText, model };
       }
 
-      lastError = new Error(`OpenAI final reply output was empty for model=${model}.`);
+      lastError = new Error(
+        [
+          `OpenAI final reply output was empty for model=${model}.`,
+          generated.payload.status ? `status=${generated.payload.status}` : null,
+          generated.payload.incomplete_details?.reason
+            ? `reason=${generated.payload.incomplete_details.reason}`
+            : null,
+        ].filter(Boolean).join(" "),
+      );
     } catch (error) {
       lastError =
         error instanceof Error
