@@ -36,6 +36,7 @@ import {
 const FINAL_REPLY_REWRITE_TEMPERATURE = 0.2;
 const OPENAI_FINAL_REPLY_MIN_OUTPUT_TOKENS = 1200;
 const RUNPOD_LOAD_BALANCER_RETRY_DELAY_MS = 5_000;
+const RUNPOD_LOAD_BALANCER_PREFLIGHT_TIMEOUT_MS = 5_000;
 const RUNPOD_LOAD_BALANCER_READY_CHECK_TIMEOUT_MS = 5_000;
 const RUNPOD_POST_FAILURE_STATUS_CHECK_TIMEOUT_MS = 5_000;
 const RUNPOD_LOAD_BALANCER_RETRY_ATTEMPT_TIMEOUT_MS = 45_000;
@@ -288,6 +289,13 @@ async function runRunpodLoadBalancerChatCompletionWithPolicy(params: {
     capMs: diagnostics.requestTimeoutMs,
   });
 
+  await runRunpodLoadBalancerPreflightReadyCheck({
+    endpointId: params.endpointId,
+    model: params.model,
+    deadline,
+    diagnostics,
+  });
+
   try {
     const response = await executeRunpodLoadBalancerChatCompletionAttempt({
       attempt: 1,
@@ -381,6 +389,56 @@ async function runRunpodLoadBalancerChatCompletionWithPolicy(params: {
     await throwRunpodLoadBalancerErrorWithStatusCheck({
       error: retryError,
       diagnostics,
+      endpointId: params.endpointId,
+      model: params.model,
+    });
+  }
+}
+
+async function runRunpodLoadBalancerPreflightReadyCheck(params: {
+  endpointId: string;
+  model: string;
+  deadline: number;
+  diagnostics: RunpodFinalReplyDiagnostics;
+}) {
+  const remainingMs = getRemainingTimeoutMs(params.deadline);
+  if (remainingMs <= 1_000) {
+    return;
+  }
+
+  const preflightStartedAt = Date.now();
+  const preflightTimeoutMs = Math.min(
+    RUNPOD_LOAD_BALANCER_PREFLIGHT_TIMEOUT_MS,
+    Math.max(1_000, remainingMs),
+  );
+
+  try {
+    await waitForRunpodLoadBalancerReady({
+      endpointId: params.endpointId,
+      deadline: Date.now() + preflightTimeoutMs,
+    });
+    params.diagnostics.readinessCheck = {
+      timeoutMs: preflightTimeoutMs,
+      durationMs: Date.now() - preflightStartedAt,
+      status: "ok",
+    };
+  } catch (error) {
+    const readyError = toError(error);
+    params.diagnostics.readinessCheck = {
+      timeoutMs: preflightTimeoutMs,
+      durationMs: Date.now() - preflightStartedAt,
+      status:
+        getRunpodLoadBalancerFailureStatus(readyError) === "timeout"
+          ? "timeout"
+          : "not_ready",
+      httpStatus: getRunpodErrorHttpStatus(readyError),
+      errorMessage: readyError.message,
+    };
+    params.diagnostics.attemptCount = params.diagnostics.attempts.length;
+    params.diagnostics.decision = "failed_no_retry";
+    await throwRunpodLoadBalancerErrorWithStatusCheck({
+      error: readyError,
+      diagnostics: params.diagnostics,
       endpointId: params.endpointId,
       model: params.model,
     });
