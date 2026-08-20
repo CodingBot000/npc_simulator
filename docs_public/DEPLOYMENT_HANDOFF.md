@@ -120,6 +120,20 @@ curl -fsS <API_ORIGIN>/api/system/info
 Then open `https://<APP_DOMAIN>` in a browser and run one interaction from the
 main conversation screen.
 
+## Automated Production Deploy
+
+The production Lightsail instance can run a repository-level GitHub Actions
+self-hosted runner with the custom label `npc-sim-production`. The committed
+workflow `.github/workflows/deploy-production.yml` deploys on pushes to `main`
+and on manual workflow dispatch. It runs
+`deploy/production/deploy.sh`, which preserves the server `.env` and runtime
+directories, rebuilds the two Compose services, restarts them, and checks the
+local backend health endpoint.
+
+The runner must be installed as a service under the `ubuntu` user and must have
+Docker access. Keep the production branch protected so only reviewed changes
+can execute on the production runner.
+
 ## Hosted Llama Note
 
 Hosted final-reply rewrite can use a Llama 3.1 8B Instruct based runtime.
