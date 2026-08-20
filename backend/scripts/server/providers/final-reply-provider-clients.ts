@@ -36,8 +36,8 @@ import {
 const FINAL_REPLY_REWRITE_TEMPERATURE = 0.2;
 const OPENAI_FINAL_REPLY_MIN_OUTPUT_TOKENS = 1200;
 const RUNPOD_LOAD_BALANCER_RETRY_DELAY_MS = 5_000;
-const RUNPOD_LOAD_BALANCER_PREFLIGHT_TIMEOUT_MS = 5_000;
 const RUNPOD_LOAD_BALANCER_READY_CHECK_TIMEOUT_MS = 5_000;
+const RUNPOD_LOAD_BALANCER_MIN_GENERATION_TIMEOUT_MS = 15_000;
 const RUNPOD_POST_FAILURE_STATUS_CHECK_TIMEOUT_MS = 5_000;
 const RUNPOD_LOAD_BALANCER_RETRY_ATTEMPT_TIMEOUT_MS = 45_000;
 const RUNPOD_LOAD_BALANCER_RETRYABLE_MESSAGES = [
@@ -106,6 +106,7 @@ type RunpodFinalReplyDiagnostics = {
   systemMessageChars: number;
   userMessageChars: number;
   requestTimeoutMs: number;
+  preflightTimeoutMs: number;
   retryReadyCheckTimeoutMs: number;
   retryAttemptTimeoutMs: number;
   attemptCount: number;
@@ -407,10 +408,10 @@ async function runRunpodLoadBalancerPreflightReadyCheck(params: {
   }
 
   const preflightStartedAt = Date.now();
-  const preflightTimeoutMs = Math.min(
-    RUNPOD_LOAD_BALANCER_PREFLIGHT_TIMEOUT_MS,
-    Math.max(1_000, remainingMs),
-  );
+  const preflightTimeoutMs = resolveRunpodLoadBalancerPreflightTimeout({
+    remainingMs,
+    configuredTimeoutMs: params.diagnostics.preflightTimeoutMs,
+  });
 
   try {
     await waitForRunpodLoadBalancerReady({
@@ -466,6 +467,7 @@ function buildRunpodFinalReplyDiagnostics(params: {
     systemMessageChars: params.systemMessageChars,
     userMessageChars: params.userMessageChars,
     requestTimeoutMs,
+    preflightTimeoutMs: appConfig.finalReply.runpodReadyTimeoutMs,
     retryReadyCheckTimeoutMs: RUNPOD_LOAD_BALANCER_READY_CHECK_TIMEOUT_MS,
     retryAttemptTimeoutMs: Math.min(
       requestTimeoutMs,
@@ -477,6 +479,20 @@ function buildRunpodFinalReplyDiagnostics(params: {
     postFailureStatusCheck: null,
     decision: "failed_no_retry",
   };
+}
+
+export function resolveRunpodLoadBalancerPreflightTimeout(params: {
+  remainingMs: number;
+  configuredTimeoutMs: number;
+}) {
+  const remainingForReadiness = Math.max(
+    1_000,
+    params.remainingMs - RUNPOD_LOAD_BALANCER_MIN_GENERATION_TIMEOUT_MS,
+  );
+  return Math.max(
+    1_000,
+    Math.min(params.configuredTimeoutMs, remainingForReadiness),
+  );
 }
 
 async function throwRunpodLoadBalancerErrorWithStatusCheck(params: {

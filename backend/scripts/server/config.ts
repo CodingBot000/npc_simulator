@@ -53,6 +53,7 @@ type RunpodEndpointMode = "queue_vllm" | "load_balancer_vllm";
 
 const DEFAULT_FINAL_REPLY_TIMEOUT_MS = 180_000;
 const DEFAULT_FINAL_REPLY_RUNPOD_REQUEST_TIMEOUT_MS = 90_000;
+const DEFAULT_FINAL_REPLY_RUNPOD_READY_TIMEOUT_MS = 90_000;
 
 export const DEFAULT_LOCAL_REPLY_LLAMA_RUNTIME_PATH = path.join(
   PROJECT_ROOT,
@@ -333,6 +334,10 @@ export const appConfig = {
     runpodRequestTimeoutMs: parsePositiveNumberEnv(
       "FINAL_REPLY_RUNPOD_REQUEST_TIMEOUT_MS",
       DEFAULT_FINAL_REPLY_RUNPOD_REQUEST_TIMEOUT_MS,
+    ),
+    runpodReadyTimeoutMs: parsePositiveNumberEnv(
+      "FINAL_REPLY_RUNPOD_READY_TIMEOUT_MS",
+      DEFAULT_FINAL_REPLY_RUNPOD_READY_TIMEOUT_MS,
     ),
     models: {
       primary:
