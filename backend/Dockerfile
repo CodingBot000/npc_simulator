@@ -45,7 +45,7 @@ COPY package.json package-lock.json tsconfig.json ./
 COPY contracts contracts
 COPY shared shared
 COPY backend/scripts backend/scripts
-COPY data data
+RUN mkdir -p /workspace/data
 COPY --from=build /workspace/backend/build/libs/*.jar /app/app.jar
 
 EXPOSE 8080
