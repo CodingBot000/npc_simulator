@@ -1,63 +1,59 @@
-# Deployment Handoff
+# Cloud Run Deployment Handoff
 
-This document is public-safe. Replace placeholders with real values only in a
-private handoff note, secret manager, or deployment environment.
+This handoff covers the Spring Boot API on Google Cloud Run. The current API
+service is `npc-simulator-api` in `asia-northeast3`. Keep the project ID and
+runtime secrets in the deployment environment, not in this repository.
 
-## Topology
+The React and Vite frontend uses `VITE_API_BASE_URL` to reach the API. The
+backend allows browser origins through
+`NPC_SIMULATOR_CORS_ALLOWED_ORIGINS`. The backend owns schema migration and
+applies Flyway migrations on startup against managed PostgreSQL.
 
-The project can run as:
+## Build and Deploy
 
-- Single-host Docker Compose: frontend and backend on the same server.
-- Split deployment: Vite frontend and Spring Boot backend on separate cloud
-  targets.
-
-For split deployment, the frontend talks to the backend through
-`VITE_API_BASE_URL`, and the backend allows browser origins through
-`NPC_SIMULATOR_CORS_ALLOWED_ORIGINS`.
-
-The production database is an external managed PostgreSQL instance. The backend
-owns schema migration and applies Flyway migrations on startup.
-
-## Placeholders
-
-- Server host: `<SERVER_HOST>`
-- SSH user: `<SSH_USER>`
-- SSH key path: `<SSH_KEY_PATH>`
-- Application directory: `<APP_DIR>`
-- Public app domain: `<APP_DOMAIN>`
-- Backend API origin: `<API_ORIGIN>`
-
-## Server Access
+Build the backend image from the repository root. The Cloud Build config uses
+the backend Dockerfile, and `.gcloudignore` excludes local data and virtualenvs.
 
 ```bash
-ssh -i <SSH_KEY_PATH> <SSH_USER>@<SERVER_HOST>
+PROJECT_ID="$(gcloud config get-value project)"
+REGION=asia-northeast3
+SERVICE=npc-simulator-api
+GIT_SHA="$(git rev-parse --short HEAD)"
+IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/portfolio/$SERVICE:$GIT_SHA"
+
+gcloud builds submit \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --config=deploy/cloudrun/cloudbuild.yaml \
+  --substitutions="_IMAGE=$IMAGE" \
+  .
+
+gcloud run deploy "$SERVICE" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --image="$IMAGE" \
+  --update-env-vars=LLM_PROVIDER_MODE=openai
 ```
 
-Keep SSH keys outside the repository.
+Keep `OPENAI_API_KEY` and database credentials in Cloud Run secret references.
+The backend defaults OpenAI model calls to `gpt-6-luna`. The frontend deployment
+must set `VITE_API_BASE_URL` to the Cloud Run API URL.
 
-## Environment
+## Environment and Access
 
-Create a private `.env` on the server from `.env.prod.example`, then fill values
-from the private handoff:
-
-```bash
-cp .env.prod.example .env
-```
-
-Required production values include:
+Required backend settings include:
 
 - `SPRING_DATASOURCE_URL`
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
 - `NPC_SIMULATOR_CORS_ALLOWED_ORIGINS`
-- `VITE_API_BASE_URL`
-- `OPENAI_API_KEY`, when `LLM_PROVIDER_MODE=openai`
-- `NPC_SIMULATOR_ADMIN_TOKEN`, only for private direct review admin calls
-- Hosted final-reply credentials and target values, when
-  `FINAL_REPLY_BACKEND` is enabled
+- `LLM_PROVIDER_MODE=openai`
+- `OPENAI_API_KEY`
+- `NPC_SIMULATOR_ADMIN_TOKEN`, for private direct review admin calls
+- `VITE_API_BASE_URL` on the frontend host
 
-Do not commit `.env` or any file containing real secrets, IPs, hosted endpoint
-URLs, model IDs, or passwords.
+Never put database credentials, provider keys, or admin tokens in frontend
+environment variables or committed files.
 
 ## Public Review Policy
 
@@ -82,57 +78,18 @@ Locked on cloud/prod unless a private `X-NPC-ADMIN-TOKEN` header is supplied:
 - `POST /api/review/training/promote`
 - `POST /api/review/pipeline/*`
 
-Do not put the admin token in the frontend deployment. If an operator needs to
-run review admin work against cloud/prod, use a private `curl`, Postman, or SSH
-session and send the token as a request header.
-
-## Upload And Start
-
-One generic deployment flow is:
-
-```bash
-rsync -az --delete \
-  --exclude '.git' \
-  --exclude '.env' \
-  --exclude '.env.local' \
-  --exclude 'node_modules' \
-  --exclude 'backend/storage' \
-  -e "ssh -i <SSH_KEY_PATH>" \
-  ./ <SSH_USER>@<SERVER_HOST>:<APP_DIR>/
-
-ssh -i <SSH_KEY_PATH> <SSH_USER>@<SERVER_HOST>
-cd <APP_DIR>
-docker compose config --quiet
-docker compose up -d --build frontend backend
-```
-
-If the deployment uses a managed database, confirm that the server can reach the
-database endpoint before starting the backend.
+Do not put the admin token in frontend environment variables. For direct admin
+requests, use a private API client and send the token in the request header.
 
 ## Smoke Checks
 
 ```bash
-curl -fsS https://<APP_DOMAIN>/
-curl -fsS <API_ORIGIN>/actuator/health
-curl -fsS <API_ORIGIN>/api/system/info
+curl -fsS "$API_URL/actuator/health"
+curl -fsS "$API_URL/api/system/info"
 ```
 
-Then open `https://<APP_DOMAIN>` in a browser and run one interaction from the
-main conversation screen.
-
-## Automated Production Deploy
-
-The production Lightsail instance can run a repository-level GitHub Actions
-self-hosted runner with the custom label `npc-sim-production`. The committed
-workflow `.github/workflows/deploy-production.yml` deploys on pushes to `main`
-and on manual workflow dispatch. It runs
-`deploy/production/deploy.sh`, which preserves the server `.env` and runtime
-directories, rebuilds the two Compose services, restarts them, and checks the
-local backend health endpoint.
-
-The runner must be installed as a service under the `ubuntu` user and must have
-Docker access. Keep the production branch protected so only reviewed changes
-can execute on the production runner.
+Confirm health is `UP`, deployment mode is `cloud`, and the OpenAI provider is
+configured. A live interaction can incur model usage charges.
 
 ## Hosted Llama Note
 

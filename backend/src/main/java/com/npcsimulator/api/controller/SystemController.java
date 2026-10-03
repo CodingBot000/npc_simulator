@@ -87,7 +87,7 @@ public class SystemController {
             return new SystemInfoResponse.DatabaseInfo(
                 "unconfigured",
                 false,
-                "SPRING_DATASOURCE_URL이 비어 있습니다. AWS 배포 시 Lightsail managed PostgreSQL JDBC URL을 설정해야 합니다."
+                "SPRING_DATASOURCE_URL이 비어 있습니다. Cloud Run backend에 managed PostgreSQL JDBC URL을 설정해야 합니다."
             );
         }
 
@@ -97,7 +97,7 @@ public class SystemController {
                 true,
                 datasourceUrl.contains("localhost")
                     ? "로컬 PostgreSQL 연결 설정입니다."
-                    : "원격 PostgreSQL 연결 설정입니다. Lightsail managed database URL은 서버 환경변수로만 관리하세요."
+                    : "원격 PostgreSQL 연결 설정입니다. 연결 정보는 backend secret으로만 관리하세요."
             );
         }
 
@@ -129,7 +129,7 @@ public class SystemController {
                     : "현재 provider mode는 openai이지만 backend 환경에 OPENAI_API_KEY가 없습니다.",
                 configured
                     ? "추가 조치가 필요 없습니다."
-                    : "AWS/Lightsail 배포 또는 로컬 실행 환경에 OPENAI_API_KEY를 설정하세요. 키는 frontend나 repository에 넣지 마세요."
+                    : "Cloud Run 또는 로컬 backend 환경에 OPENAI_API_KEY를 설정하세요. 키는 frontend나 repository에 넣지 마세요."
             );
         }
 
