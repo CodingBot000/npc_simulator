@@ -148,6 +148,10 @@ export function formatReplyRewriteSource(source: string | null | undefined) {
     return formatLabel("gpt5.4");
   }
 
+  if (/gpt[-_]?6[-_]?luna/u.test(normalized)) {
+    return formatLabel("gpt6-luna");
+  }
+
   if (/gpt[-_\w.]*nano/u.test(normalized)) {
     return formatLabel("gpt-nano");
   }

@@ -154,7 +154,7 @@ export function getOpenAiStageProfile(stageName: OpenAiStageName): OpenAiStagePr
     case "interaction":
       return {
         stageName,
-        reasoningEffort: parseReasoningEffortEnv("OPENAI_INTERACTION_REASONING_EFFORT", "minimal"),
+        reasoningEffort: parseReasoningEffortEnv("OPENAI_INTERACTION_REASONING_EFFORT", "low"),
         textVerbosity: parseTextVerbosityEnv("OPENAI_INTERACTION_TEXT_VERBOSITY", "low"),
         maxOutputTokens: parsePositiveIntEnv(
           "OPENAI_INTERACTION_MAX_OUTPUT_TOKENS",
@@ -166,7 +166,7 @@ export function getOpenAiStageProfile(stageName: OpenAiStageName): OpenAiStagePr
     case "interaction_judge":
       return {
         stageName,
-        reasoningEffort: parseReasoningEffortEnv("OPENAI_INTERACTION_JUDGE_REASONING_EFFORT", "minimal"),
+        reasoningEffort: parseReasoningEffortEnv("OPENAI_INTERACTION_JUDGE_REASONING_EFFORT", "low"),
         textVerbosity: parseTextVerbosityEnv("OPENAI_INTERACTION_JUDGE_TEXT_VERBOSITY", "low"),
         maxOutputTokens: parsePositiveIntEnv(
           "OPENAI_INTERACTION_JUDGE_MAX_OUTPUT_TOKENS",
@@ -190,7 +190,7 @@ export function getOpenAiStageProfile(stageName: OpenAiStageName): OpenAiStagePr
     case "eval_judge":
       return {
         stageName,
-        reasoningEffort: parseReasoningEffortEnv("OPENAI_EVAL_JUDGE_REASONING_EFFORT", "minimal"),
+        reasoningEffort: parseReasoningEffortEnv("OPENAI_EVAL_JUDGE_REASONING_EFFORT", "low"),
         textVerbosity: parseTextVerbosityEnv("OPENAI_EVAL_JUDGE_TEXT_VERBOSITY", "low"),
         maxOutputTokens: parsePositiveIntEnv("OPENAI_EVAL_JUDGE_MAX_OUTPUT_TOKENS", 1200),
         promptCacheKey: `${cachePrefix}:eval-judge`,
@@ -199,8 +199,8 @@ export function getOpenAiStageProfile(stageName: OpenAiStageName): OpenAiStagePr
   }
 }
 
-function modelSupportsGpt5Controls(model: string) {
-  return /^gpt-5(?:[.-]|$)/u.test(model.trim().toLowerCase());
+function modelSupportsReasoningControls(model: string) {
+  return /^gpt-(?:5|6)(?:[.-]|$)/u.test(model.trim().toLowerCase());
 }
 
 function resolvePromptCacheRetention(model: string, profile: OpenAiStageProfile) {
@@ -209,6 +209,12 @@ function resolvePromptCacheRetention(model: string, profile: OpenAiStageProfile)
     return "24h";
   }
   return profile.promptCacheRetention;
+}
+
+function resolveReasoningEffort(model: string, effort: ReasoningEffort) {
+  return /^gpt-6(?:[.-]|$)/u.test(model.trim().toLowerCase()) && effort === "minimal"
+    ? "low"
+    : effort;
 }
 
 function isRetryableStatus(status: number) {
@@ -284,14 +290,14 @@ function calculateEstimatedCostUsd(params: {
   cachedInputTokens: number;
   outputTokens: number;
 }) {
-  if (!/^gpt-5-nano(?:[.-]|$)/u.test(params.model.trim().toLowerCase())) {
+  if (!/^gpt-6-luna(?:[.-]|$)/u.test(params.model.trim().toLowerCase())) {
     return null;
   }
 
   const billableInputTokens = Math.max(0, params.inputTokens - params.cachedInputTokens);
-  const inputCost = (billableInputTokens / 1_000_000) * 0.05;
-  const cachedInputCost = (params.cachedInputTokens / 1_000_000) * 0.005;
-  const outputCost = (params.outputTokens / 1_000_000) * 0.4;
+  const inputCost = (billableInputTokens / 1_000_000) * 0.1;
+  const cachedInputCost = (params.cachedInputTokens / 1_000_000) * 0.01;
+  const outputCost = (params.outputTokens / 1_000_000) * 0.5;
 
   return Number((inputCost + cachedInputCost + outputCost).toFixed(10));
 }
@@ -345,9 +351,9 @@ function buildResponseBody(params: {
   textFormat?: OpenAiJsonSchemaFormat;
   maxOutputTokens?: number;
 }) {
-  const supportsGpt5Controls = modelSupportsGpt5Controls(params.model);
+  const supportsReasoningControls = modelSupportsReasoningControls(params.model);
   const text: Record<string, unknown> = {};
-  if (supportsGpt5Controls) {
+  if (supportsReasoningControls) {
     text.verbosity = params.profile.textVerbosity;
   }
   if (params.textFormat) {
@@ -360,12 +366,17 @@ function buildResponseBody(params: {
     store: false,
     max_output_tokens: params.maxOutputTokens ?? params.profile.maxOutputTokens,
     prompt_cache_key: params.profile.promptCacheKey,
-    prompt_cache_retention: resolvePromptCacheRetention(params.model, params.profile),
   };
 
-  if (supportsGpt5Controls) {
+  if (/^gpt-6(?:[.-]|$)/u.test(params.model.trim().toLowerCase())) {
+    body.prompt_cache_options = { ttl: "30m" };
+  } else {
+    body.prompt_cache_retention = resolvePromptCacheRetention(params.model, params.profile);
+  }
+
+  if (supportsReasoningControls) {
     body.reasoning = {
-      effort: params.profile.reasoningEffort,
+      effort: resolveReasoningEffort(params.model, params.profile.reasoningEffort),
     };
   }
   if (Object.keys(text).length > 0) {
@@ -461,14 +472,14 @@ export async function createOpenAiResponse(params: {
 }
 
 export function buildCodexCliModelConfigArgs(stageName: OpenAiStageName, model: string) {
-  if (!modelSupportsGpt5Controls(model)) {
+  if (!modelSupportsReasoningControls(model)) {
     return [];
   }
 
   const profile = getOpenAiStageProfile(stageName);
   return [
     "-c",
-    `model_reasoning_effort=${profile.reasoningEffort}`,
+    `model_reasoning_effort=${resolveReasoningEffort(model, profile.reasoningEffort)}`,
     "-c",
     `model_verbosity=${profile.textVerbosity}`,
   ];

@@ -76,7 +76,7 @@ export function getOpenAiStageProfile(stageName, projectRoot) {
       reasoningEffort: parseReasoningEffortEnv(
         "OPENAI_EVAL_JUDGE_REASONING_EFFORT",
         projectRoot,
-        "minimal",
+        "low",
       ),
       textVerbosity: parseTextVerbosityEnv(
         "OPENAI_EVAL_JUDGE_TEXT_VERBOSITY",
@@ -98,7 +98,7 @@ export function getOpenAiStageProfile(stageName, projectRoot) {
     reasoningEffort: parseReasoningEffortEnv(
       "OPENAI_INTERACTION_JUDGE_REASONING_EFFORT",
       projectRoot,
-      "minimal",
+      "low",
     ),
     textVerbosity: parseTextVerbosityEnv(
       "OPENAI_INTERACTION_JUDGE_TEXT_VERBOSITY",
@@ -115,8 +115,8 @@ export function getOpenAiStageProfile(stageName, projectRoot) {
   };
 }
 
-function modelSupportsGpt5Controls(model) {
-  return /^gpt-5(?:[.-]|$)/u.test(String(model ?? "").trim().toLowerCase());
+function modelSupportsReasoningControls(model) {
+  return /^gpt-(?:5|6)(?:[.-]|$)/u.test(String(model ?? "").trim().toLowerCase());
 }
 
 function resolvePromptCacheRetention(model, profile) {
@@ -125,6 +125,12 @@ function resolvePromptCacheRetention(model, profile) {
     return "24h";
   }
   return profile.promptCacheRetention;
+}
+
+function resolveReasoningEffort(model, effort) {
+  return /^gpt-6(?:[.-]|$)/u.test(String(model ?? "").trim().toLowerCase()) && effort === "minimal"
+    ? "low"
+    : effort;
 }
 
 function isRetryableStatus(status) {
@@ -198,14 +204,14 @@ function safeNumber(value) {
 }
 
 function calculateEstimatedCostUsd({ model, inputTokens, cachedInputTokens, outputTokens }) {
-  if (!/^gpt-5-nano(?:[.-]|$)/u.test(String(model ?? "").trim().toLowerCase())) {
+  if (!/^gpt-6-luna(?:[.-]|$)/u.test(String(model ?? "").trim().toLowerCase())) {
     return null;
   }
 
   const billableInputTokens = Math.max(0, inputTokens - cachedInputTokens);
-  const inputCost = (billableInputTokens / 1_000_000) * 0.05;
-  const cachedInputCost = (cachedInputTokens / 1_000_000) * 0.005;
-  const outputCost = (outputTokens / 1_000_000) * 0.4;
+  const inputCost = (billableInputTokens / 1_000_000) * 0.1;
+  const cachedInputCost = (cachedInputTokens / 1_000_000) * 0.01;
+  const outputCost = (outputTokens / 1_000_000) * 0.5;
   return Number((inputCost + cachedInputCost + outputCost).toFixed(10));
 }
 
@@ -246,9 +252,9 @@ function logUsage(projectRoot, usageLog) {
 }
 
 function buildBody({ model, input, textFormat, profile, maxOutputTokens }) {
-  const supportsGpt5Controls = modelSupportsGpt5Controls(model);
+  const supportsReasoningControls = modelSupportsReasoningControls(model);
   const text = {};
-  if (supportsGpt5Controls) {
+  if (supportsReasoningControls) {
     text.verbosity = profile.textVerbosity;
   }
   if (textFormat) {
@@ -261,12 +267,17 @@ function buildBody({ model, input, textFormat, profile, maxOutputTokens }) {
     store: false,
     max_output_tokens: maxOutputTokens ?? profile.maxOutputTokens,
     prompt_cache_key: profile.promptCacheKey,
-    prompt_cache_retention: resolvePromptCacheRetention(model, profile),
   };
 
-  if (supportsGpt5Controls) {
+  if (/^gpt-6(?:[.-]|$)/u.test(String(model ?? "").trim().toLowerCase())) {
+    body.prompt_cache_options = { ttl: "30m" };
+  } else {
+    body.prompt_cache_retention = resolvePromptCacheRetention(model, profile);
+  }
+
+  if (supportsReasoningControls) {
     body.reasoning = {
-      effort: profile.reasoningEffort,
+      effort: resolveReasoningEffort(model, profile.reasoningEffort),
     };
   }
   if (Object.keys(text).length > 0) {
@@ -348,13 +359,13 @@ export async function createOpenAiResponse({
 }
 
 export function buildCodexCliModelConfigArgs(stageName, projectRoot, model) {
-  if (!modelSupportsGpt5Controls(model)) {
+  if (!modelSupportsReasoningControls(model)) {
     return [];
   }
   const profile = getOpenAiStageProfile(stageName, projectRoot);
   return [
     "-c",
-    `model_reasoning_effort=${profile.reasoningEffort}`,
+    `model_reasoning_effort=${resolveReasoningEffort(model, profile.reasoningEffort)}`,
     "-c",
     `model_verbosity=${profile.textVerbosity}`,
   ];

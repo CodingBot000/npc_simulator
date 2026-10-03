@@ -1013,11 +1013,11 @@ function getEvalModelCandidates(explicitModel) {
     getScriptEnv("EVAL_MODEL", PROJECT_ROOT),
     getScriptEnv("PREMIUM_MODEL", PROJECT_ROOT),
     getScriptEnv("OPENAI_MODEL", PROJECT_ROOT),
-    "gpt-5-nano",
+    "gpt-6-luna",
     getScriptEnv("EVAL_FALLBACK_MODEL", PROJECT_ROOT),
     getScriptEnv("PREMIUM_FALLBACK_MODEL", PROJECT_ROOT),
     getScriptEnv("LOW_COST_FALLBACK_MODEL", PROJECT_ROOT),
-    "gpt-5-nano",
+    "gpt-6-luna",
   ]);
 }
 

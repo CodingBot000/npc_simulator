@@ -316,7 +316,7 @@ function resolveOpenAiRequestFallback(
       config,
       sourceMarker: OPENAI_FALLBACK_FROM_RUNPOD_ERROR_MARKER,
       traceLabel: "RunPod 응답에러 -> OpenAI API fallback",
-      successDetail: "RunPod 응답에러로 OpenAI API fallback(gpt-5-nano)을 사용했습니다.",
+      successDetail: "RunPod 응답에러로 OpenAI API fallback(gpt-6-luna)을 사용했습니다.",
     } as const;
   }
 
