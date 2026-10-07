@@ -6,24 +6,7 @@ import {
 import type { SystemInfo } from "@/lib/api-contract";
 import type { ReviewDashboardData } from "@/lib/review-types";
 import { ReviewDashboard } from "@/components/review/review-dashboard";
-
-function ReviewRouteLoading() {
-  return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-      <section className="panel-surface rounded-[28px] px-5 py-5">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--teal)]">
-          Compact Review
-        </p>
-        <h1 className="display-heading text-3xl font-semibold text-foreground">
-          검수 데이터를 불러오는 중
-        </h1>
-        <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
-          백엔드 검수 API 상태를 확인하고 있습니다.
-        </p>
-      </section>
-    </main>
-  );
-}
+import { AppLoadingState } from "@/components/ui/app-loading-state";
 
 function ReviewRouteError({
   message,
@@ -114,7 +97,7 @@ export function ReviewRoute() {
   }
 
   if (!data || !systemInfo) {
-    return <ReviewRouteLoading />;
+    return <AppLoadingState title="검수 데이터를 불러오는 중" />;
   }
 
   return (

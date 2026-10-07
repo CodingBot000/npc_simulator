@@ -1,26 +1,9 @@
 import { useEffect, useState } from "react";
 import { HubClient } from "@/components/hub/hub-client";
+import { AppLoadingState } from "@/components/ui/app-loading-state";
 import { Panel } from "@/components/ui/panel";
 import { apiGetWorld } from "@/lib/api-client";
 import type { WorldSnapshot } from "@/lib/types";
-
-function HubLoadingState() {
-  return (
-    <main className="min-h-screen overflow-x-auto px-6 py-6">
-      <div className="mx-auto flex min-w-[1280px] w-full max-w-[1540px] flex-col gap-4">
-        <Panel
-          eyebrow="준비 중"
-          title="펠라지아-9 상황을 불러오는 중"
-          subtitle="첫 턴을 시작할 수 있게 방 안 상태를 다시 맞추고 있다."
-        >
-          <p className="text-sm text-[var(--ink-muted)]">
-            잠시만 기다리면 바로 협상을 시작할 수 있다.
-          </p>
-        </Panel>
-      </div>
-    </main>
-  );
-}
 
 function HubErrorState({
   message,
@@ -103,7 +86,7 @@ export function HubRuntime() {
   }
 
   if (!world) {
-    return <HubLoadingState />;
+    return <AppLoadingState title="펠라지아-9 상황을 불러오는 중" />;
   }
 
   return <HubClient initialWorld={world} />;

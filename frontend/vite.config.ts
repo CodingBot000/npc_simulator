@@ -16,6 +16,7 @@ const VERSIONED_SOURCE_ROOTS = [
   fileURLToPath(new URL("../shared", import.meta.url)),
 ];
 const VERSIONED_SOURCE_FILES = [
+  fileURLToPath(new URL("./index.html", import.meta.url)),
   fileURLToPath(new URL("./vite.config.ts", import.meta.url)),
   fileURLToPath(new URL("./package.json", import.meta.url)),
   fileURLToPath(new URL("../backend/Dockerfile", import.meta.url)),
@@ -152,8 +153,51 @@ function sourceVersionPlugin(): Plugin {
   };
 }
 
+function appStartupPreloadPlugin(): Plugin {
+  let base = "/";
+
+  return {
+    name: "npc-simulator-app-startup-preload",
+    configResolved(config) {
+      base = config.base;
+    },
+    transformIndexHtml: {
+      order: "post",
+      handler(_html, { bundle }) {
+        if (!bundle) {
+          return;
+        }
+
+        const appChunk = Object.values(bundle).find(
+          (output) =>
+            output.type === "chunk" &&
+            output.moduleIds.includes(fileURLToPath(new URL("./src/render-app.tsx", import.meta.url))),
+        );
+        if (!appChunk || appChunk.type !== "chunk") {
+          return;
+        }
+
+        // Fetch application assets alongside the tiny bootstrap without making
+        // the stylesheet render-blocking. Vite applies it before React mounts.
+        return [
+          ...[appChunk.fileName, ...appChunk.imports].map((fileName) => ({
+            tag: "link",
+            attrs: { rel: "modulepreload", crossorigin: "", href: `${base}${fileName}` },
+          })),
+          ...Object.values(bundle)
+            .filter((output) => output.type === "asset" && output.fileName.endsWith(".css"))
+            .map((output) => ({
+              tag: "link",
+              attrs: { rel: "preload", as: "style", crossorigin: "", href: `${base}${output.fileName}` },
+            })),
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [sourceVersionPlugin(), react()],
+  plugins: [sourceVersionPlugin(), react(), appStartupPreloadPlugin()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

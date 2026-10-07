@@ -8,10 +8,189 @@
       content="침수 중인 해저연구소에서 편향된 생존자들을 설득하고 고립시키는 협상 시뮬레이터"
     />
     <title>펠라지아-9 탈출 협상</title>
-    <script src="/env-config.js"></script>
+    <!-- Keep the first loading frame independent of JavaScript, CSS and fonts. -->
+    <style>
+      body {
+        margin: 0;
+        color: #e5f1f7;
+        background: #07131e;
+        font-family: "Apple SD Gothic Neo", system-ui, sans-serif;
+      }
+      .app-loading, .app-loading * { box-sizing: border-box; }
+      .app-loading {
+        min-height: 100vh;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 15% 0%, #4cc2c824, transparent 25%),
+          radial-gradient(circle at 100% 0%, #d16f4c2e, transparent 30%),
+          linear-gradient(180deg, #0b1927, #08131e 48%, #050a10);
+        color: #e5f1f7;
+        font-family: "Apple SD Gothic Neo", system-ui, sans-serif;
+      }
+      .app-loading__layout {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 1540px;
+        margin: 0 auto;
+      }
+      .app-loading__intro {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 0;
+      }
+      .app-loading__eyebrow {
+        margin: 0 0 8px;
+        color: #4cc2c8;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .2em;
+      }
+      .app-loading h1 { margin: 0; font-size: clamp(20px, 3vw, 28px); font-weight: 700; line-height: 1.4; }
+      .app-loading__notices {
+        display: flex;
+        flex: 1 1 860px;
+        min-width: 0;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px 24px;
+      }
+      .app-loading__status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        color: #a7c2d0;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .app-loading__cold-start {
+        display: block;
+        flex: 1 1 380px;
+        min-width: 0;
+        max-width: 590px;
+        color: #fde047;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.65;
+      }
+      .app-loading__dot {
+        flex: 0 0 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4cc2c8;
+        animation: app-loading-pulse 1.6s ease-in-out infinite;
+      }
+      .app-loading__panel {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 20px;
+        border: 1px solid #7597ae38;
+        border-radius: 28px;
+        padding: 24px;
+        background: #081824d1;
+      }
+      .app-loading__cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .app-loading__card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px;
+        border: 1px solid #7597ae29;
+        border-radius: 20px;
+        background: #ffffff06;
+      }
+      .app-loading__pair { display: grid; grid-template-columns: minmax(0, 6.5fr) minmax(0, 3.5fr); gap: 16px; }
+      .app-loading__lines { display: flex; flex-direction: column; gap: 12px; }
+      .app-loading__row { display: flex; align-items: center; gap: 16px; }
+      .app-loading__row .app-loading__lines { flex: 1; min-width: 0; }
+      .app-loading__block {
+        display: block;
+        height: 12px;
+        border-radius: 8px;
+        background: #294554;
+        animation: app-loading-pulse 1.6s ease-in-out infinite;
+      }
+      .app-loading__block--short { width: 35%; }
+      .app-loading__block--medium { width: 70%; }
+      .app-loading__block--heading { width: 48%; height: 20px; margin-bottom: 4px; }
+      .app-loading__block--avatar { flex: 0 0 48px; height: 48px; border-radius: 16px; }
+      .app-loading__block--chart { height: 112px; background: #1b3442; }
+      .app-loading__block--message { width: 76%; height: 64px; background: #1b3442; }
+      .app-loading__block--reply { align-self: flex-end; width: 60%; height: 64px; background: #213e49; }
+      .app-loading__block--input { height: 72px; margin-top: 12px; background: #1b3442; }
+      .app-loading__retry {
+        border: 0;
+        border-radius: 24px;
+        padding: 10px 20px;
+        background: #4cc2c8;
+        color: #07131e;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .app-loading--failed .app-loading__dot { background: #d65a5a; animation: none; }
+      .app-loading--failed .app-loading__cold-start { display: none; }
+      .app-loading--failed .app-loading__panel, .app-loading--failed .app-loading__pair { display: none; }
+      @keyframes app-loading-pulse { 50% { opacity: .45; } }
+      @media (max-width: 760px) {
+        .app-loading { padding: 20px 16px; }
+        .app-loading__notices { justify-content: flex-start; }
+        .app-loading__panel { padding: 20px; border-radius: 24px; }
+        .app-loading__cards, .app-loading__pair { grid-template-columns: 1fr; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .app-loading__block, .app-loading__dot { animation: none; }
+      }
+    </style>
+    <script defer src="/env-config.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Mirrors AppLoadingState so the loading frame survives React startup. -->
+      <main class="app-loading" aria-busy="true" aria-label="화면 로딩 중">
+        <div class="app-loading__layout">
+          <header class="app-loading__intro">
+            <div>
+              <p class="app-loading__eyebrow">PELAGIA-9</p>
+              <h1>화면을 불러오는 중</h1>
+            </div>
+            <div class="app-loading__notices">
+              <p class="app-loading__status" role="status">
+                <span class="app-loading__dot" aria-hidden="true"></span>
+                잠시만 기다려 주세요. 화면을 준비하고 있습니다.
+              </p>
+              <strong class="app-loading__cold-start">cold start 로 시간이 다소 소요됩니다. 첫 시작시 서버기동이 최대 약 15초, 월드 로딩에 최대 약 15초 소요가능</strong>
+            </div>
+          </header>
+          <section class="app-loading__panel" aria-hidden="true">
+            <span class="app-loading__block app-loading__block--heading"></span>
+            <div class="app-loading__cards">
+              <div class="app-loading__card"><span class="app-loading__block app-loading__block--short"></span><span class="app-loading__block"></span><span class="app-loading__block app-loading__block--medium"></span></div>
+              <div class="app-loading__card"><span class="app-loading__block app-loading__block--short"></span><span class="app-loading__block"></span><span class="app-loading__block app-loading__block--medium"></span></div>
+              <div class="app-loading__card"><span class="app-loading__block app-loading__block--short"></span><span class="app-loading__block"></span><span class="app-loading__block app-loading__block--medium"></span></div>
+            </div>
+          </section>
+          <div class="app-loading__pair" aria-hidden="true">
+            <section class="app-loading__panel"><span class="app-loading__block app-loading__block--heading"></span><span class="app-loading__block app-loading__block--chart"></span></section>
+            <section class="app-loading__panel">
+              <span class="app-loading__block app-loading__block--heading"></span>
+              <div class="app-loading__row"><span class="app-loading__block app-loading__block--avatar"></span><div class="app-loading__lines"><span class="app-loading__block app-loading__block--medium"></span><span class="app-loading__block"></span></div></div>
+              <div class="app-loading__row"><span class="app-loading__block app-loading__block--avatar"></span><div class="app-loading__lines"><span class="app-loading__block app-loading__block--medium"></span><span class="app-loading__block"></span></div></div>
+            </section>
+          </div>
+          <div class="app-loading__pair" aria-hidden="true">
+            <section class="app-loading__panel"><span class="app-loading__block app-loading__block--heading"></span><span class="app-loading__block app-loading__block--message"></span><span class="app-loading__block app-loading__block--reply"></span><span class="app-loading__block app-loading__block--input"></span></section>
+            <section class="app-loading__panel"><span class="app-loading__block app-loading__block--heading"></span><span class="app-loading__block app-loading__block--avatar"></span><span class="app-loading__block"></span><span class="app-loading__block app-loading__block--medium"></span><span class="app-loading__block"></span></section>
+          </div>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

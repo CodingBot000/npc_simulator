@@ -145,7 +145,9 @@ async function main() {
     const backendInfo = await backendInfoResponse.json();
 
     assert.equal(indexHtmlResponse.status, 200);
-    assert.match(indexHtml, /<script src="\/env-config\.js"><\/script>/);
+    assert.match(indexHtml, /<script defer src="\/env-config\.js"><\/script>/);
+    assert.match(indexHtml, /<h1>화면을 불러오는 중<\/h1>/);
+    assert.doesNotMatch(indexHtml, /<link\b[^>]*\brel="stylesheet"/);
 
     assert.equal(runtimeConfigResponse.status, 200);
     assert.equal(runtimeConfigResponse.headers.get("cache-control"), "no-store");

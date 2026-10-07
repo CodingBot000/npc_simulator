@@ -1,9 +1,20 @@
+import { lazy, Suspense } from "react";
 import { ApiDiagnosticsPanel } from "@/components/diagnostics/api-diagnostics-panel";
 import { HubRoute } from "@/components/hub/hub-route";
-import { OwnerSetupRoute } from "@/components/owner/owner-setup-route";
-import { ReviewRoute } from "@/components/review/review-route";
+import { AppLoadingState } from "@/components/ui/app-loading-state";
 
-export function App() {
+const OwnerSetupRoute = lazy(() =>
+  import("@/components/owner/owner-setup-route").then((module) => ({
+    default: module.OwnerSetupRoute,
+  })),
+);
+const ReviewRoute = lazy(() =>
+  import("@/components/review/review-route").then((module) => ({
+    default: module.ReviewRoute,
+  })),
+);
+
+function AppRoute() {
   const pathname = window.location.pathname;
 
   if (pathname.startsWith("/review")) {
@@ -24,5 +35,13 @@ export function App() {
       <HubRoute />
       <ApiDiagnosticsPanel />
     </>
+  );
+}
+
+export function App() {
+  return (
+    <Suspense fallback={<AppLoadingState />}>
+      <AppRoute />
+    </Suspense>
   );
 }
